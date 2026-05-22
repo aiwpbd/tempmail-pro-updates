@@ -1,0 +1,12 @@
+{
+  "version"        : "2.0.1",
+  "requires"       : "5.8",
+  "requires_php"   : "7.4",
+  "tested"         : "6.5",
+  "last_updated"   : "2026-05-22",
+  "download_url"   : "https://YOUR_SITE.COM/downloads/tempmail-pro-2.0.1.zip",
+  "details_url"    : "https://YOUR_SITE.COM/wp-admin/admin.php?page=tmpmp-changelog",
+  "upgrade_notice" : "IMAP reliability, responsive emails, faster inbox delivery, and new admin Design settings.",
+  "description"    : "TempMail Pro — A full-featured temporary/disposable email SaaS platform for WordPress with subscriptions, multi-domain, payments, and analytics.",
+  "changelog"      : "<h2>v2.0.1 &mdash; 2026-05-22</h2><ul><li><strong>New:</strong> Recursive MIME parser &mdash; fixes No HTML content for multipart emails.</li><li><strong>New:</strong> Burst polling &mdash; re-polls every 5s for 30s after new email arrives.</li><li><strong>New:</strong> Refresh button triggers live IMAP fetch immediately.</li><li><strong>New:</strong> Background IMAP poll interval reduced from 30s to 15s.</li><li><strong>New:</strong> Responsive email rendering &mdash; strips inline min-width and fixed widths.</li><li><strong>New:</strong> Mail Server Setup Guide with 4 hosting-type tabs.</li><li><strong>New:</strong> WP-Cron Setup step in admin guide.</li><li><strong>New:</strong> Design tab in Settings &mdash; theme, accent colour, font, width, custom CSS.</li><li><strong>New:</strong> Plugin row notice &mdash; shows what&rsquo;s new on every install.</li><li><strong>Fixed:</strong> poll_socket_imap() rewritten to RFC822 &mdash; works on all IMAP servers.</li><li><strong>Fixed:</strong> Email iframe horizontal scrollbar on mobile.</li><li><strong>Fixed:</strong> Design settings not saving (missing from save whitelist).</li><li><strong>Fixed:</strong> address-bar not applying light theme (data-theme now set in PHP).</li></ul><h2>v2.0.0 &mdash; 2026-05-17</h2><ul><li><strong>New:</strong> Full SaaS platform with subscriptions, payments, analytics, OAuth.</li></ul>"
+}
