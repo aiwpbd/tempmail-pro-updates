@@ -63,28 +63,76 @@
 </div>
 
 <script>
-jQuery(function($){
-    const $btn = $('#tmpmp-magic-btn');
-    const $msg = $('#tmpmp-magic-msg');
+(function(){
+    /* Self-contained — no jQuery, no TempMailPro dependency */
+    var AJAX_URL = '<?php echo esc_js( admin_url('admin-ajax.php') ); ?>';
+    var NONCE    = '<?php echo esc_js( wp_create_nonce('tempmail_pro_nonce') ); ?>';
 
-    function showMsg(text, type){
-        $msg.attr('class','tmpmp-auth-msg ' + type).text(text).show();
+    var btn   = document.getElementById('tmpmp-magic-btn');
+    var input = document.getElementById('tmpmp-magic-email');
+    var msg   = document.getElementById('tmpmp-magic-msg');
+    if (!btn || !input || !msg) return;
+
+    var originalHTML = btn.innerHTML;
+
+    function showMsg(text, type) {
+        msg.className = 'tmpmp-auth-msg ' + type;
+        msg.textContent = text;
+        msg.style.display = 'block';
     }
 
-    $btn.on('click', function(){
-        const email = $('#tmpmp-magic-email').val().trim();
-        if(!email){ showMsg('<?php esc_js( esc_html_e('Please enter your email.','tempmail-pro') ); ?>','error'); return; }
-        $btn.prop('disabled',true).html('<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin .7s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> <?php esc_js( esc_html_e('Sending…','tempmail-pro') ); ?>');
-        $.post(TempMailPro.ajax_url,{action:'tmpmp_magic_link_request',nonce:TempMailPro.nonce,email},function(r){
-            if(r.success){
-                showMsg(r.data.message,'success');
+    function resetBtn() {
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    }
+
+    function sendMagicLink() {
+        var email = input.value.trim();
+        if (!email) {
+            showMsg('<?php echo esc_js( __('Please enter a valid email address.','tempmail-pro') ); ?>', 'error');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg><?php echo esc_js( __('Sending…','tempmail-pro') ); ?>';
+        msg.style.display = 'none';
+
+        var body = new URLSearchParams();
+        body.append('action', 'tmpmp_magic_link_request');
+        body.append('nonce',  NONCE);
+        body.append('email',  email);
+
+        fetch(AJAX_URL, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body:    body.toString(),
+        })
+        .then(function(resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.json();
+        })
+        .then(function(r) {
+            if (r.success) {
+                showMsg(
+                    (r.data && r.data.message) || '<?php echo esc_js( __('Magic link sent! Check your inbox.','tempmail-pro') ); ?>',
+                    'success'
+                );
             } else {
-                showMsg(r.data?.message||'<?php esc_js( esc_html_e('Something went wrong.','tempmail-pro') ); ?>','error');
+                showMsg(
+                    (r.data && r.data.message) || '<?php echo esc_js( __('Something went wrong. Please try again.','tempmail-pro') ); ?>',
+                    'error'
+                );
+                resetBtn();
             }
-            $btn.prop('disabled',false).html('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> <?php esc_js( esc_html_e('Send Magic Link','tempmail-pro') ); ?>');
+        })
+        .catch(function() {
+            showMsg('<?php echo esc_js( __('Connection error. Please check your internet and try again.','tempmail-pro') ); ?>', 'error');
+            resetBtn();
         });
-    });
-    $('#tmpmp-magic-email').on('keypress',function(e){ if(e.key==='Enter') $btn.trigger('click'); });
-});
+    }
+
+    btn.addEventListener('click', sendMagicLink);
+    input.addEventListener('keypress', function(e){ if (e.key === 'Enter') sendMagicLink(); });
+})();
 </script>
 <style>@keyframes spin{to{transform:rotate(360deg);}}</style>
