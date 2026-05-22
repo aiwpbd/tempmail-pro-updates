@@ -1,0 +1,26 @@
+# WordPress & PHP
+*.log
+*.tmp
+*.cache
+.DS_Store
+Thumbs.db
+
+# Local dev & build tools
+node_modules/
+vendor/
+.env
+.env.local
+wp-config.php
+
+# Build artifacts (keep update-info.json and notifications.json)
+*.zip
+build-update-info.php
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+desktop.ini
