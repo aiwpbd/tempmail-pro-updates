@@ -1,11 +1,11 @@
 {
     "enabled": true,
-    "version": "2.0.1",
+    "version": "2.0.2",
     "dismissible": true,
     "bg": "promo",
     "icon": "🚀",
-    "title": "TempMail Pro v2.0.1 is here!",
-    "message": "New: Design settings, FAQ section, GitHub auto-updater and 5 bug fixes. <a href='https://github.com/aiwpbd/tempmail-pro-updates/releases' target='_blank'>View changelog</a>",
+    "title": "TempMail Pro v2.0.2 is here!",
+    "message": "New: FAQ section, shortcode builder, notification bar redesign & bug fixes. <a href='https://github.com/aiwpbd/tempmail-pro-updates/releases' target='_blank'>View changelog</a>",
     "cta_text": "See What's New",
     "cta_url": "https://github.com/aiwpbd/tempmail-pro-updates/releases"
 }

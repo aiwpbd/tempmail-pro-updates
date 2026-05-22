@@ -1,9 +1,9 @@
-<?php
+﻿<?php
 /**
  * Plugin Name: TempMail Pro
  * Plugin URI:  https://wa.me/+8801516514216
- * Description: A full-featured temporary/disposable email SaaS platform for WordPress — with subscriptions, multi-domain, API, and monetization.
- * Version:     2.0.1
+ * Description: A full-featured temporary/disposable email SaaS platform for WordPress â€” with subscriptions, multi-domain, API, and monetization.
+ * Version:     2.0.2
  * Author:      TempMail Pro
  * Author URI:  https://wa.me/+8801516514216
  * License:     GPLv2 or later
@@ -16,14 +16,14 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-// ── Constants ────────────────────────────────────────────────────────────────
-define( 'TMPMP_VERSION',     '2.0.1' );
+// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+define( 'TMPMP_VERSION',     '2.0.2' );
 define( 'TMPMP_PLUGIN_FILE', __FILE__ );
 define( 'TMPMP_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'TMPMP_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
 define( 'TMPMP_PLUGIN_BASE', plugin_basename( __FILE__ ) );
 
-// ── Autoloader ───────────────────────────────────────────────────────────────
+// â”€â”€ Autoloader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 spl_autoload_register( function ( $class ) {
     $prefix = 'TempMail_';
     if ( strpos( $class, $prefix ) !== 0 ) return;
@@ -68,13 +68,13 @@ spl_autoload_register( function ( $class ) {
     }
 } );
 
-// ── Activation / Deactivation / Uninstall ────────────────────────────────────
+// â”€â”€ Activation / Deactivation / Uninstall â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 register_activation_hook(   __FILE__, [ 'TempMail_Database', 'install' ] );
 register_activation_hook(   __FILE__, [ 'TempMail_Cron',     'schedule_events' ] );
 register_activation_hook(   __FILE__, [ 'TempMail_Setup',    'create_pages' ] );
 register_deactivation_hook( __FILE__, [ 'TempMail_Cron',     'clear_events' ] );
 
-// ── Schema upgrade on version change (runs on every request type) ────────────
+// â”€â”€ Schema upgrade on version change (runs on every request type) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 add_action( 'plugins_loaded', function () {
     if ( get_option( 'tmpmp_db_version' ) !== TMPMP_VERSION ) {
         TempMail_Database::install();
@@ -82,12 +82,12 @@ add_action( 'plugins_loaded', function () {
     }
 }, 1 ); // priority 1 = before tmpmp_init at priority 10
 
-// ── Plugin Update Checkers (run early, before plugins_loaded) ───────────────
+// â”€â”€ Plugin Update Checkers (run early, before plugins_loaded) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Registered here so pre_set_site_transient_update_plugins fires at the right time.
 new TempMail_Updater( __FILE__ );        // JSON-based fallback updater
 new TempMail_GitHub_Updater( __FILE__ ); // GitHub Releases API + notifications.json
 
-// ── Boot ──────────────────────────────────────────────────────────────────────
+// â”€â”€ Boot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 add_action( 'plugins_loaded', 'tmpmp_init', 10 );
 
 function tmpmp_init() {
@@ -126,7 +126,7 @@ function tmpmp_init() {
     }
 }
 
-// ── Frontend assets ──────────────────────────────────────────────────────────
+// â”€â”€ Frontend assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 add_action( 'wp_enqueue_scripts', 'tmpmp_enqueue_frontend' );
 function tmpmp_enqueue_frontend() {
     wp_enqueue_style(
@@ -167,8 +167,8 @@ function tmpmp_enqueue_frontend() {
         'strings'          => [
             'copy_success'   => __( 'Copied!', 'tempmail-pro' ),
             'copy_fail'      => __( 'Copy failed', 'tempmail-pro' ),
-            'generating'     => __( 'Generating…', 'tempmail-pro' ),
-            'no_emails'      => __( 'No emails yet. Waiting…', 'tempmail-pro' ),
+            'generating'     => __( 'Generatingâ€¦', 'tempmail-pro' ),
+            'no_emails'      => __( 'No emails yet. Waitingâ€¦', 'tempmail-pro' ),
             'email_expired'  => __( 'This inbox has expired.', 'tempmail-pro' ),
             'error_generic'  => __( 'Something went wrong.', 'tempmail-pro' ),
         ],
