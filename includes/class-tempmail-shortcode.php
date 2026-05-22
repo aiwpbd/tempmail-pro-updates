@@ -199,7 +199,13 @@ class TempMail_Shortcode {
 
             </div><!-- .tmpmp-columns -->
 
+            <?php
+            $faq_pos = get_option('tmpmp_settings',[])['faq_position'] ?? 'below';
+            if ( $faq_pos === 'above' ) echo TempMail_FAQ::render();
+            ?>
             <?php echo TempMail_Ads::render('bottom_banner'); ?>
+            <?php if ( $faq_pos === 'below' ) echo TempMail_FAQ::render(); ?>
+
 
             <!-- Toast container -->
             <div class="tmpmp-toast-container" id="tmpmp-toast-container"></div>

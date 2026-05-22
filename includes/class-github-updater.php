@@ -23,11 +23,15 @@
  * ── notifications.json format ────────────────────────────────────────────────
  * {
  *   "enabled"     : true,
- *   "type"        : "update-message",
- *   "class"       : "notice notice-warning notice-alt",
- *   "message"     : "TempMail Pro v2.0.2 is available! <a href='...'>Update now</a>",
  *   "version"     : "2.0.2",
- *   "dismissible" : true
+ *   "dismissible" : true,
+ *   "bg"          : "warning",        ← warning | info | success | promo
+ *   "icon"        : "🚀",             ← any emoji (optional)
+ *   "title"       : "Update Available!",
+ *   "message"     : "TempMail Pro v2.0.2 is ready.",
+ *   "cta_text"    : "Update Now",      ← button label (optional)
+ *   "cta_url"     : "https://...",     ← button URL (optional)
+ *   "class"       : "notice-warning"  ← WP class fallback (optional)
  * }
  *
  * ── GitHub Releases API ───────────────────────────────────────────────────────
@@ -237,48 +241,105 @@ class TempMail_GitHub_Updater {
         if ( ! $notif ) return;
         if ( empty( $notif->enabled ) ) return;
 
-        // Check if dismissed for this notice version
-        $dismiss_key = $notif->version ?? $notif->message;
+        // Show only once — dismissed = stored md5 of version/message key
+        $dismiss_key = $notif->version ?? $notif->message ?? '';
         if ( get_option( self::NOTIF_OPT ) === md5( $dismiss_key ) ) return;
 
-        $class       = sanitize_html_class( $notif->class ?? 'notice notice-warning notice-alt' );
-        $type        = $notif->type ?? 'update-message';
+        // ── Data extraction ──────────────────────────────────────────────
+        $title       = sanitize_text_field( $notif->title ?? '' );
+        $icon        = sanitize_text_field( $notif->icon  ?? '🔔' );
+        $bg          = sanitize_key( $notif->bg ?? 'warning' ); // warning|info|success|promo
         $message     = wp_kses( $notif->message ?? '', [
             'a'      => [ 'href' => [], 'target' => [], 'class' => [] ],
             'strong' => [], 'em' => [], 'code' => [], 'br' => [],
         ] );
+        $cta_text    = sanitize_text_field( $notif->cta_text ?? '' );
+        $cta_url     = esc_url( $notif->cta_url ?? '' );
         $dismissible = ! empty( $notif->dismissible );
         $nonce       = wp_create_nonce( 'tmpmp_gh_dismiss_nonce' );
         $notice_id   = 'tmpmp-gh-notice-' . md5( $dismiss_key );
         ?>
         <div id="<?php echo esc_attr( $notice_id ); ?>"
-             class="<?php echo esc_attr( $class ); ?> tmpmp-gh-notice"
-             data-type="<?php echo esc_attr( $type ); ?>">
-            <div class="tmpmp-ghn-inner">
-                <span class="tmpmp-ghn-icon">🔔</span>
+             class="tmpmp-ghn-wrap tmpmp-ghn-bg--<?php echo esc_attr($bg); ?>"
+             role="alert" aria-live="polite">
+
+            <!-- Accent stripe -->
+            <div class="tmpmp-ghn-stripe" aria-hidden="true"></div>
+
+            <!-- Icon -->
+            <div class="tmpmp-ghn-icon-wrap" aria-hidden="true">
+                <span class="tmpmp-ghn-icon"><?php echo esc_html( $icon ); ?></span>
+            </div>
+
+            <!-- Content -->
+            <div class="tmpmp-ghn-content">
+                <?php if ( $title ) : ?>
+                <p class="tmpmp-ghn-title"><?php echo esc_html( $title ); ?></p>
+                <?php endif; ?>
+                <?php if ( $message ) : ?>
                 <p class="tmpmp-ghn-msg"><?php echo $message; ?></p>
-                <?php if ( $dismissible ) : ?>
-                <button type="button" class="notice-dismiss tmpmp-gh-dismiss"
-                    data-nonce="<?php echo esc_attr($nonce); ?>"
-                    data-notice="<?php echo esc_attr($notice_id); ?>"
-                    data-key="<?php echo esc_attr( md5($dismiss_key) ); ?>">
-                    <span class="screen-reader-text"><?php esc_html_e('Dismiss this notice','tempmail-pro'); ?></span>
-                </button>
                 <?php endif; ?>
             </div>
+
+            <!-- CTA button -->
+            <?php if ( $cta_url && $cta_text ) : ?>
+            <div class="tmpmp-ghn-actions">
+                <a href="<?php echo esc_url( $cta_url ); ?>" class="tmpmp-ghn-cta" target="_blank" rel="noopener">
+                    <?php echo esc_html( $cta_text ); ?>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M7 17L17 7M17 7H7M17 7v10"/></svg>
+                </a>
+            </div>
+            <?php endif; ?>
+
+            <!-- Dismiss -->
+            <?php if ( $dismissible ) : ?>
+            <button type="button"
+                class="tmpmp-ghn-dismiss"
+                data-nonce="<?php echo esc_attr( $nonce ); ?>"
+                data-notice="<?php echo esc_attr( $notice_id ); ?>"
+                data-key="<?php echo esc_attr( md5( $dismiss_key ) ); ?>"
+                aria-label="<?php esc_attr_e( 'Dismiss this notice', 'tempmail-pro' ); ?>">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+            <?php endif; ?>
+
         </div>
         <script>
         (function(){
-            var btn = document.querySelector('.tmpmp-gh-dismiss[data-notice="<?php echo esc_js($notice_id); ?>"]');
-            if(!btn) return;
-            btn.addEventListener('click',function(){
-                var el = document.getElementById(this.dataset.notice);
-                if(el){ el.style.opacity='0'; el.style.transition='opacity .2s'; setTimeout(function(){ el.remove(); },220); }
-                fetch('<?php echo esc_url(admin_url('admin-ajax.php')); ?>',{
-                    method:'POST',
-                    headers:{'Content-Type':'application/x-www-form-urlencoded'},
-                    body:'action=tmpmp_gh_dismiss_notice&nonce='+encodeURIComponent(this.dataset.nonce)+'&key='+encodeURIComponent(this.dataset.key)
-                });
+            var wrap = document.getElementById('<?php echo esc_js( $notice_id ); ?>');
+            if ( ! wrap ) return;
+
+            // Entrance animation
+            wrap.style.opacity = '0';
+            wrap.style.transform = 'translateY(-6px)';
+            requestAnimationFrame(function(){
+                wrap.style.transition = 'opacity .35s ease, transform .35s ease';
+                wrap.style.opacity = '1';
+                wrap.style.transform = 'translateY(0)';
+            });
+
+            // Dismiss handler
+            var btn = wrap.querySelector('.tmpmp-ghn-dismiss');
+            if ( ! btn ) return;
+            btn.addEventListener('click', function(){
+                wrap.style.transition = 'opacity .25s ease, transform .25s ease, max-height .3s ease, margin .3s ease';
+                wrap.style.opacity = '0';
+                wrap.style.transform = 'translateY(-4px)';
+                wrap.style.maxHeight = wrap.offsetHeight + 'px';
+                setTimeout(function(){
+                    wrap.style.maxHeight = '0';
+                    wrap.style.marginBottom = '0';
+                    wrap.style.overflow = 'hidden';
+                }, 50);
+                setTimeout(function(){ wrap.remove(); }, 350);
+
+                fetch('<?php echo esc_url( admin_url('admin-ajax.php') ); ?>',{
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'action=tmpmp_gh_dismiss_notice'
+                        + '&nonce='  + encodeURIComponent( btn.dataset.nonce )
+                        + '&key='   + encodeURIComponent( btn.dataset.key ),
+                }).catch(function(){});
             });
         })();
         </script>
@@ -295,13 +356,154 @@ class TempMail_GitHub_Updater {
 
     public function notice_styles() : void {
         ?>
-        <style>
-        .tmpmp-gh-notice { border-left-color: #f59e0b !important; }
-        .tmpmp-ghn-inner { display:flex; align-items:center; gap:10px; padding:8px 36px 8px 12px; }
-        .tmpmp-ghn-icon  { font-size:20px; flex-shrink:0; }
-        .tmpmp-ghn-msg   { margin:0; font-size:13px; color:#1e293b; flex:1; }
-        .tmpmp-ghn-msg a { color:#6366f1; font-weight:600; }
-        .tmpmp-ghn-msg a:hover { color:#4f46e5; }
+        <style id="tmpmp-ghn-styles">
+        /* ── TempMail Pro Admin Notification Bar ──────────────────────────── */
+        .tmpmp-ghn-wrap {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.07), 0 1px 4px rgba(0,0,0,.04);
+            margin: 12px 0 16px;
+            padding: 0;
+            overflow: hidden;
+            position: relative;
+            max-width: 900px;
+        }
+
+        /* Colour schemes */
+        .tmpmp-ghn-bg--warning .tmpmp-ghn-stripe { background: linear-gradient(180deg,#f59e0b,#d97706); }
+        .tmpmp-ghn-bg--warning .tmpmp-ghn-icon-wrap { background: #fffbeb; }
+        .tmpmp-ghn-bg--warning .tmpmp-ghn-icon { text-shadow: 0 2px 8px rgba(245,158,11,.3); }
+        .tmpmp-ghn-bg--warning .tmpmp-ghn-cta { background:#f59e0b; color:#fff; }
+        .tmpmp-ghn-bg--warning .tmpmp-ghn-cta:hover { background:#d97706; }
+
+        .tmpmp-ghn-bg--info .tmpmp-ghn-stripe { background: linear-gradient(180deg,#6366f1,#4f46e5); }
+        .tmpmp-ghn-bg--info .tmpmp-ghn-icon-wrap { background: #eef2ff; }
+        .tmpmp-ghn-bg--info .tmpmp-ghn-cta { background:#6366f1; color:#fff; }
+        .tmpmp-ghn-bg--info .tmpmp-ghn-cta:hover { background:#4f46e5; }
+
+        .tmpmp-ghn-bg--success .tmpmp-ghn-stripe { background: linear-gradient(180deg,#10b981,#059669); }
+        .tmpmp-ghn-bg--success .tmpmp-ghn-icon-wrap { background: #ecfdf5; }
+        .tmpmp-ghn-bg--success .tmpmp-ghn-cta { background:#10b981; color:#fff; }
+        .tmpmp-ghn-bg--success .tmpmp-ghn-cta:hover { background:#059669; }
+
+        .tmpmp-ghn-bg--promo .tmpmp-ghn-stripe { background: linear-gradient(180deg,#8b5cf6,#6366f1); }
+        .tmpmp-ghn-bg--promo .tmpmp-ghn-icon-wrap { background: #f5f3ff; }
+        .tmpmp-ghn-bg--promo .tmpmp-ghn-cta { background: linear-gradient(135deg,#8b5cf6,#6366f1); color:#fff; }
+        .tmpmp-ghn-bg--promo .tmpmp-ghn-cta:hover { background: linear-gradient(135deg,#7c3aed,#4f46e5); }
+
+        /* Accent stripe */
+        .tmpmp-ghn-stripe {
+            width: 5px;
+            min-width: 5px;
+            align-self: stretch;
+            flex-shrink: 0;
+        }
+
+        /* Icon area */
+        .tmpmp-ghn-icon-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 56px;
+            min-width: 56px;
+            align-self: stretch;
+            flex-shrink: 0;
+        }
+        .tmpmp-ghn-icon {
+            font-size: 22px;
+            line-height: 1;
+            display: block;
+        }
+
+        /* Content */
+        .tmpmp-ghn-content {
+            flex: 1;
+            min-width: 0;
+            padding: 14px 16px 14px 4px;
+        }
+        .tmpmp-ghn-title {
+            margin: 0 0 3px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+            line-height: 1.4;
+        }
+        .tmpmp-ghn-msg {
+            margin: 0;
+            font-size: 13px;
+            color: #475569;
+            line-height: 1.55;
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        }
+        .tmpmp-ghn-msg a {
+            color: #6366f1;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .tmpmp-ghn-msg a:hover { text-decoration: underline; }
+
+        /* CTA button */
+        .tmpmp-ghn-actions {
+            padding: 14px 12px;
+            flex-shrink: 0;
+        }
+        .tmpmp-ghn-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 7px 16px;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+            transition: background .15s, box-shadow .15s;
+            box-shadow: 0 2px 6px rgba(0,0,0,.12);
+            font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        }
+        .tmpmp-ghn-cta:hover { box-shadow: 0 4px 12px rgba(0,0,0,.18); transform: translateY(-1px); }
+        .tmpmp-ghn-cta svg { flex-shrink: 0; }
+
+        /* Dismiss button */
+        .tmpmp-ghn-dismiss {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            margin: 0 10px;
+            flex-shrink: 0;
+            background: #f1f5f9;
+            border: 1.5px solid #e2e8f0;
+            border-radius: 50%;
+            cursor: pointer;
+            color: #64748b;
+            transition: background .15s, color .15s, border-color .15s;
+            padding: 0;
+        }
+        .tmpmp-ghn-dismiss:hover {
+            background: #fee2e2;
+            border-color: #fca5a5;
+            color: #ef4444;
+        }
+
+        /* Responsive */
+        @media (max-width: 700px) {
+            .tmpmp-ghn-wrap {
+                flex-wrap: wrap;
+                max-width: 100%;
+            }
+            .tmpmp-ghn-stripe { width: 100%; min-width: 100%; height: 4px; align-self: auto; }
+            .tmpmp-ghn-icon-wrap { width: 48px; min-width: 48px; padding: 10px 0; align-self: auto; }
+            .tmpmp-ghn-content { padding: 10px 12px; }
+            .tmpmp-ghn-actions { padding: 0 12px 14px; }
+            .tmpmp-ghn-dismiss { margin: 10px 10px 10px auto; }
+        }
         </style>
         <?php
     }

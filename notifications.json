@@ -1,8 +1,11 @@
 {
-  "enabled"     : true,
-  "type"        : "update-message",
-  "class"       : "notice notice-warning notice-alt inline",
-  "version"     : "2.0.1",
-  "dismissible" : true,
-  "message"     : "🎉 <strong>TempMail Pro v2.0.1</strong> is installed and ready. <a href='admin.php?page=tmpmp-changelog'>View what&rsquo;s new</a> &mdash; IMAP fixes, responsive email, Design settings &amp; more."
+    "enabled": true,
+    "version": "2.0.1",
+    "dismissible": true,
+    "bg": "promo",
+    "icon": "🚀",
+    "title": "TempMail Pro v2.0.1 is here!",
+    "message": "New: Design settings, FAQ section, GitHub auto-updater and 5 bug fixes. <a href='https://github.com/aiwpbd/tempmail-pro-updates/releases' target='_blank'>View changelog</a>",
+    "cta_text": "See What's New",
+    "cta_url": "https://github.com/aiwpbd/tempmail-pro-updates/releases"
 }

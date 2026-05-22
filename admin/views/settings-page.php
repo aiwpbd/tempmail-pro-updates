@@ -13,6 +13,7 @@
     <button type="button" class="tmpmp-tab-btn" data-tab="emailgen">✉️ <?php esc_html_e('Email Generation','tempmail-pro'); ?></button>
     <button type="button" class="tmpmp-tab-btn" data-tab="security">🛡️ <?php esc_html_e('Security','tempmail-pro'); ?></button>
     <button type="button" class="tmpmp-tab-btn" data-tab="design">🎨 <?php esc_html_e('Design','tempmail-pro'); ?></button>
+    <button type="button" class="tmpmp-tab-btn" data-tab="faq">❓ <?php esc_html_e('FAQ','tempmail-pro'); ?></button>
 </div>
 
 <!-- General Tab -->
@@ -172,6 +173,74 @@
             </div>
         </div>
     </div>
+</div>
+
+<!-- Shortcodes & Setup -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">📋 <?php esc_html_e('Shortcodes & Setup','tempmail-pro'); ?></p>
+    <p style="font-size:13px;color:#64748b;margin:0 0 16px;">
+        <?php esc_html_e('Copy and paste these shortcodes into any page, post, or widget area.','tempmail-pro'); ?>
+    </p>
+
+    <?php
+    $shortcodes = [
+        [
+            'code'  => '[tempmail_app]',
+            'title' => __('Full Inbox Widget','tempmail-pro'),
+            'desc'  => __('Complete disposable email app — address bar, inbox, email viewer.','tempmail-pro'),
+            'attrs' => '[tempmail_app theme="dark"]  &nbsp;|&nbsp;  [tempmail_app theme="light"]',
+        ],
+        [
+            'code'  => '[tempmail_faq]',
+            'title' => __('FAQ Section Only','tempmail-pro'),
+            'desc'  => __('Standalone FAQ accordion — place it on any page independently of the inbox.','tempmail-pro'),
+            'attrs' => '',
+        ],
+        [
+            'code'  => '[tempmail_app theme="auto"]',
+            'title' => __('Auto Theme Inbox','tempmail-pro'),
+            'desc'  => __('Follows the visitor\'s OS dark/light mode preference automatically.','tempmail-pro'),
+            'attrs' => '',
+        ],
+    ];
+    foreach ( $shortcodes as $sc ) : ?>
+    <div style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:200px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                    <code style="background:#ede9fe;color:#5b21b6;padding:4px 10px;border-radius:6px;font-size:13px;font-weight:700;font-family:monospace;cursor:pointer;" class="tmpmp-sc-copy" title="<?php esc_attr_e('Click to copy','tempmail-pro'); ?>"><?php echo esc_html($sc['code']); ?></code>
+                    <span style="font-size:12px;font-weight:700;color:#374151;"><?php echo esc_html($sc['title']); ?></span>
+                </div>
+                <p style="font-size:12px;color:#64748b;margin:0;"><?php echo esc_html($sc['desc']); ?></p>
+                <?php if ( $sc['attrs'] ) : ?>
+                <p style="font-size:11px;color:#94a3b8;margin:4px 0 0;font-family:monospace;"><?php echo $sc['attrs']; ?></p>
+                <?php endif; ?>
+            </div>
+            <button type="button" class="tmpmp-sc-copy-btn"
+                data-code="<?php echo esc_attr($sc['code']); ?>"
+                style="flex-shrink:0;padding:6px 14px;background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+                📋 <?php esc_html_e('Copy','tempmail-pro'); ?>
+            </button>
+        </div>
+    </div>
+    <?php endforeach; ?>
+
+    <script>
+    (function(){
+        document.querySelectorAll('.tmpmp-sc-copy-btn, .tmpmp-sc-copy').forEach(function(el){
+            el.addEventListener('click', function(){
+                var code = this.dataset.code || this.textContent.trim();
+                navigator.clipboard.writeText(code).then(function(){}).catch(function(){
+                    var ta = document.createElement('textarea');
+                    ta.value = code; document.body.appendChild(ta); ta.select();
+                    document.execCommand('copy'); document.body.removeChild(ta);
+                });
+                var orig = el.textContent;
+                if(el.classList.contains('tmpmp-sc-copy-btn')){ el.textContent = '✅ Copied!'; setTimeout(function(){ el.textContent = orig; }, 1500); }
+            });
+        });
+    })();
+    </script>
 </div>
 
 </div><!-- /#tab-general -->
@@ -1286,6 +1355,247 @@ $d_css      = $settings['design_custom_css'] ?? '';
 </div>
 
 </div><!-- /#tab-design -->
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- FAQ Tab                                                                 -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div class="tmpmp-tab-panel" id="tab-faq">
+<?php
+$faq_enabled    = $settings['faq_enabled']    ?? 1;
+$faq_title      = $settings['faq_title']      ?? 'Frequently Asked Questions';
+$faq_position   = $settings['faq_position']   ?? 'below';
+$faq_accordion  = $settings['faq_accordion']  ?? 'single';
+$faq_icon_open  = $settings['faq_icon_open']  ?? '−';
+$faq_icon_shut  = $settings['faq_icon_shut']  ?? '+';
+$faq_items_raw  = $settings['faq_items']      ?? '';
+$faq_items      = [];
+if ( $faq_items_raw ) {
+    $decoded = json_decode( stripslashes($faq_items_raw), true );
+    if ( is_array($decoded) ) $faq_items = $decoded;
+}
+if ( empty($faq_items) ) $faq_items = TempMail_FAQ::default_items();
+?>
+
+<!-- ── General Settings ─────────────────────────────────────────────────── -->
+<div class="tmpmp-settings-card">
+    <div class="tmpmp-card-header"><span class="tmpmp-card-icon">❓</span><div><h3><?php esc_html_e('FAQ Section','tempmail-pro'); ?></h3><p><?php esc_html_e('Display an accordion FAQ below or above the inbox widget on the front end.','tempmail-pro'); ?></p></div></div>
+    <div class="tmpmp-card-body">
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Enable FAQ Section','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <label class="tmpmp-toggle-label">
+                    <input type="checkbox" name="faq_enabled" value="1" <?php checked($faq_enabled,1); ?>>
+                    <span class="tmpmp-toggle-slider"></span>
+                </label>
+                <p class="tmpmp-field-desc" style="margin-top:6px;"><?php esc_html_e('Show FAQ section on front end','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Section Title','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <input type="text" name="faq_title" value="<?php echo esc_attr($faq_title); ?>" class="tmpmp-input" style="max-width:380px;" placeholder="Frequently Asked Questions">
+                <p class="tmpmp-field-desc"><?php esc_html_e('Leave empty to hide the title row.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Position','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <div class="tmpmp-faq-option-group">
+                    <?php foreach(['below'=>'⬇️ Below inbox','above'=>'⬆️ Above inbox'] as $val=>$lbl): ?>
+                    <label class="tmpmp-faq-option">
+                        <input type="radio" name="faq_position" value="<?php echo esc_attr($val); ?>" <?php checked($faq_position,$val); ?>>
+                        <?php echo esc_html($lbl); ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Accordion Mode','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <div class="tmpmp-faq-option-group">
+                    <?php foreach(['single'=>'🔒 Open one at a time','multiple'=>'📂 Allow multiple open'] as $val=>$lbl): ?>
+                    <label class="tmpmp-faq-option">
+                        <input type="radio" name="faq_accordion" value="<?php echo esc_attr($val); ?>" <?php checked($faq_accordion,$val); ?>>
+                        <?php echo esc_html($lbl); ?>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Toggle Icons','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <div class="tmpmp-faq-icons-row">
+                    <label class="tmpmp-faq-icon-label">
+                        <?php esc_html_e('Open:','tempmail-pro'); ?>
+                        <input type="text" name="faq_icon_open" value="<?php echo esc_attr($faq_icon_open); ?>" maxlength="4" class="tmpmp-faq-icon-input">
+                    </label>
+                    <label class="tmpmp-faq-icon-label">
+                        <?php esc_html_e('Closed:','tempmail-pro'); ?>
+                        <input type="text" name="faq_icon_shut" value="<?php echo esc_attr($faq_icon_shut); ?>" maxlength="4" class="tmpmp-faq-icon-input">
+                    </label>
+                    <span style="font-size:12px;color:#94a3b8;"><?php esc_html_e('Use any character, emoji, or symbol.','tempmail-pro'); ?></span>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+</div>
+
+
+<!-- ── FAQ Items Editor ─────────────────────────────────────────────────── -->
+<div class="tmpmp-settings-card">
+    <div class="tmpmp-card-header">
+        <span class="tmpmp-card-icon">📝</span>
+        <div>
+            <h3><?php esc_html_e('FAQ Items','tempmail-pro'); ?> <span id="tmpmp-faq-count-badge" style="background:#ede9fe;color:#5b21b6;font-size:11px;font-weight:800;padding:2px 9px;border-radius:4px;margin-left:8px;"><?php echo count($faq_items); ?></span></h3>
+            <p><?php esc_html_e('Add, edit, reorder and remove FAQ questions and answers.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+    <div class="tmpmp-card-body">
+
+        <!-- Hidden JSON field submitted with the form -->
+        <input type="hidden" name="faq_items" id="tmpmp-faq-items-json" value="<?php echo esc_attr( wp_json_encode($faq_items) ); ?>">
+
+        <div id="tmpmp-faq-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+            <?php foreach($faq_items as $idx=>$item): ?>
+            <div class="tmpmp-faq-row" data-idx="<?php echo $idx; ?>" style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px 16px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+                    <span class="tmpmp-faq-drag" title="Drag to reorder" style="cursor:grab;color:#94a3b8;font-size:18px;">⠿</span>
+                    <span style="font-size:12px;font-weight:700;color:#6366f1;background:#ede9fe;padding:2px 8px;border-radius:4px;">Q<?php echo $idx+1; ?></span>
+                    <button type="button" class="tmpmp-faq-remove button-link" style="margin-left:auto;color:#ef4444;font-size:12px;font-weight:600;">✕ <?php esc_html_e('Remove','tempmail-pro'); ?></button>
+                </div>
+                <input type="text" class="tmpmp-faq-q-input tmpmp-input" placeholder="<?php esc_attr_e('Question…','tempmail-pro'); ?>" value="<?php echo esc_attr($item['q']??''); ?>" style="width:100%;margin-bottom:8px;">
+                <textarea class="tmpmp-faq-a-input tmpmp-input" rows="3" placeholder="<?php esc_attr_e('Answer — supports basic HTML…','tempmail-pro'); ?>" style="width:100%;resize:vertical;"><?php echo esc_textarea($item['a']??''); ?></textarea>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <button type="button" id="tmpmp-faq-add" class="tmpmp-test-btn" style="background:#6366f1;color:#fff;border:none;">
+            + <?php esc_html_e('Add New Question','tempmail-pro'); ?>
+        </button>
+
+        <script>
+        (function(){
+            var list    = document.getElementById('tmpmp-faq-list');
+            var jsonFld = document.getElementById('tmpmp-faq-items-json');
+            var badge   = document.getElementById('tmpmp-faq-count-badge');
+            var addBtn  = document.getElementById('tmpmp-faq-add');
+
+            function sync(){
+                var rows = list.querySelectorAll('.tmpmp-faq-row');
+                var data = [];
+                rows.forEach(function(row,i){
+                    var q = row.querySelector('.tmpmp-faq-q-input').value.trim();
+                    var a = row.querySelector('.tmpmp-faq-a-input').value.trim();
+                    row.querySelector('span[style*="Q"]').textContent = 'Q'+(i+1);
+                    if(q||a) data.push({q:q,a:a});
+                });
+                jsonFld.value = JSON.stringify(data);
+                badge.textContent = data.length;
+            }
+
+            function makeRow(q,a,idx){
+                var div = document.createElement('div');
+                div.className = 'tmpmp-faq-row';
+                div.dataset.idx = idx;
+                div.style.cssText = 'background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px 16px;';
+                div.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
+                    +'<span class="tmpmp-faq-drag" style="cursor:grab;color:#94a3b8;font-size:18px;">⠿</span>'
+                    +'<span style="font-size:12px;font-weight:700;color:#6366f1;background:#ede9fe;padding:2px 8px;border-radius:4px;">Q'+(idx+1)+'</span>'
+                    +'<button type="button" class="tmpmp-faq-remove button-link" style="margin-left:auto;color:#ef4444;font-size:12px;font-weight:600;">✕ <?php esc_js( esc_html__('Remove','tempmail-pro') ); ?></button>'
+                    +'</div>'
+                    +'<input type="text" class="tmpmp-faq-q-input tmpmp-input" placeholder="<?php echo esc_js( esc_attr__('Question…','tempmail-pro') ); ?>" value="'+q.replace(/"/g,'&quot;')+'" style="width:100%;margin-bottom:8px;">'
+                    +'<textarea class="tmpmp-faq-a-input tmpmp-input" rows="3" placeholder="<?php echo esc_js( esc_attr__('Answer — supports basic HTML…','tempmail-pro') ); ?>" style="width:100%;resize:vertical;">'+a+'</textarea>';
+                bindRow(div);
+                return div;
+            }
+
+            function bindRow(row){
+                row.querySelector('.tmpmp-faq-remove').addEventListener('click',function(){
+                    row.remove(); sync();
+                });
+                row.querySelectorAll('input,textarea').forEach(function(el){
+                    el.addEventListener('input', sync);
+                });
+            }
+
+            // Bind existing rows
+            list.querySelectorAll('.tmpmp-faq-row').forEach(bindRow);
+
+            // Add new
+            addBtn.addEventListener('click',function(){
+                var idx = list.querySelectorAll('.tmpmp-faq-row').length;
+                var row = makeRow('','',idx);
+                list.appendChild(row);
+                row.querySelector('.tmpmp-faq-q-input').focus();
+                sync();
+            });
+
+            // Drag-to-reorder (simple)
+            var dragging = null;
+            list.addEventListener('dragstart',function(e){
+                dragging = e.target.closest('.tmpmp-faq-row');
+                if(dragging) dragging.style.opacity='0.5';
+            });
+            list.addEventListener('dragend',function(){
+                if(dragging){ dragging.style.opacity='1'; dragging=null; sync(); }
+            });
+            list.addEventListener('dragover',function(e){
+                e.preventDefault();
+                var target = e.target.closest('.tmpmp-faq-row');
+                if(target && target!==dragging){
+                    var rect = target.getBoundingClientRect();
+                    if(e.clientY < rect.top + rect.height/2) list.insertBefore(dragging,target);
+                    else list.insertBefore(dragging,target.nextSibling);
+                }
+            });
+            list.querySelectorAll('.tmpmp-faq-row').forEach(function(r){ r.draggable=true; });
+            // Make newly added rows draggable
+            var ob = new MutationObserver(function(muts){
+                muts.forEach(function(m){
+                    m.addedNodes.forEach(function(n){
+                        if(n.classList && n.classList.contains('tmpmp-faq-row')) n.draggable=true;
+                    });
+                });
+            });
+            ob.observe(list,{childList:true});
+        })();
+        </script>
+
+    </div>
+</div>
+
+<!-- ── Reset to Defaults ────────────────────────────────────────────────── -->
+<div class="tmpmp-settings-card">
+    <div class="tmpmp-card-header"><span class="tmpmp-card-icon">🔄</span><div><h3><?php esc_html_e('Reset FAQ Items','tempmail-pro'); ?></h3><p><?php esc_html_e('Replace all FAQ items with the built-in default questions.','tempmail-pro'); ?></p></div></div>
+    <div class="tmpmp-card-body">
+        <button type="button" id="tmpmp-faq-reset" class="tmpmp-test-btn" style="background:#f1f5f9;color:#374151;border:1.5px solid #e2e8f0;">
+            🔄 <?php esc_html_e('Restore Default FAQ Items','tempmail-pro'); ?>
+        </button>
+        <p class="tmpmp-field-desc" style="margin-top:8px;"><?php esc_html_e('This replaces all current items — you can edit them again afterwards.','tempmail-pro'); ?></p>
+        <script>
+        document.getElementById('tmpmp-faq-reset').addEventListener('click',function(){
+            if(!confirm('<?php echo esc_js(__('Replace all FAQ items with defaults?','tempmail-pro')); ?>')) return;
+            var defaults = <?php echo wp_json_encode( TempMail_FAQ::default_items() ); ?>;
+            var list = document.getElementById('tmpmp-faq-list');
+            list.innerHTML = '';
+            // Trigger re-render via add (reuse makeRow if in scope)
+            document.getElementById('tmpmp-faq-items-json').value = JSON.stringify(defaults);
+            location.reload(); // simple reload to re-render rows
+        });
+        </script>
+    </div>
+</div>
+
+</div><!-- /#tab-faq -->
 
 
 <p class="submit" style="padding-top:4px;">

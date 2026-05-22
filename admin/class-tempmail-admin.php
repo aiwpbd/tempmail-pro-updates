@@ -235,6 +235,46 @@ class TempMail_Admin {
             $new_data['design_custom_css'] = sanitize_textarea_field(wp_unslash($_POST['design_custom_css']));
         }
 
+        // ── FAQ fields ────────────────────────────────────────────────────
+        $new_data['faq_enabled']   = isset($_POST['faq_enabled']) ? 1 : 0;
+        if ( isset($_POST['faq_title']) ) {
+            $new_data['faq_title'] = sanitize_text_field(wp_unslash($_POST['faq_title']));
+        }
+        if ( isset($_POST['faq_position']) && in_array($_POST['faq_position'], ['below','above'], true) ) {
+            $new_data['faq_position'] = $_POST['faq_position'];
+        }
+        if ( isset($_POST['faq_accordion']) && in_array($_POST['faq_accordion'], ['single','multiple'], true) ) {
+            $new_data['faq_accordion'] = $_POST['faq_accordion'];
+        }
+        if ( isset($_POST['faq_icon_open']) ) {
+            $new_data['faq_icon_open'] = sanitize_text_field(wp_unslash($_POST['faq_icon_open']));
+        }
+        if ( isset($_POST['faq_icon_shut']) ) {
+            $new_data['faq_icon_shut'] = sanitize_text_field(wp_unslash($_POST['faq_icon_shut']));
+        }
+        if ( isset($_POST['faq_items']) ) {
+            // Validate: must be a JSON array of {q,a} objects
+            $raw   = wp_unslash($_POST['faq_items']);
+            $items = json_decode($raw, true);
+            if ( is_array($items) ) {
+                $clean = [];
+                foreach ($items as $item) {
+                    if ( isset($item['q']) || isset($item['a']) ) {
+                        $clean[] = [
+                            'q' => sanitize_text_field($item['q'] ?? ''),
+                            'a' => wp_kses($item['a'] ?? '', [
+                                'a'      => ['href'=>[],'target'=>[]],
+                                'strong' => [], 'em' => [], 'br' => [],
+                                'p'      => [], 'ul' => [], 'li' => [],
+                                'ol'     => [], 'code' => [],
+                            ]),
+                        ];
+                    }
+                }
+                $new_data['faq_items'] = wp_json_encode($clean);
+            }
+        }
+
         $int_fields = ['refresh_interval','imap_port','rate_limit','rate_window','spam_filter',
                        'stripe_enabled','paypal_enabled','ssl_live','google_login','facebook_login','enable_captcha',
                        'wc_enabled','custom_api_enabled'];

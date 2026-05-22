@@ -429,3 +429,294 @@
 .tmpmp-eg-preview-actions { flex-shrink: 0; }
 .tmpmp-eg-notice { display: flex; align-items: flex-start; gap: 8px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #92400e; line-height: 1.5; margin-top: 14px; }
 .tmpmp-eg-notice svg { flex-shrink: 0; margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FAQ Admin Tab — Responsive Styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Radio option buttons */
+.tmpmp-faq-option-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.tmpmp-faq-option {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1.5px solid #e2e8f0;
+    background: #f8fafc;
+    color: #374151;
+    transition: border-color .15s, background .15s, color .15s;
+    user-select: none;
+}
+.tmpmp-faq-option input[type="radio"] {
+    accent-color: #6366f1;
+}
+.tmpmp-faq-option:has(input:checked) {
+    border-color: #6366f1;
+    background: #ede9fe;
+    color: #6366f1;
+}
+
+/* Icon inputs row */
+.tmpmp-faq-icons-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.tmpmp-faq-icon-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #64748b;
+    font-weight: 600;
+}
+.tmpmp-faq-icon-input {
+    width: 52px;
+    text-align: center;
+    padding: 6px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 18px;
+    line-height: 1;
+    background: #fff;
+}
+
+/* FAQ item rows */
+.tmpmp-faq-row {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    transition: border-color .2s, box-shadow .2s;
+}
+.tmpmp-faq-row:hover {
+    border-color: #c7d2fe;
+    box-shadow: 0 2px 8px rgba(99,102,241,.07);
+}
+.tmpmp-faq-row-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.tmpmp-faq-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: #6366f1;
+    background: #ede9fe;
+    padding: 2px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.tmpmp-faq-drag {
+    cursor: grab;
+    color: #94a3b8;
+    font-size: 18px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.tmpmp-faq-drag:active { cursor: grabbing; }
+.tmpmp-faq-remove-btn {
+    margin-left: auto;
+    color: #ef4444;
+    font-size: 12px;
+    font-weight: 600;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 5px;
+    transition: background .15s;
+    white-space: nowrap;
+}
+.tmpmp-faq-remove-btn:hover { background: #fee2e2; }
+
+.tmpmp-faq-q-input,
+.tmpmp-faq-a-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+}
+.tmpmp-faq-a-input {
+    resize: vertical;
+    margin-bottom: 0;
+}
+
+/* Add button */
+.tmpmp-faq-add-btn {
+    background: #6366f1 !important;
+    color: #fff !important;
+    border: none !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 700 !important;
+}
+.tmpmp-faq-add-btn:hover { background: #4f46e5 !important; }
+
+/* Reset button */
+.tmpmp-faq-reset-btn {
+    background: #f1f5f9 !important;
+    color: #374151 !important;
+    border: 1.5px solid #e2e8f0 !important;
+}
+
+/* Shortcode copy card */
+.tmpmp-sc-card {
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.tmpmp-sc-info { flex: 1; min-width: 200px; }
+.tmpmp-sc-code {
+    background: #ede9fe;
+    color: #5b21b6;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: monospace;
+    cursor: pointer;
+    display: inline-block;
+    margin-bottom: 4px;
+    transition: background .15s;
+}
+.tmpmp-sc-code:hover { background: #ddd6fe; }
+.tmpmp-sc-title { font-size: 12px; font-weight: 700; color: #374151; }
+.tmpmp-sc-desc  { font-size: 12px; color: #64748b; margin: 4px 0 0; }
+.tmpmp-sc-attrs { font-size: 11px; color: #94a3b8; margin: 4px 0 0; font-family: monospace; }
+.tmpmp-sc-copy-btn {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    background: #6366f1;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s;
+}
+.tmpmp-sc-copy-btn:hover  { background: #4f46e5; }
+.tmpmp-sc-copy-btn:active { background: #4338ca; }
+
+/* Responsive */
+@media (max-width: 600px) {
+    .tmpmp-faq-option { padding: 7px 12px; font-size: 12px; }
+    .tmpmp-sc-card    { flex-direction: column; }
+    .tmpmp-sc-copy-btn { width: 100%; justify-content: center; }
+    .tmpmp-faq-icons-row { flex-direction: column; align-items: flex-start; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Settings Card Layout (used by Design & FAQ tabs)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.tmpmp-settings-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.tmpmp-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px 22px;
+    border-bottom: 1px solid #f1f5f9;
+    background: #fafbfc;
+}
+.tmpmp-card-icon {
+    font-size: 22px;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.tmpmp-card-header h3 {
+    margin: 0 0 3px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+}
+.tmpmp-card-header p {
+    margin: 0;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.5;
+}
+.tmpmp-card-body {
+    padding: 18px 22px;
+}
+
+/* Field rows */
+.tmpmp-field-row {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 12px 20px;
+    align-items: flex-start;
+    padding: 14px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+.tmpmp-field-row:last-child { border-bottom: none; }
+
+.tmpmp-field-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    line-height: 1.5;
+    padding-top: 4px;
+}
+.tmpmp-field-control { flex: 1; }
+
+.tmpmp-field-desc {
+    font-size: 12px;
+    color: #94a3b8;
+    margin: 5px 0 0;
+}
+
+.tmpmp-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #1e293b;
+    background: #fff;
+    box-sizing: border-box;
+    transition: border-color .15s, box-shadow .15s;
+    font-family: inherit;
+}
+.tmpmp-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.12);
+    outline: none;
+}
+textarea.tmpmp-input { resize: vertical; }
+
+/* Responsive field rows */
+@media (max-width: 700px) {
+    .tmpmp-field-row {
+        grid-template-columns: 1fr;
+        gap: 6px;
+    }
+    .tmpmp-field-label { padding-top: 0; }
+    .tmpmp-card-header { padding: 14px 16px; }
+    .tmpmp-card-body   { padding: 14px 16px; }
+}

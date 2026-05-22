@@ -59,6 +59,7 @@ spl_autoload_register( function ( $class ) {
         'TempMail_Updater'          => 'includes/class-tempmail-updater.php',
         'TempMail_GitHub_Updater'   => 'includes/class-github-updater.php',
         'TempMail_Design'           => 'includes/class-tempmail-design.php',
+        'TempMail_FAQ'              => 'includes/class-tempmail-faq.php',
     ];
 
     if ( isset( $map[ $class ] ) ) {
@@ -107,6 +108,7 @@ function tmpmp_init() {
     TempMail_Cron::instance();
     TempMail_Changelog::instance();
     TempMail_Design::instance();
+    TempMail_FAQ::instance();
     TempMail_Gutenberg::instance();
 
     // Visitor tracker (front-end only, non-admin, non-AJAX)
