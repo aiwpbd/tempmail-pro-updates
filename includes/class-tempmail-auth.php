@@ -448,36 +448,43 @@ class TempMail_Auth {
             wp_send_json_error( [ 'message' => $err ] );
         }
 
-        $user_id   = get_current_user_id();
-        $saved_url  = esc_url_raw( $upload['url']  );
+        global $wpdb;
+        $user_id    = get_current_user_id();
+        $saved_url  = esc_url_raw( $upload['url'] );
         $saved_path = $upload['file'];
 
-        // ── Delete old avatar file from disk ─────────────────────────────────
-        $old_path = get_user_meta( $user_id, 'tmpmp_avatar_path', true );
+        // ── Normalise protocol to match site URL (avoids http vs https mismatch) ─
+        $site_scheme = wp_parse_url( home_url(), PHP_URL_SCHEME );
+        $saved_url   = preg_replace( '#^https?://#', $site_scheme . '://', $saved_url );
+
+        // ── Delete old avatar file from disk ──────────────────────────────────
+        $old_path = $wpdb->get_var( $wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_path' LIMIT 1",
+            $user_id
+        ) );
         if ( $old_path && file_exists( $old_path ) ) {
             @unlink( $old_path );
         }
 
-        // ── Save meta — check return, use delete+add as fallback ─────────────
-        $ok_url  = update_user_meta( $user_id, 'tmpmp_avatar_url',  $saved_url  );
-        $ok_path = update_user_meta( $user_id, 'tmpmp_avatar_path', $saved_path );
+        // ── Write directly to DB via REPLACE INTO (upsert, no cache involved) ─
+        $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key IN ('tmpmp_avatar_url','tmpmp_avatar_path')",
+            $user_id
+        ) );
+        $wpdb->insert( $wpdb->usermeta, [ 'user_id' => $user_id, 'meta_key' => 'tmpmp_avatar_url',  'meta_value' => $saved_url  ] );
+        $wpdb->insert( $wpdb->usermeta, [ 'user_id' => $user_id, 'meta_key' => 'tmpmp_avatar_path', 'meta_value' => $saved_path ] );
 
-        // update_user_meta returns false if nothing changed; force-write via delete+add
-        if ( $ok_url === false ) {
-            delete_user_meta( $user_id, 'tmpmp_avatar_url' );
-            add_user_meta( $user_id, 'tmpmp_avatar_url', $saved_url );
-        }
-        if ( $ok_path === false ) {
-            delete_user_meta( $user_id, 'tmpmp_avatar_path' );
-            add_user_meta( $user_id, 'tmpmp_avatar_path', $saved_path );
-        }
-
-        // ── Clear object cache so next page load reads fresh meta ─────────────
+        // ── Purge ALL caches (WP internal + any persistent cache layer) ───────
         clean_user_cache( $user_id );
-        wp_cache_delete( $user_id, 'user_meta' );
+        wp_cache_delete( $user_id,              'user_meta' );
+        wp_cache_delete( 'user_meta_' . $user_id, 'default'  );
 
-        // ── Verify the save by reading back from DB (bypass cache) ────────────
-        $verified_url = get_user_meta( $user_id, 'tmpmp_avatar_url', true );
+        // ── Verify directly from DB — no cache path ───────────────────────────
+        $verified_url = $wpdb->get_var( $wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_url' LIMIT 1",
+            $user_id
+        ) );
+
         if ( empty( $verified_url ) ) {
             wp_send_json_error( [ 'message' => __( 'Failed to save profile picture. Please try again.', 'tempmail-pro' ) ] );
         }
@@ -494,19 +501,30 @@ class TempMail_Auth {
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
         }
+        global $wpdb;
         $user_id  = get_current_user_id();
-        $old_path = get_user_meta( $user_id, 'tmpmp_avatar_path', true );
+
+        // Delete file from disk
+        $old_path = $wpdb->get_var( $wpdb->prepare(
+            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_path' LIMIT 1",
+            $user_id
+        ) );
         if ( $old_path && file_exists( $old_path ) ) {
             @unlink( $old_path );
         }
-        delete_user_meta( $user_id, 'tmpmp_avatar_url'  );
-        delete_user_meta( $user_id, 'tmpmp_avatar_path' );
 
-        // ── Clear cache so next page load reads fresh meta ────────────────────
+        // Delete both meta rows directly in DB
+        $wpdb->query( $wpdb->prepare(
+            "DELETE FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key IN ('tmpmp_avatar_url','tmpmp_avatar_path')",
+            $user_id
+        ) );
+
+        // Purge all cache layers
         clean_user_cache( $user_id );
-        wp_cache_delete( $user_id, 'user_meta' );
+        wp_cache_delete( $user_id,                'user_meta' );
+        wp_cache_delete( 'user_meta_' . $user_id, 'default'   );
 
-        // Return Gravatar/default URL so JS can revert the preview
+        // Return default avatar URL so JS can revert the preview
         $default_url = get_avatar_url( $user_id, [ 'size' => 120, 'default' => 'identicon', 'force_default' => true ] );
         wp_send_json_success( [
             'message' => __( 'Profile picture removed.', 'tempmail-pro' ),

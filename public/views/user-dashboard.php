@@ -264,7 +264,12 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     <div class="tmpmp-dash-header">
         <div class="tmpmp-dash-header-left">
             <?php
-            $avatar_url = get_user_meta( $user->ID, 'tmpmp_avatar_url', true )
+            // Read directly from DB — bypasses any object/persistent cache
+            $avatar_url = $wpdb->get_var( $wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_url' LIMIT 1",
+                $user->ID
+            ) );
+            $avatar_url = $avatar_url
                         ?: get_avatar_url( $user->ID, [ 'size' => 56, 'default' => 'identicon' ] );
             ?>
             <a href="#dash-tab-account" class="tmpmp-avatar-wrap" id="tmpmp-header-avatar-wrap"
@@ -461,9 +466,13 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
 
                 <!-- Avatar upload section -->
                 <?php
-                $av_lg = get_user_meta( $user->ID, 'tmpmp_avatar_url', true )
-                       ?: get_avatar_url( $user->ID, [ 'size' => 120, 'default' => 'identicon' ] );
-                $has_custom = (bool) get_user_meta( $user->ID, 'tmpmp_avatar_url', true );
+                // Read directly from DB — bypasses any object/persistent cache
+                $_raw_av = $wpdb->get_var( $wpdb->prepare(
+                    "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_url' LIMIT 1",
+                    $user->ID
+                ) );
+                $av_lg      = $_raw_av ?: get_avatar_url( $user->ID, [ 'size' => 120, 'default' => 'identicon' ] );
+                $has_custom = ! empty( $_raw_av );
                 ?>
                 <div class="tmpmp-avatar-section">
                     <div class="tmpmp-avatar-wrap" id="acc-avatar-wrap"
