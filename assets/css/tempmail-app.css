@@ -1359,8 +1359,11 @@
 
 /* tabs */
 .tmpmp-dash-tabs {
-    display: flex; gap: 0; border-bottom: 2px solid var(--c-border); margin-bottom: 28px;
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-wrap: wrap;          /* wrap instead of scroll */
+    gap: 0;
+    border-bottom: 2px solid var(--c-border);
+    margin-bottom: 28px;
 }
 .dash-tab-btn {
     padding: 11px 20px; border: none; background: none; cursor: pointer;
@@ -1427,9 +1430,55 @@
     .tmpmp-plan-price > .price-yearly { font-size: 44px; }
     .tmpmp-plan-badge { font-size: 11px; padding: 3px 14px; }
     .tmpmp-auth-card { padding: 22px 18px; }
+    /* Dashboard */
     .tmpmp-dashboard-wrap { padding: 20px 14px; }
-    .tmpmp-dash-header { flex-direction: column; align-items: flex-start; }
+    .tmpmp-dash-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .tmpmp-dash-actions { width: 100%; justify-content: flex-start; }
     .tmpmp-pub-table th, .tmpmp-pub-table td { padding: 8px 10px; font-size: 12px; }
+    .tmpmp-dash-tabs { margin-bottom: 20px; }
+    .dash-tab-btn { padding: 10px 16px; font-size: 13px; }
+}
+
+@media (max-width: 480px) {
+    /* Dashboard header */
+    .tmpmp-dash-header h1 { font-size: 18px; }
+    .tmpmp-dash-header p  { font-size: 13px; }
+    .tmpmp-dash-actions { gap: 8px; }
+    .tmpmp-dash-actions .tmpmp-pub-btn { padding: 7px 12px; font-size: 12px; }
+    .tmpmp-dash-actions .tmpmp-pub-badge { font-size: 11px; padding: 4px 10px; }
+    /* Tabs — full width pills on small screens */
+    .tmpmp-dash-tabs {
+        border-bottom: none;
+        gap: 6px;
+        margin-bottom: 18px;
+        padding-bottom: 6px;
+        border-bottom: 2px solid var(--c-border);
+    }
+    .dash-tab-btn {
+        flex: 1;
+        justify-content: center;
+        padding: 9px 10px;
+        font-size: 12px;
+        border-radius: 8px 8px 0 0;
+        background: var(--c-surface, #f8fafc);
+    }
+    .dash-tab-btn.is-active {
+        background: #ede9fe;
+    }
+    /* Table — shrink aggressively */
+    .tmpmp-pub-table th, .tmpmp-pub-table td { padding: 7px 8px; font-size: 11px; }
+    /* Billing */
+    .tmpmp-billing-active { padding: 16px; }
+    .tmpmp-billing-active h3 { font-size: 14px; }
+    .tmpmp-billing-active p  { font-size: 12px; }
+    .tmpmp-dashboard-wrap { padding: 16px 12px; }
+}
+
+@media (max-width: 380px) {
+    .dash-tab-btn { font-size: 11px; padding: 8px 6px; gap: 4px; }
+    .tmpmp-dash-actions { flex-direction: column; align-items: stretch; }
+    .tmpmp-dash-actions .tmpmp-pub-btn,
+    .tmpmp-dash-actions .tmpmp-pub-badge { text-align: center; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
