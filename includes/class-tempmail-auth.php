@@ -458,40 +458,31 @@ class TempMail_Auth {
         $saved_url   = preg_replace( '#^https?://#', $site_scheme . '://', $saved_url );
 
         // ── Delete old avatar file from disk ──────────────────────────────────
-        $old_path = $wpdb->get_var( $wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_path' LIMIT 1",
-            $user_id
-        ) );
+        $old_path = get_user_meta( $user_id, 'tmpmp_avatar_path', true );
         if ( $old_path && file_exists( $old_path ) ) {
             @unlink( $old_path );
         }
 
-        // ── Write directly to DB via REPLACE INTO (upsert, no cache involved) ─
-        $wpdb->query( $wpdb->prepare(
-            "DELETE FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key IN ('tmpmp_avatar_url','tmpmp_avatar_path')",
-            $user_id
-        ) );
-        $wpdb->insert( $wpdb->usermeta, [ 'user_id' => $user_id, 'meta_key' => 'tmpmp_avatar_url',  'meta_value' => $saved_url  ] );
-        $wpdb->insert( $wpdb->usermeta, [ 'user_id' => $user_id, 'meta_key' => 'tmpmp_avatar_path', 'meta_value' => $saved_path ] );
+        // ── Save via WP meta API (handles deduplication + cache correctly) ────
+        update_user_meta( $user_id, 'tmpmp_avatar_url',  $saved_url  );
+        update_user_meta( $user_id, 'tmpmp_avatar_path', $saved_path );
 
-        // ── Purge ALL caches (WP internal + any persistent cache layer) ───────
+        // ── Purge all cache layers (WP internal + persistent cache) ───────────
         clean_user_cache( $user_id );
-        wp_cache_delete( $user_id,              'user_meta' );
-        wp_cache_delete( 'user_meta_' . $user_id, 'default'  );
+        wp_cache_delete( $user_id,                'user_meta' );
+        wp_cache_delete( 'user_meta_' . $user_id, 'default'   );
 
-        // ── Verify directly from DB — no cache path ───────────────────────────
-        $verified_url = $wpdb->get_var( $wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_url' LIMIT 1",
-            $user_id
-        ) );
+        // ── Verify the save worked ────────────────────────────────────────────
+        $verified_url = get_user_meta( $user_id, 'tmpmp_avatar_url', true );
 
         if ( empty( $verified_url ) ) {
             wp_send_json_error( [ 'message' => __( 'Failed to save profile picture. Please try again.', 'tempmail-pro' ) ] );
         }
 
+        // ── Return URL with cache-busting timestamp so browser shows new image ─
         wp_send_json_success( [
             'message' => __( 'Profile picture updated.', 'tempmail-pro' ),
-            'url'     => $verified_url,
+            'url'     => add_query_arg( 'v', time(), $verified_url ),
         ] );
     }
 
@@ -501,23 +492,17 @@ class TempMail_Auth {
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
         }
-        global $wpdb;
         $user_id  = get_current_user_id();
 
         // Delete file from disk
-        $old_path = $wpdb->get_var( $wpdb->prepare(
-            "SELECT meta_value FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key='tmpmp_avatar_path' LIMIT 1",
-            $user_id
-        ) );
+        $old_path = get_user_meta( $user_id, 'tmpmp_avatar_path', true );
         if ( $old_path && file_exists( $old_path ) ) {
             @unlink( $old_path );
         }
 
-        // Delete both meta rows directly in DB
-        $wpdb->query( $wpdb->prepare(
-            "DELETE FROM {$wpdb->usermeta} WHERE user_id=%d AND meta_key IN ('tmpmp_avatar_url','tmpmp_avatar_path')",
-            $user_id
-        ) );
+        // Delete via WP meta API (handles deduplication + cache correctly)
+        delete_user_meta( $user_id, 'tmpmp_avatar_url' );
+        delete_user_meta( $user_id, 'tmpmp_avatar_path' );
 
         // Purge all cache layers
         clean_user_cache( $user_id );
