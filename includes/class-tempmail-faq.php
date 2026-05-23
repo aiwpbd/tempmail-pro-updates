@@ -75,9 +75,10 @@ class TempMail_FAQ {
 
         if ( empty( $items ) ) return '';
 
+        $uniq_id = 'tmpmp-faq-wrap-' . ( function_exists('wp_unique_id') ? wp_unique_id() : uniqid() );
         ob_start();
         ?>
-        <div class="tmpmp-faq" data-mode="<?php echo esc_attr($mode); ?>">
+        <div class="tmpmp-faq" id="<?php echo esc_attr($uniq_id); ?>" data-mode="<?php echo esc_attr($mode); ?>">
             <?php if ( $title ) : ?>
             <div class="tmpmp-faq-header">
                 <h3 class="tmpmp-faq-title"><?php echo esc_html( $title ); ?></h3>
@@ -114,7 +115,7 @@ class TempMail_FAQ {
 
         <script>
         (function(){
-            var faq  = document.querySelector('.tmpmp-faq');
+            var faq  = document.getElementById('<?php echo esc_js($uniq_id); ?>');
             if(!faq) return;
             var mode = faq.dataset.mode || 'single';
             var iconOpen = <?php echo json_encode($icon_open); ?>;
