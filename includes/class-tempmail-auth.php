@@ -59,6 +59,8 @@ class TempMail_Auth {
 
     // ── New User Registration Redirect ─────────────────────────────────────────
     public function on_user_register( int $user_id ) : void {
+        // Never redirect during AJAX — would kill the JSON response
+        if ( wp_doing_ajax() ) return;
         // Only redirect frontend registrations (not admin-created users)
         if ( is_admin() ) return;
         wp_safe_redirect( self::dashboard_url() );
