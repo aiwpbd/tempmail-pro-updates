@@ -1,4 +1,4 @@
-<?php if ( ! defined('ABSPATH') ) exit; ?>
+﻿<?php if ( ! defined('ABSPATH') ) exit; ?>
 <div class="wrap tmpmp-admin-wrap">
 <h1 class="tmpmp-admin-title"><span class="dashicons dashicons-admin-settings"></span> <?php esc_html_e('TempMail Pro — Settings','tempmail-pro'); ?> <span class="tmpmp-version-pill">v<?php echo esc_html(TMPMP_VERSION); ?></span></h1>
 <div id="tmpmp-settings-saved" class="notice notice-success" style="display:none;"><p><?php esc_html_e('Settings saved!','tempmail-pro'); ?></p></div>
@@ -89,6 +89,39 @@
             <p class="tmpmp-mail-hint"><?php esc_html_e('Pricing page not found. Create it via TempMail Pro → Pages first.','tempmail-pro'); ?></p>
             <?php endif; ?>
             <p class="tmpmp-mail-hint"><?php esc_html_e('Users selecting a Premium or VIP domain will be redirected here to upgrade their plan.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+    <!-- Dashboard URL -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="dashboard_url"><?php esc_html_e('Subscription Dashboard URL','tempmail-pro'); ?></label>
+        <div>
+            <?php
+            $dashboard_page     = get_page_by_path('tempmail-dashboard');
+            $auto_dashboard_url = $dashboard_page ? get_permalink( $dashboard_page->ID ) : '';
+            $dashboard_url_val  = $settings['dashboard_url'] ?? '';
+            if ( empty($dashboard_url_val) && $auto_dashboard_url ) $dashboard_url_val = $auto_dashboard_url;
+            ?>
+            <input type="url" id="dashboard_url" name="dashboard_url" class="tmpmp-mail-input"
+                value="<?php echo esc_attr($dashboard_url_val); ?>"
+                placeholder="<?php echo esc_attr( $auto_dashboard_url ?: home_url('/dashboard/') ); ?>">
+            <p class="tmpmp-mail-hint"><?php esc_html_e('Users are redirected here after login, registration and magic link. Must contain [tempmail_dashboard].','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+    <!-- Login Page URL -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="login_page_url"><?php esc_html_e('Login Page URL','tempmail-pro'); ?></label>
+        <div>
+            <?php
+            $login_page     = get_page_by_path('tempmail-login');
+            $auto_login_url = $login_page ? get_permalink( $login_page->ID ) : '';
+            $login_url_val  = $settings['login_page_url'] ?? '';
+            if ( empty($login_url_val) && $auto_login_url ) $login_url_val = $auto_login_url;
+            ?>
+            <input type="url" id="login_page_url" name="login_page_url" class="tmpmp-mail-input"
+                value="<?php echo esc_attr($login_url_val); ?>"
+                placeholder="<?php echo esc_attr( $auto_login_url ?: home_url('/login/') ); ?>">
+            <p class="tmpmp-mail-hint"><?php esc_html_e('Non-logged-in users visiting the dashboard are sent here. Must contain [tempmail_login].','tempmail-pro'); ?></p>
         </div>
     </div>
 

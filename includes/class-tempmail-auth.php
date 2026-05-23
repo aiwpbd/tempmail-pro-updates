@@ -19,9 +19,50 @@ class TempMail_Auth {
         add_action( 'wp_ajax_tmpmp_cancel_subscription', [ $this, 'ajax_cancel_subscription' ] );
         // Magic link URL handler
         add_action( 'init', [ $this, 'handle_magic_link_login' ] );
+        // Redirect non-admin users after WP login to subscription dashboard
+        add_filter( 'login_redirect', [ $this, 'filter_login_redirect' ], 10, 3 );
+        // Redirect newly registered users to dashboard
+        add_action( 'user_register', [ $this, 'on_user_register' ], 10, 1 );
         // Shortcodes
         add_shortcode( 'tempmail_login',     [ $this, 'render_login_page'     ] );
         add_shortcode( 'tempmail_dashboard', [ $this, 'render_user_dashboard' ] );
+    }
+
+    // ── URL Helpers ────────────────────────────────────────────────────────────
+    public static function dashboard_url() : string {
+        $s   = get_option( 'tmpmp_settings', [] );
+        $url = $s['dashboard_url'] ?? '';
+        if ( $url ) return esc_url_raw( $url );
+        // Auto-detect by page slug
+        $page = get_page_by_path('tempmail-dashboard') ?? get_page_by_path('dashboard');
+        return $page ? get_permalink( $page->ID ) : home_url('/dashboard/');
+    }
+
+    public static function login_url() : string {
+        $s   = get_option( 'tmpmp_settings', [] );
+        $url = $s['login_page_url'] ?? '';
+        if ( $url ) return esc_url_raw( $url );
+        $page = get_page_by_path('tempmail-login') ?? get_page_by_path('login');
+        return $page ? get_permalink( $page->ID ) : home_url('/login/');
+    }
+
+    // ── Login Redirect Filter ──────────────────────────────────────────────────
+    public function filter_login_redirect( string $redirect_to, string $requested_redirect_to, $user ) : string {
+        if ( is_wp_error( $user ) ) return $redirect_to;
+        // Admins and editors go to WP dashboard as normal
+        if ( user_can( $user, 'manage_options' ) || user_can( $user, 'edit_posts' ) ) {
+            return $redirect_to;
+        }
+        // All other users (subscribers) go to subscription dashboard
+        return self::dashboard_url();
+    }
+
+    // ── New User Registration Redirect ─────────────────────────────────────────
+    public function on_user_register( int $user_id ) : void {
+        // Only redirect frontend registrations (not admin-created users)
+        if ( is_admin() ) return;
+        wp_safe_redirect( self::dashboard_url() );
+        exit;
     }
 
     // ── Magic Link Request ─────────────────────────────────────────────────────
@@ -169,7 +210,7 @@ class TempMail_Auth {
         delete_transient('tmpmp_magic_' . $token);
         wp_set_current_user($user_id);
         wp_set_auth_cookie($user_id, true);
-        wp_send_json_success(['redirect' => home_url('/dashboard/')]);
+        wp_send_json_success(['redirect' => self::dashboard_url()]);
     }
 
     // ── Magic Link URL Handler (GET redirect) ─────────────────────────────────
@@ -183,7 +224,7 @@ class TempMail_Auth {
         delete_transient('tmpmp_magic_' . $token);
         wp_set_current_user($user_id);
         wp_set_auth_cookie($user_id, true);
-        wp_safe_redirect( home_url('/dashboard/') );
+        wp_safe_redirect( self::dashboard_url() );
         exit;
     }
 
@@ -215,7 +256,7 @@ class TempMail_Auth {
     // ── Shortcodes ────────────────────────────────────────────────────────────
     public function render_login_page( array $atts ) : string {
         if ( is_user_logged_in() ) {
-            wp_safe_redirect( home_url('/dashboard/') );
+            wp_safe_redirect( self::dashboard_url() );
             exit;
         }
         ob_start();
@@ -226,7 +267,7 @@ class TempMail_Auth {
     public function render_user_dashboard( array $atts ) : string {
         if ( ! is_user_logged_in() ) {
             ob_start();
-            echo '<script>window.location="' . esc_url(home_url('/login/')) . '";</script>';
+            echo '<script>window.location="' . esc_url( self::login_url() ) . '";</script>';
             return ob_get_clean();
         }
         ob_start();

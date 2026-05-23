@@ -35,7 +35,7 @@
         wp_login_form([
             'echo'           => true,
             'remember'       => true,
-            'redirect'       => home_url('/tempmail-dashboard/'),
+            'redirect'       => TempMail_Auth::dashboard_url(),
             'form_id'        => 'loginform',
             'label_username' => __('Email or Username','tempmail-pro'),
             'label_password' => __('Password','tempmail-pro'),

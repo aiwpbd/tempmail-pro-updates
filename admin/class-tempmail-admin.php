@@ -295,6 +295,12 @@ class TempMail_Admin {
         if ( isset($_POST['custom_api_endpoint']) ) {
             $new_data['custom_api_endpoint'] = esc_url_raw( wp_unslash( $_POST['custom_api_endpoint'] ) );
         }
+        if ( isset($_POST['dashboard_url']) ) {
+            $new_data['dashboard_url'] = esc_url_raw( wp_unslash( $_POST['dashboard_url'] ) );
+        }
+        if ( isset($_POST['login_page_url']) ) {
+            $new_data['login_page_url'] = esc_url_raw( wp_unslash( $_POST['login_page_url'] ) );
+        }
 
         // ── Login Email customizer ──────────────────────────────────────────────
         $le_text_fields = [
