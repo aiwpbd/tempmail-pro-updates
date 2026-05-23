@@ -401,17 +401,30 @@ class TempMail_Auth {
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
         }
-        if ( empty( $_FILES['avatar'] ) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK ) {
-            wp_send_json_error( [ 'message' => __( 'Upload failed. Please try again.', 'tempmail-pro' ) ] );
+        if ( empty( $_FILES['avatar'] ) || (int) $_FILES['avatar']['error'] !== UPLOAD_ERR_OK ) {
+            $code = $_FILES['avatar']['error'] ?? -1;
+            wp_send_json_error( [ 'message' => sprintf( __( 'Upload error (code %d). Please try again.', 'tempmail-pro' ), $code ) ] );
         }
 
         $file         = $_FILES['avatar'];
-        $allowed_mime = [ 'image/jpeg', 'image/png', 'image/gif', 'image/webp' ];
-        $finfo        = finfo_open( FILEINFO_MIME_TYPE );
-        $real_mime    = finfo_file( $finfo, $file['tmp_name'] );
-        finfo_close( $finfo );
+        $allowed_mime = [ 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp' ];
 
-        if ( ! in_array( $real_mime, $allowed_mime, true ) ) {
+        // ── MIME validation (finfo with mime_content_type fallback) ───────────
+        $real_mime = false;
+        if ( function_exists( 'finfo_open' ) ) {
+            $finfo     = finfo_open( FILEINFO_MIME_TYPE );
+            $real_mime = $finfo ? finfo_file( $finfo, $file['tmp_name'] ) : false;
+            if ( $finfo ) finfo_close( $finfo );
+        }
+        if ( ! $real_mime && function_exists( 'mime_content_type' ) ) {
+            $real_mime = mime_content_type( $file['tmp_name'] );
+        }
+        // Fallback: trust the browser-supplied MIME (last resort)
+        if ( ! $real_mime ) {
+            $real_mime = $file['type'];
+        }
+
+        if ( ! in_array( strtolower( $real_mime ), $allowed_mime, true ) ) {
             wp_send_json_error( [ 'message' => __( 'Only JPG, PNG, GIF, or WebP images are allowed.', 'tempmail-pro' ) ] );
         }
         if ( $file['size'] > 2 * 1024 * 1024 ) {
@@ -419,7 +432,6 @@ class TempMail_Auth {
         }
 
         require_once ABSPATH . 'wp-admin/includes/file.php';
-        require_once ABSPATH . 'wp-admin/includes/image.php';
 
         $upload = wp_handle_upload( $file, [
             'test_form' => false,
@@ -431,30 +443,48 @@ class TempMail_Auth {
             ],
         ] );
 
-        if ( isset( $upload['error'] ) ) {
-            wp_send_json_error( [ 'message' => $upload['error'] ] );
+        if ( ! isset( $upload['url'] ) || ! isset( $upload['file'] ) || isset( $upload['error'] ) ) {
+            $err = $upload['error'] ?? __( 'Upload could not be processed.', 'tempmail-pro' );
+            wp_send_json_error( [ 'message' => $err ] );
         }
 
-        $user_id  = get_current_user_id();
-        // Delete old avatar file
+        $user_id   = get_current_user_id();
+        $saved_url  = esc_url_raw( $upload['url']  );
+        $saved_path = $upload['file'];
+
+        // ── Delete old avatar file from disk ─────────────────────────────────
         $old_path = get_user_meta( $user_id, 'tmpmp_avatar_path', true );
         if ( $old_path && file_exists( $old_path ) ) {
             @unlink( $old_path );
         }
 
-        // Resize to a 300×300 square thumbnail
-        $editor = wp_get_image_editor( $upload['file'] );
-        if ( ! is_wp_error( $editor ) ) {
-            $editor->resize( 300, 300, true );
-            $editor->save( $upload['file'] );
+        // ── Save meta — check return, use delete+add as fallback ─────────────
+        $ok_url  = update_user_meta( $user_id, 'tmpmp_avatar_url',  $saved_url  );
+        $ok_path = update_user_meta( $user_id, 'tmpmp_avatar_path', $saved_path );
+
+        // update_user_meta returns false if nothing changed; force-write via delete+add
+        if ( $ok_url === false ) {
+            delete_user_meta( $user_id, 'tmpmp_avatar_url' );
+            add_user_meta( $user_id, 'tmpmp_avatar_url', $saved_url );
+        }
+        if ( $ok_path === false ) {
+            delete_user_meta( $user_id, 'tmpmp_avatar_path' );
+            add_user_meta( $user_id, 'tmpmp_avatar_path', $saved_path );
         }
 
-        update_user_meta( $user_id, 'tmpmp_avatar_url',  $upload['url']  );
-        update_user_meta( $user_id, 'tmpmp_avatar_path', $upload['file'] );
+        // ── Clear object cache so next page load reads fresh meta ─────────────
+        clean_user_cache( $user_id );
+        wp_cache_delete( $user_id, 'user_meta' );
+
+        // ── Verify the save by reading back from DB (bypass cache) ────────────
+        $verified_url = get_user_meta( $user_id, 'tmpmp_avatar_url', true );
+        if ( empty( $verified_url ) ) {
+            wp_send_json_error( [ 'message' => __( 'Failed to save profile picture. Please try again.', 'tempmail-pro' ) ] );
+        }
 
         wp_send_json_success( [
             'message' => __( 'Profile picture updated.', 'tempmail-pro' ),
-            'url'     => $upload['url'],
+            'url'     => $verified_url,
         ] );
     }
 
@@ -471,6 +501,10 @@ class TempMail_Auth {
         }
         delete_user_meta( $user_id, 'tmpmp_avatar_url'  );
         delete_user_meta( $user_id, 'tmpmp_avatar_path' );
+
+        // ── Clear cache so next page load reads fresh meta ────────────────────
+        clean_user_cache( $user_id );
+        wp_cache_delete( $user_id, 'user_meta' );
 
         // Return Gravatar/default URL so JS can revert the preview
         $default_url = get_avatar_url( $user_id, [ 'size' => 120, 'default' => 'identicon', 'force_default' => true ] );
