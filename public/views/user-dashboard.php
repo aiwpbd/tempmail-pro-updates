@@ -486,10 +486,10 @@ jQuery(function($){
     });
 
     /* ── Account tab helpers ────────────────────────────────────── */
-    function acctPost(action, data, btnId, msgId) {
+    function acctPost(action, data, btnId, msgId, onSuccess) {
         const btn = document.getElementById(btnId);
         const msg = document.getElementById(msgId);
-        const orig = btn.textContent;
+        const orig = btn.textContent.trim();
         btn.disabled = true;
         btn.textContent = '<?php esc_html_e('Saving…','tempmail-pro'); ?>';
         msg.className = 'tmpmp-account-msg';
@@ -499,6 +499,7 @@ jQuery(function($){
             .then(r => {
                 msg.textContent = r.data?.message || '';
                 msg.className   = 'tmpmp-account-msg ' + (r.success ? 'ok' : 'err');
+                if (r.success && typeof onSuccess === 'function') onSuccess(r.data);
             })
             .catch(() => {
                 msg.textContent = '<?php esc_html_e('Connection error. Please try again.','tempmail-pro'); ?>';
@@ -507,13 +508,23 @@ jQuery(function($){
             .finally(() => { btn.disabled = false; btn.textContent = orig; });
     }
 
-    // Save Profile
+    // Save Profile — update header greeting on success
     document.getElementById('tmpmp-save-profile')?.addEventListener('click', function() {
         acctPost('tmpmp_update_profile', {
-            first_name:   document.getElementById('acc-first-name').value,
-            last_name:    document.getElementById('acc-last-name').value,
-            display_name: document.getElementById('acc-display-name').value,
-        }, 'tmpmp-save-profile', 'tmpmp-profile-msg');
+            first_name:   document.getElementById('acc-first-name').value.trim(),
+            last_name:    document.getElementById('acc-last-name').value.trim(),
+            display_name: document.getElementById('acc-display-name').value.trim(),
+        }, 'tmpmp-save-profile', 'tmpmp-profile-msg', function(data) {
+            // Live-update input fields with confirmed saved values
+            if (data.first_name   !== undefined) document.getElementById('acc-first-name').value   = data.first_name;
+            if (data.last_name    !== undefined) document.getElementById('acc-last-name').value    = data.last_name;
+            if (data.display_name !== undefined) {
+                document.getElementById('acc-display-name').value = data.display_name;
+                // Update the greeting in the dashboard header
+                const h1 = document.querySelector('.tmpmp-dash-header h1');
+                if (h1) h1.innerHTML = '&#128075; <?php esc_html_e('Hi,','tempmail-pro'); ?> ' + data.display_name;
+            }
+        });
     });
 
     // Change Password

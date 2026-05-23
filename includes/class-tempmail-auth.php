@@ -265,22 +265,53 @@ class TempMail_Auth {
         if ( ! is_user_logged_in() ) {
             wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
         }
-        $user_id      = get_current_user_id();
-        $first_name   = sanitize_text_field( wp_unslash( $_POST['first_name']    ?? '' ) );
-        $last_name    = sanitize_text_field( wp_unslash( $_POST['last_name']     ?? '' ) );
-        $display_name = sanitize_text_field( wp_unslash( $_POST['display_name']  ?? '' ) );
 
+        global $wpdb;
+        $user_id      = get_current_user_id();
+        $first_name   = sanitize_text_field( wp_unslash( $_POST['first_name']   ?? '' ) );
+        $last_name    = sanitize_text_field( wp_unslash( $_POST['last_name']    ?? '' ) );
+        $display_name = sanitize_text_field( wp_unslash( $_POST['display_name'] ?? '' ) );
+
+        // Fallback: build display name from first+last if left blank
+        if ( empty( $display_name ) ) {
+            $display_name = trim( "$first_name $last_name" );
+        }
+        if ( empty( $display_name ) ) {
+            $display_name = get_userdata( $user_id )->user_login;
+        }
+
+        // ── 1. Explicitly save first/last as user meta ───────────────────────
+        update_user_meta( $user_id, 'first_name', $first_name );
+        update_user_meta( $user_id, 'last_name',  $last_name  );
+
+        // ── 2. Update display_name in wp_users via wp_update_user ────────────
         $result = wp_update_user( [
             'ID'           => $user_id,
-            'first_name'   => $first_name,
-            'last_name'    => $last_name,
-            'display_name' => $display_name ?: trim( "$first_name $last_name" ) ?: wp_get_current_user()->user_login,
+            'display_name' => $display_name,
         ] );
 
+        // ── 3. Fallback: direct DB write if wp_update_user fails ─────────────
         if ( is_wp_error( $result ) ) {
-            wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+            $updated = $wpdb->update(
+                $wpdb->users,
+                [ 'display_name' => $display_name ],
+                [ 'ID'           => $user_id ],
+                [ '%s' ],
+                [ '%d' ]
+            );
+            if ( $updated === false ) {
+                wp_send_json_error( [ 'message' => __( 'Failed to save profile. Please try again.', 'tempmail-pro' ) ] );
+            }
+            // Clean user cache so next page load reads fresh data
+            clean_user_cache( $user_id );
         }
-        wp_send_json_success( [ 'message' => __( 'Profile updated successfully.', 'tempmail-pro' ) ] );
+
+        wp_send_json_success( [
+            'message'      => __( 'Profile updated successfully.', 'tempmail-pro' ),
+            'display_name' => $display_name,
+            'first_name'   => $first_name,
+            'last_name'    => $last_name,
+        ] );
     }
 
     // ── Change Password ───────────────────────────────────────────────────────
