@@ -236,7 +236,7 @@ class TempMail_Admin {
         }
 
         // ── FAQ fields ────────────────────────────────────────────────────
-        $new_data['faq_enabled']   = isset($_POST['faq_enabled']) ? 1 : 0;
+        $new_data['faq_enabled']   = intval( $_POST['faq_enabled'] ?? 0 ) ? 1 : 0;
         if ( isset($_POST['faq_title']) ) {
             $new_data['faq_title'] = sanitize_text_field(wp_unslash($_POST['faq_title']));
         }
