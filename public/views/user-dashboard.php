@@ -95,6 +95,76 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     .tmpmp-account-grid { grid-template-columns: 1fr; }
     .tmpmp-account-card { padding: 18px 16px; }
 }
+
+/* ── Avatar ── */
+.tmpmp-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #e2e8f0;
+    background: #f1f5f9;
+    flex-shrink: 0;
+    display: block;
+}
+.tmpmp-avatar--lg {
+    width: 100px;
+    height: 100px;
+    border: 4px solid #e2e8f0;
+}
+.tmpmp-avatar-wrap {
+    position: relative;
+    display: inline-block;
+    cursor: pointer;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.tmpmp-avatar-overlay {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: rgba(0,0,0,.45);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity .2s;
+    user-select: none;
+}
+.tmpmp-avatar-wrap:hover .tmpmp-avatar-overlay { opacity: 1; }
+.tmpmp-avatar-section {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 4px 0 20px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid #f1f5f9;
+}
+.tmpmp-avatar-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.tmpmp-avatar-hint {
+    font-size: 11px;
+    color: #94a3b8;
+    margin: 0;
+}
+/* header left: avatar + text side by side */
+.tmpmp-dash-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+@media (max-width: 480px) {
+    .tmpmp-avatar--lg { width: 80px; height: 80px; }
+    .tmpmp-avatar-section { gap: 14px; }
+}
 .tmpmp-dash-tabs {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -192,9 +262,23 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
 
     <!-- Header -->
     <div class="tmpmp-dash-header">
-        <div>
-            <h1>&#128075; <?php echo esc_html( sprintf( __('Hi, %s','tempmail-pro'), $user->display_name ) ); ?></h1>
-            <p><?php echo esc_html( $user->user_email ); ?></p>
+        <div class="tmpmp-dash-header-left">
+            <?php
+            $avatar_url = get_user_meta( $user->ID, 'tmpmp_avatar_url', true )
+                        ?: get_avatar_url( $user->ID, [ 'size' => 56, 'default' => 'identicon' ] );
+            ?>
+            <a href="#dash-tab-account" class="tmpmp-avatar-wrap" id="tmpmp-header-avatar-wrap"
+               title="<?php esc_attr_e('Click to update profile picture','tempmail-pro'); ?>"
+               onclick="event.preventDefault();activateTab('account');">
+                <img class="tmpmp-avatar" id="tmpmp-header-avatar"
+                     src="<?php echo esc_url( $avatar_url ); ?>"
+                     alt="<?php echo esc_attr( $user->display_name ); ?>">
+                <div class="tmpmp-avatar-overlay">&#128247;<br><?php esc_html_e('Edit','tempmail-pro'); ?></div>
+            </a>
+            <div>
+                <h1>&#128075; <?php echo esc_html( sprintf( __('Hi, %s','tempmail-pro'), $user->display_name ) ); ?></h1>
+                <p><?php echo esc_html( $user->user_email ); ?></p>
+            </div>
         </div>
         <div class="tmpmp-dash-actions">
             <span class="tmpmp-pub-badge <?php echo $sub ? 'tmpmp-pub-badge--green' : 'tmpmp-pub-badge--indigo'; ?>">
@@ -374,6 +458,35 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
             <!-- Profile card -->
             <div class="tmpmp-account-card">
                 <h3>&#128100; <?php esc_html_e('My Profile','tempmail-pro'); ?></h3>
+
+                <!-- Avatar upload section -->
+                <?php
+                $av_lg = get_user_meta( $user->ID, 'tmpmp_avatar_url', true )
+                       ?: get_avatar_url( $user->ID, [ 'size' => 120, 'default' => 'identicon' ] );
+                $has_custom = (bool) get_user_meta( $user->ID, 'tmpmp_avatar_url', true );
+                ?>
+                <div class="tmpmp-avatar-section">
+                    <div class="tmpmp-avatar-wrap" id="acc-avatar-wrap"
+                         title="<?php esc_attr_e('Click to upload a new photo','tempmail-pro'); ?>"
+                         onclick="document.getElementById('acc-avatar-file').click()">
+                        <img class="tmpmp-avatar tmpmp-avatar--lg" id="acc-avatar-img"
+                             src="<?php echo esc_url( $av_lg ); ?>"
+                             alt="<?php echo esc_attr( $user->display_name ); ?>">
+                        <div class="tmpmp-avatar-overlay">&#128247;<br><?php esc_html_e('Upload','tempmail-pro'); ?></div>
+                    </div>
+                    <div class="tmpmp-avatar-btns">
+                        <input type="file" id="acc-avatar-file" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+                        <button id="tmpmp-upload-avatar" class="tmpmp-pub-btn tmpmp-pub-btn--primary" style="font-size:13px;padding:8px 16px;">
+                            &#128247; <?php esc_html_e('Upload Photo','tempmail-pro'); ?>
+                        </button>
+                        <button id="tmpmp-remove-avatar" class="tmpmp-pub-btn tmpmp-pub-btn--outline" style="font-size:13px;padding:8px 16px;<?php echo $has_custom ? '' : 'display:none;'; ?>">
+                            &#128465; <?php esc_html_e('Remove Photo','tempmail-pro'); ?>
+                        </button>
+                        <p class="tmpmp-avatar-hint"><?php esc_html_e('JPG, PNG, GIF or WebP · Max 2 MB','tempmail-pro'); ?></p>
+                        <div id="tmpmp-avatar-msg" class="tmpmp-account-msg"></div>
+                    </div>
+                </div>
+
                 <div class="tmpmp-field">
                     <label for="acc-first-name"><?php esc_html_e('First Name','tempmail-pro'); ?></label>
                     <input type="text" id="acc-first-name" value="<?php echo esc_attr( $user->first_name ); ?>" autocomplete="given-name">
@@ -558,6 +671,78 @@ jQuery(function($){
                 btn.disabled = false;
                 btn.textContent = '\u{1F4DC} <?php esc_html_e('Send Password Reset Email','tempmail-pro'); ?>';
             });
+    });
+
+    /* ── Avatar upload / remove ──────────────────────────────── */
+    function updateAllAvatars(src) {
+        document.querySelectorAll('#tmpmp-header-avatar, #acc-avatar-img').forEach(img => img.src = src);
+    }
+
+    // Clicking 'Upload Photo' or the avatar circle opens the file picker
+    document.getElementById('tmpmp-upload-avatar')?.addEventListener('click', () =>
+        document.getElementById('acc-avatar-file').click()
+    );
+
+    // File selected → upload immediately
+    document.getElementById('acc-avatar-file')?.addEventListener('change', function() {
+        const file = this.files[0];
+        if (!file) return;
+        const msg = document.getElementById('tmpmp-avatar-msg');
+        const btn = document.getElementById('tmpmp-upload-avatar');
+        const orig = btn.textContent.trim();
+        btn.disabled = true;
+        btn.textContent = '<?php esc_html_e('Uploading…','tempmail-pro'); ?>';
+        msg.className = 'tmpmp-account-msg';
+
+        // Local preview while uploading
+        const reader = new FileReader();
+        reader.onload = e => updateAllAvatars(e.target.result);
+        reader.readAsDataURL(file);
+
+        const fd = new FormData();
+        fd.append('action', 'tmpmp_upload_avatar');
+        fd.append('nonce',  nonce);
+        fd.append('avatar', file);
+
+        fetch(url, {method:'POST', body:fd, credentials:'same-origin'})
+            .then(r => r.json())
+            .then(r => {
+                msg.textContent = r.data?.message || '';
+                msg.className   = 'tmpmp-account-msg ' + (r.success ? 'ok' : 'err');
+                if (r.success && r.data?.url) {
+                    updateAllAvatars(r.data.url);
+                    document.getElementById('tmpmp-remove-avatar').style.display = '';
+                }
+            })
+            .catch(() => {
+                msg.textContent = '<?php esc_html_e('Upload failed. Please try again.','tempmail-pro'); ?>';
+                msg.className   = 'tmpmp-account-msg err';
+            })
+            .finally(() => { btn.disabled = false; btn.textContent = orig; this.value=''; });
+    });
+
+    // Remove avatar
+    document.getElementById('tmpmp-remove-avatar')?.addEventListener('click', function() {
+        const msg = document.getElementById('tmpmp-avatar-msg');
+        const btn = this;
+        btn.disabled = true;
+        msg.className = 'tmpmp-account-msg';
+        const body = new URLSearchParams({action:'tmpmp_remove_avatar', nonce});
+        fetch(url, {method:'POST', body, credentials:'same-origin'})
+            .then(r => r.json())
+            .then(r => {
+                msg.textContent = r.data?.message || '';
+                msg.className   = 'tmpmp-account-msg ' + (r.success ? 'ok' : 'err');
+                if (r.success) {
+                    if (r.data?.url) updateAllAvatars(r.data.url);
+                    btn.style.display = 'none';
+                }
+            })
+            .catch(() => {
+                msg.textContent = '<?php esc_html_e('Connection error. Please try again.','tempmail-pro'); ?>';
+                msg.className   = 'tmpmp-account-msg err';
+            })
+            .finally(() => { btn.disabled = false; });
     });
 });
 </script>

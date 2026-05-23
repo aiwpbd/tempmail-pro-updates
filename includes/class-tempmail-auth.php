@@ -21,6 +21,10 @@ class TempMail_Auth {
         add_action( 'wp_ajax_tmpmp_update_profile',       [ $this, 'ajax_update_profile'       ] );
         add_action( 'wp_ajax_tmpmp_change_password',      [ $this, 'ajax_change_password'      ] );
         add_action( 'wp_ajax_tmpmp_send_password_reset',  [ $this, 'ajax_send_password_reset'  ] );
+        // Avatar
+        add_action( 'wp_ajax_tmpmp_upload_avatar',        [ $this, 'ajax_upload_avatar'        ] );
+        add_action( 'wp_ajax_tmpmp_remove_avatar',        [ $this, 'ajax_remove_avatar'        ] );
+        add_filter( 'pre_get_avatar_data',                [ $this, 'filter_avatar_data'        ], 10, 2 );
         // Magic link URL handler
         add_action( 'init', [ $this, 'handle_magic_link_login' ] );
         // Redirect non-admin users after WP login to subscription dashboard
@@ -368,6 +372,112 @@ class TempMail_Auth {
             wp_send_json_error( [ 'message' => __( 'Failed to send reset email. Please check mail settings.', 'tempmail-pro' ) ] );
         }
         wp_send_json_success( [ 'message' => sprintf( __( 'Reset link sent to %s', 'tempmail-pro' ), $user->user_email ) ] );
+    }
+
+    // ── Avatar: filter get_avatar to serve custom upload ─────────────────────
+    public function filter_avatar_data( array $args, $id_or_email ) : array {
+        $user_id = 0;
+        if ( is_numeric( $id_or_email ) ) {
+            $user_id = (int) $id_or_email;
+        } elseif ( $id_or_email instanceof \WP_User ) {
+            $user_id = $id_or_email->ID;
+        } elseif ( is_string( $id_or_email ) ) {
+            $u = get_user_by( 'email', $id_or_email );
+            if ( $u ) $user_id = $u->ID;
+        }
+        if ( $user_id ) {
+            $url = get_user_meta( $user_id, 'tmpmp_avatar_url', true );
+            if ( $url ) {
+                $args['url']           = esc_url( $url );
+                $args['found_avatar']  = true;
+            }
+        }
+        return $args;
+    }
+
+    // ── Avatar: upload ────────────────────────────────────────────────────────
+    public function ajax_upload_avatar() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
+        }
+        if ( empty( $_FILES['avatar'] ) || $_FILES['avatar']['error'] !== UPLOAD_ERR_OK ) {
+            wp_send_json_error( [ 'message' => __( 'Upload failed. Please try again.', 'tempmail-pro' ) ] );
+        }
+
+        $file         = $_FILES['avatar'];
+        $allowed_mime = [ 'image/jpeg', 'image/png', 'image/gif', 'image/webp' ];
+        $finfo        = finfo_open( FILEINFO_MIME_TYPE );
+        $real_mime    = finfo_file( $finfo, $file['tmp_name'] );
+        finfo_close( $finfo );
+
+        if ( ! in_array( $real_mime, $allowed_mime, true ) ) {
+            wp_send_json_error( [ 'message' => __( 'Only JPG, PNG, GIF, or WebP images are allowed.', 'tempmail-pro' ) ] );
+        }
+        if ( $file['size'] > 2 * 1024 * 1024 ) {
+            wp_send_json_error( [ 'message' => __( 'Image must be under 2 MB.', 'tempmail-pro' ) ] );
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+        $upload = wp_handle_upload( $file, [
+            'test_form' => false,
+            'mimes'     => [
+                'jpg|jpeg|jpe' => 'image/jpeg',
+                'png'          => 'image/png',
+                'gif'          => 'image/gif',
+                'webp'         => 'image/webp',
+            ],
+        ] );
+
+        if ( isset( $upload['error'] ) ) {
+            wp_send_json_error( [ 'message' => $upload['error'] ] );
+        }
+
+        $user_id  = get_current_user_id();
+        // Delete old avatar file
+        $old_path = get_user_meta( $user_id, 'tmpmp_avatar_path', true );
+        if ( $old_path && file_exists( $old_path ) ) {
+            @unlink( $old_path );
+        }
+
+        // Resize to a 300×300 square thumbnail
+        $editor = wp_get_image_editor( $upload['file'] );
+        if ( ! is_wp_error( $editor ) ) {
+            $editor->resize( 300, 300, true );
+            $editor->save( $upload['file'] );
+        }
+
+        update_user_meta( $user_id, 'tmpmp_avatar_url',  $upload['url']  );
+        update_user_meta( $user_id, 'tmpmp_avatar_path', $upload['file'] );
+
+        wp_send_json_success( [
+            'message' => __( 'Profile picture updated.', 'tempmail-pro' ),
+            'url'     => $upload['url'],
+        ] );
+    }
+
+    // ── Avatar: remove ────────────────────────────────────────────────────────
+    public function ajax_remove_avatar() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
+        }
+        $user_id  = get_current_user_id();
+        $old_path = get_user_meta( $user_id, 'tmpmp_avatar_path', true );
+        if ( $old_path && file_exists( $old_path ) ) {
+            @unlink( $old_path );
+        }
+        delete_user_meta( $user_id, 'tmpmp_avatar_url'  );
+        delete_user_meta( $user_id, 'tmpmp_avatar_path' );
+
+        // Return Gravatar/default URL so JS can revert the preview
+        $default_url = get_avatar_url( $user_id, [ 'size' => 120, 'default' => 'identicon', 'force_default' => true ] );
+        wp_send_json_success( [
+            'message' => __( 'Profile picture removed.', 'tempmail-pro' ),
+            'url'     => $default_url,
+        ] );
     }
 
     // ── Shortcodes ────────────────────────────────────────────────────────────
