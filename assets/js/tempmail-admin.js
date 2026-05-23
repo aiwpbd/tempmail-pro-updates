@@ -1,5 +1,5 @@
-﻿/**
- * TempMail Pro â€” Admin JavaScript
+/**
+ * TempMail Pro -- Admin JavaScript
  * Handles: Settings save, Domain/Plan CRUD, test email, purge, IMAP poll, token regen
  */
 /* global TempMailAdmin, jQuery */
@@ -9,7 +9,7 @@
     const url   = TempMailAdmin.ajax_url;
     const nonce = TempMailAdmin.nonce;
 
-    // â”€â”€ Utility â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     function toast(msg, type = 'success') {
         const div = $('<div>')
             .addClass('notice notice-' + (type === 'error' ? 'error' : 'success') + ' is-dismissible tmpmp-admin-toast')
@@ -21,7 +21,7 @@
 
     function btn(el, loading) {
         if (loading) {
-            $(el).data('orig', $(el).text()).text('â³ Savingâ€¦').prop('disabled', true);
+            $(el).data('orig', $(el).text()).text('Saving...').prop('disabled', true);
         } else {
             $(el).text($(el).data('orig') || 'Save').prop('disabled', false);
         }
@@ -58,7 +58,7 @@
     $(document).on('click', '#tmpmp-inject-test', function () {
         const address = $('#tmpmp-test-address').val().trim();
         if (!address) return alert('Enter a temp email address first.');
-        $(this).text('Sendingâ€¦').prop('disabled', true);
+        $(this).text('Sending...').prop('disabled', true);
         const self = this;
         $.post(url, { action: 'tmpmp_inject_test_email', nonce, address }, function (r) {
             $(self).text('Send Test Email').prop('disabled', false);
@@ -69,7 +69,7 @@
     // â”€â”€ Purge expired records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     $(document).on('click', '#tmpmp-purge-now', function () {
         const self = this;
-        $(self).text('Purgingâ€¦').prop('disabled', true);
+        $(self).text('Purging...').prop('disabled', true);
         $.post(url, { action: 'tmpmp_purge_now', nonce }, function (r) {
             $(self).text('Purge Now').prop('disabled', false);
             r.success ? toast('ðŸ—‘ ' + r.data.message) : toast('âŒ Failed', 'error');
@@ -79,7 +79,7 @@
     // â”€â”€ Manual IMAP poll â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     $(document).on('click', '#tmpmp-poll-imap', function () {
         const self = this;
-        $(self).text('Pollingâ€¦').prop('disabled', true);
+        $(self).text('Polling...').prop('disabled', true);
         $.post(url, { action: 'tmpmp_poll_imap', nonce }, function (r) {
             $(self).text('Poll Now').prop('disabled', false);
             if (r.success) {

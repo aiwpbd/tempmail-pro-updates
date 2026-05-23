@@ -167,8 +167,8 @@ function tmpmp_enqueue_frontend() {
         'strings'          => [
             'copy_success'   => __( 'Copied!', 'tempmail-pro' ),
             'copy_fail'      => __( 'Copy failed', 'tempmail-pro' ),
-            'generating'     => __( 'Generatingâ€¦', 'tempmail-pro' ),
-            'no_emails'      => __( 'No emails yet. Waitingâ€¦', 'tempmail-pro' ),
+            'generating'     => __( 'Generating...', 'tempmail-pro' ),
+            'no_emails'      => __( 'No emails yet. Waiting...', 'tempmail-pro' ),
             'email_expired'  => __( 'This inbox has expired.', 'tempmail-pro' ),
             'error_generic'  => __( 'Something went wrong.', 'tempmail-pro' ),
         ],
