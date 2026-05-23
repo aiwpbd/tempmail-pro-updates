@@ -117,6 +117,8 @@
                     (r.data && r.data.message) || '<?php echo esc_js( __('Magic link sent! Check your inbox.','tempmail-pro') ); ?>',
                     'success'
                 );
+                /* Keep button disabled for 5s then restore so user can resend */
+                setTimeout(function(){ resetBtn(); }, 5000);
             } else {
                 showMsg(
                     (r.data && r.data.message) || '<?php echo esc_js( __('Something went wrong. Please try again.','tempmail-pro') ); ?>',

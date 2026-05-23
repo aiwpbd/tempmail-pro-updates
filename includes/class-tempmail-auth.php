@@ -43,20 +43,107 @@ class TempMail_Auth {
             $user = get_user_by('id', $user_id);
         }
 
-        $token = bin2hex(random_bytes(20));
+        $token = bin2hex( random_bytes(20) );
         set_transient( 'tmpmp_magic_' . $token, $user->ID, 15 * MINUTE_IN_SECONDS );
 
-        $link    = add_query_arg(['tmpmp_magic' => $token], home_url('/'));
-        $subject = __('Your TempMail Pro login link', 'tempmail-pro');
-        $message = sprintf(
-            /* translators: %1$s: site name, %2$s: login link */
-            __("Hello!\n\nClick the link below to log in to %1\$s:\n%2\$s\n\nThis link expires in 15 minutes and can only be used once.\n\nIf you did not request this, please ignore this email.", 'tempmail-pro'),
-            get_bloginfo('name'),
-            $link
+        $login_link = add_query_arg( [ 'tmpmp_magic' => $token ], home_url('/') );
+        $site_name  = get_bloginfo('name');
+        $site_url   = home_url('/');
+        $from_email = 'noreply@' . wp_parse_url( home_url(), PHP_URL_HOST );
+
+        $subject = sprintf(
+            /* translators: %s: site name */
+            __( 'Your login link for %s', 'tempmail-pro' ),
+            $site_name
         );
 
-        wp_mail( $email, $subject, $message );
-        wp_send_json_success(['message' => __('Magic link sent! Check your inbox.','tempmail-pro')]);
+        // ── HTML email body ────────────────────────────────────────────
+        $html = '
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;">
+    <tr><td align="center">
+      <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);padding:28px 32px;text-align:center;">
+            <span style="font-size:32px;">&#9993;</span><br>
+            <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:.5px;">' . esc_html($site_name) . '</span>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:32px;">
+            <h2 style="margin:0 0 12px;font-size:18px;color:#0f172a;">&#128279; Your Magic Login Link</h2>
+            <p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;">
+              Click the button below to sign in instantly — no password needed.<br>
+              <strong>This link expires in 15 minutes</strong> and can only be used once.
+            </p>
+
+            <!-- CTA Button -->
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
+              <tr>
+                <td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:8px;">
+                  <a href="' . esc_url($login_link) . '"
+                     style="display:inline-block;padding:14px 32px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;border-radius:8px;letter-spacing:.3px;">
+                    Sign In to ' . esc_html($site_name) . '
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- Fallback link -->
+            <p style="margin:0 0 8px;font-size:12px;color:#94a3b8;">Or copy and paste this link into your browser:</p>
+            <p style="margin:0 0 24px;font-size:12px;word-break:break-all;">
+              <a href="' . esc_url($login_link) . '" style="color:#6366f1;">' . esc_html($login_link) . '</a>
+            </p>
+
+            <!-- Security note -->
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border-radius:8px;margin-bottom:8px;">
+              <tr>
+                <td style="padding:12px 16px;font-size:12px;color:#64748b;">
+                  &#128274; If you did not request this link, you can safely ignore this email.
+                  Someone may have entered your email address by mistake.
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:16px 32px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+            <p style="margin:0;font-size:11px;color:#94a3b8;">
+              &copy; ' . date('Y') . ' <a href="' . esc_url($site_url) . '" style="color:#6366f1;text-decoration:none;">' . esc_html($site_name) . '</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>';
+
+        // ── Mail headers ───────────────────────────────────────────────
+        $headers = [
+            'Content-Type: text/html; charset=UTF-8',
+            'From: ' . $site_name . ' <' . $from_email . '>',
+            'Reply-To: ' . $site_name . ' <' . $from_email . '>',
+            'X-Mailer: TempMail Pro ' . TMPMP_VERSION,
+        ];
+
+        $sent = wp_mail( $email, $subject, $html, $headers );
+
+        if ( ! $sent ) {
+            wp_send_json_error( [ 'message' => __( 'Failed to send email. Please check your mail server settings or try again.', 'tempmail-pro' ) ] );
+        }
+
+        wp_send_json_success( [ 'message' => __( 'Magic link sent! Check your inbox (and spam folder if needed).', 'tempmail-pro' ) ] );
     }
 
     // ── Magic Link Verify (AJAX token check) ──────────────────────────────────
