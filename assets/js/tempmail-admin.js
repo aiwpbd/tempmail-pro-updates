@@ -37,11 +37,11 @@
         data.nonce  = nonce;
         $.post(url, data, function (r) {
             btn(self, false);
-            r.success ? toast('âœ… ' + r.data.message) : toast('âŒ ' + (r.data?.message || 'Error'), 'error');
+            r.success ? toast(r.data.message) : toast(r.data?.message || 'Error', 'error');
         });
     });
 
-    // â”€â”€ Token regeneration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '.tmpmp-regen-token', function () {
         const field = $(this).data('field');
         const input = $('#' + field);
@@ -49,12 +49,12 @@
         $.post(url, { action: 'tmpmp_regen_token', nonce, field }, function (r) {
             if (r.success) {
                 input.val(r.data.token);
-                toast('ðŸ”„ Token regenerated!');
+                toast('Token regenerated!');
             }
         });
     });
 
-    // â”€â”€ Test email injection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '#tmpmp-inject-test', function () {
         const address = $('#tmpmp-test-address').val().trim();
         if (!address) return alert('Enter a temp email address first.');
@@ -62,35 +62,35 @@
         const self = this;
         $.post(url, { action: 'tmpmp_inject_test_email', nonce, address }, function (r) {
             $(self).text('Send Test Email').prop('disabled', false);
-            r.success ? toast('ðŸ“¨ ' + r.data.message) : toast('âŒ ' + (r.data?.message || 'Failed'), 'error');
+            r.success ? toast(r.data.message) : toast(r.data?.message || 'Failed', 'error');
         });
     });
 
-    // â”€â”€ Purge expired records â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '#tmpmp-purge-now', function () {
         const self = this;
         $(self).text('Purging...').prop('disabled', true);
         $.post(url, { action: 'tmpmp_purge_now', nonce }, function (r) {
             $(self).text('Purge Now').prop('disabled', false);
-            r.success ? toast('ðŸ—‘ ' + r.data.message) : toast('âŒ Failed', 'error');
+            r.success ? toast(r.data.message) : toast('Failed', 'error');
         });
     });
 
-    // â”€â”€ Manual IMAP poll â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '#tmpmp-poll-imap', function () {
         const self = this;
         $(self).text('Polling...').prop('disabled', true);
         $.post(url, { action: 'tmpmp_poll_imap', nonce }, function (r) {
             $(self).text('Poll Now').prop('disabled', false);
             if (r.success) {
-                toast('ðŸ“¥ Polled. Stored: ' + (r.data.stored ?? 0) + ' emails.');
+                toast('Polled. Stored: ' + (r.data.stored ?? 0) + ' emails.');
             } else {
-                toast('âŒ Poll failed', 'error');
+                toast('Poll failed', 'error');
             }
         });
     });
 
-    // â”€â”€ Tab switching (settings & plans pages) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '.tmpmp-tab-link', function (e) {
         e.preventDefault();
         const target = $(this).data('tab');
@@ -101,14 +101,14 @@
     });
     $('.tmpmp-tab-link:first').trigger('click');
 
-    // â”€â”€ Domain management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '#tmpmp-add-domain-btn', function () {
         const domain   = $('#tmpmp-new-domain').val().trim();
         const category = $('#tmpmp-new-category').val();
         if (!domain) return toast('Enter a domain name', 'error');
         $.post(url, { action: 'tmpmp_add_domain', nonce, domain, category }, function (r) {
-            if (r.success) { toast('âœ… Domain added!'); setTimeout(() => location.reload(), 800); }
-            else toast('âŒ ' + (r.data?.message || 'Failed'), 'error');
+            if (r.success) { toast('Domain added!'); setTimeout(() => location.reload(), 800); }
+            else toast(r.data?.message || 'Failed', 'error');
         });
     });
 
@@ -122,7 +122,7 @@
         const id       = $(this).data('id');
         const category = $(this).val();
         $.post(url, { action: 'tmpmp_update_domain', nonce, id, category }, function (r) {
-            r.success ? toast('âœ… Category updated') : toast('âŒ Failed', 'error');
+            r.success ? toast('Category updated') : toast('Failed', 'error');
         });
     });
 
@@ -132,11 +132,11 @@
         const row = $(this).closest('tr');
         $.post(url, { action: 'tmpmp_delete_domain', nonce, id }, function (r) {
             if (r.success) row.fadeOut(300, () => row.remove());
-            else toast('âŒ Failed to delete', 'error');
+            else toast('Failed to delete', 'error');
         });
     });
 
-    // â”€â”€ Plan management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '#tmpmp-add-plan-btn', function () {
         $('#tmpmp-plan-modal').show();
         $('#tmpmp-plan-form')[0].reset();
@@ -172,8 +172,8 @@
         data.id     = $('#tmpmp-plan-id').val();
         $.post(url, data, function (r) {
             btn(self, false);
-            if (r.success) { toast('âœ… Plan saved!'); setTimeout(() => location.reload(), 800); }
-            else toast('âŒ ' + (r.data?.message || 'Save failed'), 'error');
+            if (r.success) { toast('Plan saved!'); setTimeout(() => location.reload(), 800); }
+            else toast(r.data?.message || 'Save failed', 'error');
         });
     });
 
@@ -183,11 +183,11 @@
         const row = $(this).closest('tr');
         $.post(url, { action: 'tmpmp_delete_plan', nonce, id }, function (r) {
             if (r.success) row.fadeOut(300, () => row.remove());
-            else toast('âŒ ' + (r.data?.message || 'Failed'), 'error');
+            else toast(r.data?.message || 'Failed', 'error');
         });
     });
 
-    // â”€â”€ Ad management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '#tmpmp-save-ad-btn', function () {
         const self = this;
         btn(self, true);
@@ -196,8 +196,8 @@
         data.nonce  = nonce;
         $.post(url, data, function (r) {
             btn(self, false);
-            if (r.success) { toast('âœ… Ad saved!'); setTimeout(() => location.reload(), 800); }
-            else toast('âŒ Save failed', 'error');
+            if (r.success) { toast('Ad saved!'); setTimeout(() => location.reload(), 800); }
+            else toast('Save failed', 'error');
         });
     });
 
@@ -210,12 +210,12 @@
         });
     });
 
-    // â”€â”€ User management â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '.tmpmp-cancel-user-sub', function () {
         if (!confirm('Cancel this user\'s subscription?')) return;
         const user_id = $(this).data('uid');
         $.post(url, { action: 'tmpmp_cancel_user_sub', nonce, user_id }, function (r) {
-            r.success ? toast('âœ… Subscription cancelled') : toast('âŒ Failed', 'error');
+            r.success ? toast('Subscription cancelled') : toast('Failed', 'error');
         });
     });
 
@@ -224,7 +224,7 @@
         if (!ip) return;
         const reason = prompt('Reason (optional):') || '';
         $.post(url, { action: 'tmpmp_ban_ip', nonce, ip, reason }, function (r) {
-            r.success ? toast('ðŸš« IP banned') : toast('âŒ ' + (r.data?.message || 'Failed'), 'error');
+            r.success ? toast('IP banned') : toast(r.data?.message || 'Failed', 'error');
         });
     });
 
@@ -237,15 +237,15 @@
         });
     });
 
-    // â”€â”€ Copy to clipboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '.tmpmp-copy-field', function () {
         const target = $($(this).data('target'));
         navigator.clipboard.writeText(target.val() || target.text())
-            .then(() => toast('ðŸ“‹ Copied to clipboard'))
+            .then(() => toast('Copied to clipboard'))
             .catch(() => {
                 target.select();
                 document.execCommand('copy');
-                toast('ðŸ“‹ Copied');
+                toast('Copied');
             });
     });
 
