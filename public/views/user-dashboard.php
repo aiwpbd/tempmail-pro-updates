@@ -18,6 +18,68 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     $user->ID
 ));
 ?>
+<style>
+/* ── Dashboard responsive override (guaranteed, not cached) ── */
+.tmpmp-dash-tabs {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
+    overflow-x: unset !important;
+    width: 100%;
+    box-sizing: border-box;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 24px;
+}
+.dash-tab-btn {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+/* Mobile: stack header, full-width actions */
+@media (max-width: 640px) {
+    .tmpmp-dashboard-wrap { padding: 16px 12px !important; }
+    .tmpmp-dash-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px;
+    }
+    .tmpmp-dash-actions {
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    .tmpmp-dash-header h1 { font-size: 18px; }
+    /* Tabs — equal-width pill row */
+    .tmpmp-dash-tabs {
+        gap: 4px;
+        border-bottom: 2px solid #e2e8f0;
+        padding-bottom: 0;
+    }
+    .dash-tab-btn {
+        flex: 1 1 auto;
+        justify-content: center;
+        padding: 9px 8px;
+        font-size: 12px;
+        border-radius: 8px 8px 0 0;
+        background: #f8fafc;
+        gap: 4px;
+    }
+    .dash-tab-btn.is-active { background: #ede9fe; }
+    /* Inbox table — horizontal scroll within its wrapper */
+    .tmpmp-pub-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+    .tmpmp-pub-table { min-width: 480px; }
+    .tmpmp-pub-table th,
+    .tmpmp-pub-table td { padding: 7px 8px !important; font-size: 11px !important; }
+    /* Billing card */
+    .tmpmp-billing-active { padding: 14px !important; }
+}
+@media (max-width: 380px) {
+    .tmpmp-dash-actions { flex-direction: column; }
+    .tmpmp-dash-actions .tmpmp-pub-btn,
+    .tmpmp-dash-actions .tmpmp-pub-badge { text-align: center; width: 100%; }
+    .dash-tab-btn { font-size: 11px; padding: 8px 5px; }
+}
+</style>
 <div class="tmpmp-page-section tmpmp-dashboard-wrap">
 
     <!-- Header -->

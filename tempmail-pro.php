@@ -1,9 +1,9 @@
-﻿<?php
+<?php
 /**
  * Plugin Name: TempMail Pro
  * Plugin URI:  https://wa.me/+8801516514216
  * Description: A full-featured temporary/disposable email SaaS platform for WordPress â€” with subscriptions, multi-domain, API, and monetization.
- * Version:     2.0.2
+ * Version:     2.0.3
  * Author:      TempMail Pro
  * Author URI:  https://wa.me/+8801516514216
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-define( 'TMPMP_VERSION',     '2.0.2' );
+define( 'TMPMP_VERSION',     '2.0.3' );
 define( 'TMPMP_PLUGIN_FILE', __FILE__ );
 define( 'TMPMP_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'TMPMP_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -133,7 +133,7 @@ function tmpmp_enqueue_frontend() {
         'tempmail-pro-public',
         TMPMP_PLUGIN_URL . 'assets/css/tempmail-app.css',
         [],
-        TMPMP_VERSION
+        filemtime( TMPMP_PLUGIN_DIR . 'assets/css/tempmail-app.css' )
     );
     // QR code library (client-side, no external API)
     wp_register_script(

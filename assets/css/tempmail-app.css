@@ -1360,16 +1360,31 @@
 /* tabs */
 .tmpmp-dash-tabs {
     display: flex;
-    flex-wrap: wrap;          /* wrap instead of scroll */
+    flex-wrap: wrap;
     gap: 0;
     border-bottom: 2px solid var(--c-border);
     margin-bottom: 28px;
+    overflow: visible;   /* never clip wrapped tabs */
+    width: 100%;
+    box-sizing: border-box;
 }
 .dash-tab-btn {
-    padding: 11px 20px; border: none; background: none; cursor: pointer;
-    font-family: inherit; font-size: 13.5px; font-weight: 600;
-    color: var(--c-muted); border-bottom: 3px solid transparent; margin-bottom: -2px;
-    transition: color .18s, border-color .18s; white-space: nowrap; display: flex; align-items: center; gap: 7px;
+    padding: 11px 20px;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--c-muted);
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    transition: color .18s, border-color .18s;
+    white-space: nowrap;   /* keep label on one line but allow container to wrap */
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;        /* never compress below natural size */
 }
 .dash-tab-btn:hover { color: var(--c-primary); }
 .dash-tab-btn.is-active { color: var(--c-primary); border-bottom-color: var(--c-primary); }
