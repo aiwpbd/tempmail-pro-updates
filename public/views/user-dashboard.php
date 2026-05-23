@@ -20,6 +20,81 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
 ?>
 <style>
 /* ── Dashboard responsive override (guaranteed, not cached) ── */
+
+/* Account / Profile cards */
+.tmpmp-account-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+.tmpmp-account-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.tmpmp-account-card h3 {
+    margin: 0 0 18px;
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.tmpmp-account-card .tmpmp-field {
+    margin-bottom: 14px;
+}
+.tmpmp-account-card label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    margin-bottom: 5px;
+}
+.tmpmp-account-card input[type=text],
+.tmpmp-account-card input[type=password] {
+    width: 100%;
+    padding: 9px 13px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 9px;
+    font-size: 14px;
+    color: #0f172a;
+    background: #f8fafc;
+    box-sizing: border-box;
+    transition: border-color .18s;
+    outline: none;
+    font-family: inherit;
+}
+.tmpmp-account-card input:focus {
+    border-color: #6366f1;
+    background: #fff;
+}
+.tmpmp-account-msg {
+    margin-top: 10px;
+    padding: 9px 13px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+}
+.tmpmp-account-msg.ok  { background: #f0fdf4; color: #065f46; border: 1px solid #bbf7d0; display: block; }
+.tmpmp-account-msg.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; display: block; }
+.tmpmp-reset-info {
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 16px;
+    line-height: 1.6;
+}
+/* Responsive: stack cards on mobile */
+@media (max-width: 640px) {
+    .tmpmp-account-grid { grid-template-columns: 1fr; }
+    .tmpmp-account-card { padding: 18px 16px; }
+}
 .tmpmp-dash-tabs {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -138,7 +213,7 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
 
     <!-- Tabs -->
     <div class="tmpmp-dash-tabs">
-        <?php foreach ( ['inboxes' => '&#9993; '.__('My Inboxes','tempmail-pro'), 'billing' => '&#128179; '.__('Billing','tempmail-pro'), 'api' => '&#128273; '.__('API Keys','tempmail-pro')] as $tab => $label ) : ?>
+        <?php foreach ( ['inboxes' => '&#9993; '.__('My Inboxes','tempmail-pro'), 'billing' => '&#128179; '.__('Billing','tempmail-pro'), 'api' => '&#128273; '.__('API Keys','tempmail-pro'), 'account' => '&#128100; '.__('Account','tempmail-pro')] as $tab => $label ) : ?>
         <button class="dash-tab-btn" data-tab="<?php echo esc_attr($tab); ?>"><?php echo $label; ?></button>
         <?php endforeach; ?>
     </div>
@@ -292,6 +367,78 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
         <?php endif; ?>
     </div>
 
+    <!-- ── Account Tab ──────────────────────────────────────────────────── -->
+    <div class="dash-tab-panel" id="dash-tab-account">
+        <div class="tmpmp-account-grid">
+
+            <!-- Profile card -->
+            <div class="tmpmp-account-card">
+                <h3>&#128100; <?php esc_html_e('My Profile','tempmail-pro'); ?></h3>
+                <div class="tmpmp-field">
+                    <label for="acc-first-name"><?php esc_html_e('First Name','tempmail-pro'); ?></label>
+                    <input type="text" id="acc-first-name" value="<?php echo esc_attr( $user->first_name ); ?>" autocomplete="given-name">
+                </div>
+                <div class="tmpmp-field">
+                    <label for="acc-last-name"><?php esc_html_e('Last Name','tempmail-pro'); ?></label>
+                    <input type="text" id="acc-last-name" value="<?php echo esc_attr( $user->last_name ); ?>" autocomplete="family-name">
+                </div>
+                <div class="tmpmp-field">
+                    <label for="acc-display-name"><?php esc_html_e('Display Name','tempmail-pro'); ?></label>
+                    <input type="text" id="acc-display-name" value="<?php echo esc_attr( $user->display_name ); ?>" autocomplete="nickname">
+                </div>
+                <div class="tmpmp-field">
+                    <label><?php esc_html_e('Email','tempmail-pro'); ?></label>
+                    <input type="text" value="<?php echo esc_attr( $user->user_email ); ?>" readonly style="opacity:.6;cursor:default;">
+                </div>
+                <button id="tmpmp-save-profile" class="tmpmp-pub-btn tmpmp-pub-btn--primary" style="width:100%;margin-top:4px;">
+                    <?php esc_html_e('Save Profile','tempmail-pro'); ?>
+                </button>
+                <div id="tmpmp-profile-msg" class="tmpmp-account-msg"></div>
+            </div>
+
+            <!-- Security card -->
+            <div style="display:flex;flex-direction:column;gap:20px;">
+
+                <!-- Change Password -->
+                <div class="tmpmp-account-card">
+                    <h3>&#128274; <?php esc_html_e('Change Password','tempmail-pro'); ?></h3>
+                    <div class="tmpmp-field">
+                        <label for="acc-cur-pass"><?php esc_html_e('Current Password','tempmail-pro'); ?></label>
+                        <input type="password" id="acc-cur-pass" autocomplete="current-password">
+                    </div>
+                    <div class="tmpmp-field">
+                        <label for="acc-new-pass"><?php esc_html_e('New Password','tempmail-pro'); ?></label>
+                        <input type="password" id="acc-new-pass" autocomplete="new-password">
+                    </div>
+                    <div class="tmpmp-field">
+                        <label for="acc-conf-pass"><?php esc_html_e('Confirm New Password','tempmail-pro'); ?></label>
+                        <input type="password" id="acc-conf-pass" autocomplete="new-password">
+                    </div>
+                    <button id="tmpmp-change-pass" class="tmpmp-pub-btn tmpmp-pub-btn--primary" style="width:100%;margin-top:4px;">
+                        <?php esc_html_e('Update Password','tempmail-pro'); ?>
+                    </button>
+                    <div id="tmpmp-pass-msg" class="tmpmp-account-msg"></div>
+                </div>
+
+                <!-- Reset Password -->
+                <div class="tmpmp-account-card">
+                    <h3>&#128140; <?php esc_html_e('Reset Password','tempmail-pro'); ?></h3>
+                    <p class="tmpmp-reset-info">
+                        <?php printf(
+                            esc_html__( 'Forgot your password, or signed in with magic link and never set one? Send a reset link to %s.', 'tempmail-pro' ),
+                            '<strong>' . esc_html( $user->user_email ) . '</strong>'
+                        ); ?>
+                    </p>
+                    <button id="tmpmp-send-reset" class="tmpmp-pub-btn tmpmp-pub-btn--outline" style="width:100%;">
+                        &#128140; <?php esc_html_e('Send Password Reset Email','tempmail-pro'); ?>
+                    </button>
+                    <div id="tmpmp-reset-msg" class="tmpmp-account-msg"></div>
+                </div>
+
+            </div><!-- /security column -->
+        </div><!-- /account-grid -->
+    </div><!-- /#dash-tab-account -->
+
 </div><!-- .tmpmp-dashboard-wrap -->
 
 <script>
@@ -336,6 +483,70 @@ jQuery(function($){
         $.post(url,{action:'tmpmp_revoke_api_key',nonce,key_id:id},function(r){
             if(r.success) $('#key-row-'+id).fadeOut(300,function(){$(this).remove();});
         });
+    });
+
+    /* ── Account tab helpers ────────────────────────────────────── */
+    function acctPost(action, data, btnId, msgId) {
+        const btn = document.getElementById(btnId);
+        const msg = document.getElementById(msgId);
+        const orig = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '<?php esc_html_e('Saving…','tempmail-pro'); ?>';
+        msg.className = 'tmpmp-account-msg';
+        const body = new URLSearchParams({action, nonce, ...data});
+        fetch(url, {method:'POST', body, credentials:'same-origin'})
+            .then(r => r.json())
+            .then(r => {
+                msg.textContent = r.data?.message || '';
+                msg.className   = 'tmpmp-account-msg ' + (r.success ? 'ok' : 'err');
+            })
+            .catch(() => {
+                msg.textContent = '<?php esc_html_e('Connection error. Please try again.','tempmail-pro'); ?>';
+                msg.className   = 'tmpmp-account-msg err';
+            })
+            .finally(() => { btn.disabled = false; btn.textContent = orig; });
+    }
+
+    // Save Profile
+    document.getElementById('tmpmp-save-profile')?.addEventListener('click', function() {
+        acctPost('tmpmp_update_profile', {
+            first_name:   document.getElementById('acc-first-name').value,
+            last_name:    document.getElementById('acc-last-name').value,
+            display_name: document.getElementById('acc-display-name').value,
+        }, 'tmpmp-save-profile', 'tmpmp-profile-msg');
+    });
+
+    // Change Password
+    document.getElementById('tmpmp-change-pass')?.addEventListener('click', function() {
+        acctPost('tmpmp_change_password', {
+            current_password: document.getElementById('acc-cur-pass').value,
+            new_password:     document.getElementById('acc-new-pass').value,
+            confirm_password: document.getElementById('acc-conf-pass').value,
+        }, 'tmpmp-change-pass', 'tmpmp-pass-msg');
+    });
+
+    // Send Reset Email
+    document.getElementById('tmpmp-send-reset')?.addEventListener('click', function() {
+        const btn = this;
+        const msg = document.getElementById('tmpmp-reset-msg');
+        btn.disabled = true;
+        btn.textContent = '<?php esc_html_e('Sending…','tempmail-pro'); ?>';
+        msg.className = 'tmpmp-account-msg';
+        const body = new URLSearchParams({action:'tmpmp_send_password_reset', nonce});
+        fetch(url, {method:'POST', body, credentials:'same-origin'})
+            .then(r => r.json())
+            .then(r => {
+                msg.textContent = r.data?.message || '';
+                msg.className   = 'tmpmp-account-msg ' + (r.success ? 'ok' : 'err');
+            })
+            .catch(() => {
+                msg.textContent = '<?php esc_html_e('Connection error. Please try again.','tempmail-pro'); ?>';
+                msg.className   = 'tmpmp-account-msg err';
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = '\u{1F4DC} <?php esc_html_e('Send Password Reset Email','tempmail-pro'); ?>';
+            });
     });
 });
 </script>

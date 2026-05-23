@@ -17,6 +17,10 @@ class TempMail_Auth {
         add_action( 'wp_ajax_tmpmp_magic_link_verify',         [ $this, 'ajax_magic_link_verify'  ] );
         // Subscription cancel (logged-in only)
         add_action( 'wp_ajax_tmpmp_cancel_subscription', [ $this, 'ajax_cancel_subscription' ] );
+        // Profile & Security
+        add_action( 'wp_ajax_tmpmp_update_profile',       [ $this, 'ajax_update_profile'       ] );
+        add_action( 'wp_ajax_tmpmp_change_password',      [ $this, 'ajax_change_password'      ] );
+        add_action( 'wp_ajax_tmpmp_send_password_reset',  [ $this, 'ajax_send_password_reset'  ] );
         // Magic link URL handler
         add_action( 'init', [ $this, 'handle_magic_link_login' ] );
         // Redirect non-admin users after WP login to subscription dashboard
@@ -253,6 +257,86 @@ class TempMail_Auth {
             'scope'         => 'openid email profile',
             'state'         => wp_create_nonce('tmpmp_google_oauth'),
         ]);
+    }
+
+    // ── Update Profile ────────────────────────────────────────────────────────
+    public function ajax_update_profile() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
+        }
+        $user_id      = get_current_user_id();
+        $first_name   = sanitize_text_field( wp_unslash( $_POST['first_name']    ?? '' ) );
+        $last_name    = sanitize_text_field( wp_unslash( $_POST['last_name']     ?? '' ) );
+        $display_name = sanitize_text_field( wp_unslash( $_POST['display_name']  ?? '' ) );
+
+        $result = wp_update_user( [
+            'ID'           => $user_id,
+            'first_name'   => $first_name,
+            'last_name'    => $last_name,
+            'display_name' => $display_name ?: trim( "$first_name $last_name" ) ?: wp_get_current_user()->user_login,
+        ] );
+
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error( [ 'message' => $result->get_error_message() ] );
+        }
+        wp_send_json_success( [ 'message' => __( 'Profile updated successfully.', 'tempmail-pro' ) ] );
+    }
+
+    // ── Change Password ───────────────────────────────────────────────────────
+    public function ajax_change_password() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
+        }
+        $current  = wp_unslash( $_POST['current_password'] ?? '' );
+        $new      = wp_unslash( $_POST['new_password']     ?? '' );
+        $confirm  = wp_unslash( $_POST['confirm_password'] ?? '' );
+
+        if ( empty( $current ) || empty( $new ) || empty( $confirm ) ) {
+            wp_send_json_error( [ 'message' => __( 'All password fields are required.', 'tempmail-pro' ) ] );
+        }
+        if ( $new !== $confirm ) {
+            wp_send_json_error( [ 'message' => __( 'New passwords do not match.', 'tempmail-pro' ) ] );
+        }
+        if ( strlen( $new ) < 8 ) {
+            wp_send_json_error( [ 'message' => __( 'New password must be at least 8 characters.', 'tempmail-pro' ) ] );
+        }
+
+        $user = wp_get_current_user();
+        if ( ! wp_check_password( $current, $user->user_pass, $user->ID ) ) {
+            wp_send_json_error( [ 'message' => __( 'Current password is incorrect.', 'tempmail-pro' ) ] );
+        }
+
+        wp_set_password( $new, $user->ID );
+        // Re-authenticate so the user isn't logged out
+        wp_set_auth_cookie( $user->ID, true );
+        wp_send_json_success( [ 'message' => __( 'Password changed successfully.', 'tempmail-pro' ) ] );
+    }
+
+    // ── Send Password Reset Email ─────────────────────────────────────────────
+    public function ajax_send_password_reset() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! is_user_logged_in() ) {
+            wp_send_json_error( [ 'message' => __( 'You must be logged in.', 'tempmail-pro' ) ] );
+        }
+        $user  = wp_get_current_user();
+        $key   = get_password_reset_key( $user );
+        if ( is_wp_error( $key ) ) {
+            wp_send_json_error( [ 'message' => $key->get_error_message() ] );
+        }
+        $reset_link = network_site_url( "wp-login.php?action=rp&key=$key&login=" . rawurlencode( $user->user_login ), 'login' );
+        $subject    = sprintf( __( 'Password Reset for %s', 'tempmail-pro' ), get_bloginfo( 'name' ) );
+        $message    = sprintf(
+            __( "Hi %s,\n\nClick the link below to reset your password:\n\n%s\n\nThis link expires in 24 hours.\n\nIf you didn't request this, ignore this email.", 'tempmail-pro' ),
+            $user->display_name,
+            $reset_link
+        );
+        $sent = wp_mail( $user->user_email, $subject, $message );
+        if ( ! $sent ) {
+            wp_send_json_error( [ 'message' => __( 'Failed to send reset email. Please check mail settings.', 'tempmail-pro' ) ] );
+        }
+        wp_send_json_success( [ 'message' => sprintf( __( 'Reset link sent to %s', 'tempmail-pro' ), $user->user_email ) ] );
     }
 
     // ── Shortcodes ────────────────────────────────────────────────────────────
