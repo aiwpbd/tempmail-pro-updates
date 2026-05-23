@@ -296,6 +296,29 @@ class TempMail_Admin {
             $new_data['custom_api_endpoint'] = esc_url_raw( wp_unslash( $_POST['custom_api_endpoint'] ) );
         }
 
+        // ── Login Email customizer ──────────────────────────────────────────────
+        $le_text_fields = [
+            'le_from_name', 'le_subject', 'le_header_title',
+            'le_btn_text',  'le_footer_text', 'le_logo_emoji',
+        ];
+        foreach ( $le_text_fields as $k ) {
+            if ( isset($_POST[$k]) ) {
+                $new_data[$k] = sanitize_text_field( wp_unslash( $_POST[$k] ) );
+            }
+        }
+        $le_textarea_fields = [ 'le_body_msg', 'le_security_msg' ];
+        foreach ( $le_textarea_fields as $k ) {
+            if ( isset($_POST[$k]) ) {
+                $new_data[$k] = sanitize_textarea_field( wp_unslash( $_POST[$k] ) );
+            }
+        }
+        $le_color_fields = [ 'le_hdr_color1', 'le_hdr_color2', 'le_btn_color' ];
+        foreach ( $le_color_fields as $k ) {
+            if ( isset($_POST[$k]) && preg_match('/^#[0-9a-fA-F]{6}$/', $_POST[$k]) ) {
+                $new_data[$k] = sanitize_text_field( $_POST[$k] );
+            }
+        }
+
         update_option('tmpmp_settings', array_merge($current, $new_data));
         wp_send_json_success(['message' => __('Settings saved!','tempmail-pro')]);
     }

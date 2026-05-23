@@ -14,6 +14,7 @@
     <button type="button" class="tmpmp-tab-btn" data-tab="security">🛡️ <?php esc_html_e('Security','tempmail-pro'); ?></button>
     <button type="button" class="tmpmp-tab-btn" data-tab="design">🎨 <?php esc_html_e('Design','tempmail-pro'); ?></button>
     <button type="button" class="tmpmp-tab-btn" data-tab="faq">❓ <?php esc_html_e('FAQ','tempmail-pro'); ?></button>
+    <button type="button" class="tmpmp-tab-btn" data-tab="loginemail">✉️ <?php esc_html_e('Login Email','tempmail-pro'); ?></button>
 </div>
 
 <!-- General Tab -->
@@ -1594,9 +1595,251 @@ if ( empty($faq_items) ) $faq_items = TempMail_FAQ::default_items();
         </script>
     </div>
 </div>
-
 </div><!-- /#tab-faq -->
 
+<!-- ══════════════════════════════════════════════════════════════════════
+     Login Email Tab
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="tmpmp-tab-panel" id="tab-loginemail">
+<?php
+$le = $settings; // shorthand
+$le_from_name    = $le['le_from_name']    ?? get_bloginfo('name');
+$le_subject      = $le['le_subject']      ?? '';
+$le_header_title = $le['le_header_title'] ?? '';
+$le_hdr_color1   = $le['le_hdr_color1']  ?? '#6366f1';
+$le_hdr_color2   = $le['le_hdr_color2']  ?? '#8b5cf6';
+$le_btn_text     = $le['le_btn_text']     ?? '';
+$le_btn_color    = $le['le_btn_color']    ?? '#6366f1';
+$le_body_msg     = $le['le_body_msg']     ?? '';
+$le_security_msg = $le['le_security_msg'] ?? '';
+$le_footer_text  = $le['le_footer_text']  ?? '';
+$le_logo_emoji   = $le['le_logo_emoji']   ?? '✉';
+$site_name       = get_bloginfo('name');
+?>
+
+<!-- ── Sender ─────────────────────────────────────────────────────────── -->
+<div class="tmpmp-settings-card">
+    <div class="tmpmp-card-header">
+        <span class="tmpmp-card-icon">📤</span>
+        <div>
+            <h3><?php esc_html_e('Sender Settings','tempmail-pro'); ?></h3>
+            <p><?php esc_html_e('Controls the "From" name and email subject line.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+    <div class="tmpmp-card-body">
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('From Name','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <input type="text" name="le_from_name" class="tmpmp-input" id="le-from-name"
+                    value="<?php echo esc_attr($le_from_name); ?>"
+                    placeholder="<?php echo esc_attr($site_name); ?>">
+                <p class="tmpmp-field-desc"><?php esc_html_e('Sender name shown in the recipient\'s inbox. Defaults to site name.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Email Subject','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <input type="text" name="le_subject" class="tmpmp-input" id="le-subject"
+                    value="<?php echo esc_attr($le_subject); ?>"
+                    placeholder="<?php printf( esc_attr__('Your login link for %s','tempmail-pro'), esc_attr($site_name) ); ?>">
+                <p class="tmpmp-field-desc"><?php esc_html_e('Leave blank to use default. You can use {site} as a placeholder.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ── Email Header ───────────────────────────────────────────────────── -->
+<div class="tmpmp-settings-card">
+    <div class="tmpmp-card-header">
+        <span class="tmpmp-card-icon">🎨</span>
+        <div>
+            <h3><?php esc_html_e('Email Header','tempmail-pro'); ?></h3>
+            <p><?php esc_html_e('Logo emoji, title text, and header gradient colours.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+    <div class="tmpmp-card-body">
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Logo Emoji','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <input type="text" name="le_logo_emoji" class="tmpmp-faq-icon-input" id="le-logo-emoji"
+                    value="<?php echo esc_attr($le_logo_emoji); ?>" maxlength="4">
+                <p class="tmpmp-field-desc"><?php esc_html_e('Emoji shown at the top of the email header.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Header Title','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <input type="text" name="le_header_title" class="tmpmp-input" id="le-header-title"
+                    value="<?php echo esc_attr($le_header_title); ?>"
+                    placeholder="<?php echo esc_attr($site_name); ?>">
+                <p class="tmpmp-field-desc"><?php esc_html_e('Title shown in the coloured header. Defaults to site name.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Header Gradient','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <div style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;font-weight:600;">
+                        <?php esc_html_e('Start','tempmail-pro'); ?>
+                        <input type="color" name="le_hdr_color1" id="le-hdr-color1"
+                            value="<?php echo esc_attr($le_hdr_color1); ?>"
+                            style="width:44px;height:34px;border:1.5px solid #e2e8f0;border-radius:6px;cursor:pointer;padding:2px;">
+                    </label>
+                    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;font-weight:600;">
+                        <?php esc_html_e('End','tempmail-pro'); ?>
+                        <input type="color" name="le_hdr_color2" id="le-hdr-color2"
+                            value="<?php echo esc_attr($le_hdr_color2); ?>"
+                            style="width:44px;height:34px;border:1.5px solid #e2e8f0;border-radius:6px;cursor:pointer;padding:2px;">
+                    </label>
+                    <div id="le-gradient-preview" style="flex:1;min-width:120px;height:34px;border-radius:6px;background:linear-gradient(135deg,<?php echo esc_attr($le_hdr_color1); ?>,<?php echo esc_attr($le_hdr_color2); ?>);"></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ── Email Body ─────────────────────────────────────────────────────── -->
+<div class="tmpmp-settings-card">
+    <div class="tmpmp-card-header">
+        <span class="tmpmp-card-icon">📝</span>
+        <div>
+            <h3><?php esc_html_e('Email Body','tempmail-pro'); ?></h3>
+            <p><?php esc_html_e('Customise the button, body message, security notice, and footer.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+    <div class="tmpmp-card-body">
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Button Text','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                <input type="text" name="le_btn_text" class="tmpmp-input" id="le-btn-text"
+                    value="<?php echo esc_attr($le_btn_text); ?>"
+                    placeholder="Sign In to <?php echo esc_attr($site_name); ?>"
+                    style="flex:1;min-width:200px;">
+                <input type="color" name="le_btn_color" id="le-btn-color"
+                    value="<?php echo esc_attr($le_btn_color); ?>"
+                    style="width:44px;height:38px;border:1.5px solid #e2e8f0;border-radius:6px;cursor:pointer;padding:2px;flex-shrink:0;"
+                    title="<?php esc_attr_e('Button colour','tempmail-pro'); ?>">
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Body Message','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <textarea name="le_body_msg" rows="3" class="tmpmp-input" id="le-body-msg"
+                    placeholder="<?php esc_attr_e('Click the button below to sign in instantly — no password needed.','tempmail-pro'); ?>"><?php echo esc_textarea($le_body_msg); ?></textarea>
+                <p class="tmpmp-field-desc"><?php esc_html_e('Main paragraph shown above the login button.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Security Notice','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <textarea name="le_security_msg" rows="2" class="tmpmp-input" id="le-security-msg"
+                    placeholder="<?php esc_attr_e('If you did not request this link, you can safely ignore this email.','tempmail-pro'); ?>"><?php echo esc_textarea($le_security_msg); ?></textarea>
+                <p class="tmpmp-field-desc"><?php esc_html_e('Shown in the grey security box below the button.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+        <div class="tmpmp-field-row">
+            <label class="tmpmp-field-label"><?php esc_html_e('Footer Text','tempmail-pro'); ?></label>
+            <div class="tmpmp-field-control">
+                <input type="text" name="le_footer_text" class="tmpmp-input" id="le-footer-text"
+                    value="<?php echo esc_attr($le_footer_text); ?>"
+                    placeholder="<?php echo esc_attr( '© ' . date('Y') . ' ' . $site_name ); ?>">
+                <p class="tmpmp-field-desc"><?php esc_html_e('Footer attribution line. Leave blank to use auto-generated.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ── Live Preview ───────────────────────────────────────────────────── -->
+<div class="tmpmp-settings-card">
+    <div class="tmpmp-card-header">
+        <span class="tmpmp-card-icon">👁️</span>
+        <div>
+            <h3><?php esc_html_e('Live Preview','tempmail-pro'); ?></h3>
+            <p><?php esc_html_e('Rendered preview updates as you type.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+    <div class="tmpmp-card-body" style="background:#f1f5f9;padding:24px;border-radius:0 0 12px 12px;">
+        <div style="max-width:480px;margin:0 auto;" id="le-preview-wrap">
+            <div style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.1);">
+                <!-- Header -->
+                <div id="le-prev-header" style="padding:24px;text-align:center;background:linear-gradient(135deg,<?php echo esc_attr($le_hdr_color1); ?>,<?php echo esc_attr($le_hdr_color2); ?>);">
+                    <div id="le-prev-emoji" style="font-size:28px;line-height:1;margin-bottom:6px;"><?php echo esc_html($le_logo_emoji ?: '✉'); ?></div>
+                    <div id="le-prev-title" style="color:#fff;font-size:17px;font-weight:700;"><?php echo esc_html($le_header_title ?: $site_name); ?></div>
+                </div>
+                <!-- Body -->
+                <div style="padding:24px;">
+                    <p style="margin:0 0 6px;font-size:15px;font-weight:700;color:#0f172a;">🔗 Your Magic Login Link</p>
+                    <p id="le-prev-body" style="margin:0 0 18px;font-size:13px;color:#475569;line-height:1.6;"><?php echo esc_html($le_body_msg ?: __('Click the button below to sign in instantly — no password needed.','tempmail-pro')); ?></p>
+                    <!-- Button -->
+                    <div style="text-align:center;margin-bottom:18px;">
+                        <span id="le-prev-btn" style="display:inline-block;padding:12px 28px;border-radius:7px;font-size:14px;font-weight:700;color:#fff;background:<?php echo esc_attr($le_btn_color); ?>;">
+                            <?php echo esc_html($le_btn_text ?: 'Sign In to ' . $site_name); ?>
+                        </span>
+                    </div>
+                    <!-- Security -->
+                    <div id="le-prev-security" style="background:#f8fafc;border-radius:7px;padding:10px 14px;font-size:12px;color:#64748b;">
+                        🔒 <?php echo esc_html($le_security_msg ?: __('If you did not request this link, you can safely ignore this email.','tempmail-pro')); ?>
+                    </div>
+                </div>
+                <!-- Footer -->
+                <div style="padding:12px 24px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+                    <div id="le-prev-footer" style="font-size:11px;color:#94a3b8;">
+                        <?php echo esc_html($le_footer_text ?: '© ' . date('Y') . ' ' . $site_name); ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var sn = '<?php echo esc_js($site_name); ?>';
+    function g(id){ return document.getElementById(id); }
+    function val(id, fallback){ var el = g(id); return el ? el.value.trim() || fallback : fallback; }
+
+    function updatePreview(){
+        var c1  = val('le-hdr-color1','#6366f1');
+        var c2  = val('le-hdr-color2','#8b5cf6');
+        var btn = val('le-btn-color','#6366f1');
+        var grad = 'linear-gradient(135deg,'+c1+','+c2+')';
+
+        g('le-prev-header').style.background = grad;
+        g('le-gradient-preview').style.background = grad;
+        g('le-prev-emoji').textContent  = val('le-logo-emoji','✉');
+        g('le-prev-title').textContent  = val('le-header-title', sn);
+        g('le-prev-body').textContent   = val('le-body-msg','<?php echo esc_js(__('Click the button below to sign in instantly — no password needed.','tempmail-pro')); ?>');
+        g('le-prev-btn').textContent    = val('le-btn-text','Sign In to '+sn);
+        g('le-prev-btn').style.background = btn;
+        g('le-prev-security').textContent = '🔒 ' + val('le-security-msg','<?php echo esc_js(__('If you did not request this link, you can safely ignore this email.','tempmail-pro')); ?>');
+        g('le-prev-footer').textContent = val('le-footer-text','© <?php echo esc_js(date('Y').' '.$site_name); ?>');
+    }
+
+    ['le-from-name','le-subject','le-header-title','le-logo-emoji',
+     'le-hdr-color1','le-hdr-color2','le-btn-text','le-btn-color',
+     'le-body-msg','le-security-msg','le-footer-text'
+    ].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', updatePreview);
+    });
+
+    updatePreview();
+})();
+</script>
+
+</div><!-- /#tab-loginemail -->
 
 <p class="submit" style="padding-top:4px;">
     <button type="button" class="tmpmp-test-btn" id="tmpmp-save-settings">
