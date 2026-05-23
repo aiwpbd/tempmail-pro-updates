@@ -30,10 +30,59 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     border-bottom: 2px solid #e2e8f0;
     margin-bottom: 24px;
 }
-.dash-tab-btn {
-    flex-shrink: 0;
-    white-space: nowrap;
+.dash-tab-btn { flex-shrink: 0; white-space: nowrap; }
+
+/* ── Responsive card table ── */
+@media (max-width: 580px) {
+    /* Hide the normal table header row */
+    .tmpmp-pub-table thead { display: none !important; }
+
+    /* Make the table itself, tbody, tr and td all block */
+    .tmpmp-pub-table,
+    .tmpmp-pub-table tbody,
+    .tmpmp-pub-table tr,
+    .tmpmp-pub-table td { display: block !important; width: 100% !important; }
+
+    /* Remove the wrapper's overflow-x scroll — no longer needed */
+    .tmpmp-pub-table-wrap { overflow-x: visible !important; border: none !important; border-radius: 0 !important; }
+
+    /* Each row = a card */
+    .tmpmp-pub-table tr {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    }
+
+    /* Each cell = label + value row */
+    .tmpmp-pub-table td {
+        display: flex !important;
+        justify-content: space-between;
+        align-items: center;
+        padding: 7px 0 !important;
+        font-size: 13px !important;
+        border-bottom: 1px solid #f1f5f9;
+        width: auto !important;
+        box-sizing: border-box;
+    }
+    .tmpmp-pub-table td:last-child { border-bottom: none; }
+
+    /* Label shown before value via data-label */
+    .tmpmp-pub-table td::before {
+        content: attr(data-label);
+        font-size: 11px;
+        font-weight: 700;
+        color: #94a3b8;
+        text-transform: uppercase;
+        letter-spacing: .5px;
+        flex-shrink: 0;
+        margin-right: 12px;
+        white-space: nowrap;
+    }
 }
+
 /* Mobile: stack header, full-width actions */
 @media (max-width: 640px) {
     .tmpmp-dashboard-wrap { padding: 16px 12px !important; }
@@ -42,19 +91,9 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
         align-items: flex-start !important;
         gap: 12px;
     }
-    .tmpmp-dash-actions {
-        width: 100%;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
+    .tmpmp-dash-actions { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
     .tmpmp-dash-header h1 { font-size: 18px; }
-    /* Tabs — equal-width pill row */
-    .tmpmp-dash-tabs {
-        gap: 4px;
-        border-bottom: 2px solid #e2e8f0;
-        padding-bottom: 0;
-    }
+    .tmpmp-dash-tabs { gap: 4px; }
     .dash-tab-btn {
         flex: 1 1 auto;
         justify-content: center;
@@ -65,12 +104,6 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
         gap: 4px;
     }
     .dash-tab-btn.is-active { background: #ede9fe; }
-    /* Inbox table — horizontal scroll within its wrapper */
-    .tmpmp-pub-table-wrap { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
-    .tmpmp-pub-table { min-width: 480px; }
-    .tmpmp-pub-table th,
-    .tmpmp-pub-table td { padding: 7px 8px !important; font-size: 11px !important; }
-    /* Billing card */
     .tmpmp-billing-active { padding: 14px !important; }
 }
 @media (max-width: 380px) {
@@ -134,11 +167,11 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
                     $expired = strtotime( $addr->expires_at . ' UTC' ) < time();
                 ?>
                 <tr>
-                    <td style="font-family:monospace;font-weight:600;color:#6366f1;"><?php echo esc_html($addr->address); ?></td>
-                    <td><?php echo intval($addr->email_count); ?></td>
-                    <td><span class="tmpmp-pub-badge tmpmp-pub-badge--indigo"><?php echo esc_html(ucfirst($addr->plan)); ?></span></td>
-                    <td style="color:#64748b;"><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($addr->created_at))); ?></td>
-                    <td>
+                    <td data-label="<?php esc_attr_e('Address','tempmail-pro'); ?>" style="font-family:monospace;font-weight:600;color:#6366f1;word-break:break-all;"><?php echo esc_html($addr->address); ?></td>
+                    <td data-label="<?php esc_attr_e('Emails','tempmail-pro'); ?>"><?php echo intval($addr->email_count); ?></td>
+                    <td data-label="<?php esc_attr_e('Plan','tempmail-pro'); ?>"><span class="tmpmp-pub-badge tmpmp-pub-badge--indigo"><?php echo esc_html(ucfirst($addr->plan)); ?></span></td>
+                    <td data-label="<?php esc_attr_e('Created','tempmail-pro'); ?>" style="color:#64748b;"><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($addr->created_at))); ?></td>
+                    <td data-label="<?php esc_attr_e('Expires','tempmail-pro'); ?>">
                         <span class="tmpmp-pub-badge <?php echo $expired ? 'tmpmp-pub-badge--red' : 'tmpmp-pub-badge--green'; ?>">
                             <?php echo $expired ? esc_html__('Expired','tempmail-pro') : esc_html(date_i18n('d M H:i', strtotime($addr->expires_at.' UTC'))); ?>
                         </span>
@@ -194,15 +227,15 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
                 <tbody>
                 <?php foreach ( $my_payments as $py ) : ?>
                 <tr>
-                    <td><code style="font-size:12px;color:#4338ca;"><?php echo esc_html($py->invoice_number); ?></code></td>
-                    <td style="font-weight:700;">$<?php echo number_format($py->amount,2); ?></td>
-                    <td><?php echo esc_html(ucfirst($py->gateway ?? '')); ?></td>
-                    <td>
+                    <td data-label="<?php esc_attr_e('Invoice','tempmail-pro'); ?>"><code style="font-size:12px;color:#4338ca;"><?php echo esc_html($py->invoice_number); ?></code></td>
+                    <td data-label="<?php esc_attr_e('Amount','tempmail-pro'); ?>" style="font-weight:700;">$<?php echo number_format($py->amount,2); ?></td>
+                    <td data-label="<?php esc_attr_e('Gateway','tempmail-pro'); ?>"><?php echo esc_html(ucfirst($py->gateway ?? '')); ?></td>
+                    <td data-label="<?php esc_attr_e('Status','tempmail-pro'); ?>">
                         <span class="tmpmp-pub-badge <?php echo $py->status==='completed' ? 'tmpmp-pub-badge--green' : 'tmpmp-pub-badge--red'; ?>">
                             <?php echo esc_html(ucfirst($py->status)); ?>
                         </span>
                     </td>
-                    <td style="color:#64748b;"><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($py->created_at))); ?></td>
+                    <td data-label="<?php esc_attr_e('Date','tempmail-pro'); ?>" style="color:#64748b;"><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($py->created_at))); ?></td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>
@@ -241,10 +274,10 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
                 <tbody id="api-keys-tbody">
                 <?php foreach ( $my_keys as $k ) : ?>
                 <tr id="key-row-<?php echo intval($k->id); ?>">
-                    <td><?php echo esc_html($k->label); ?></td>
-                    <td><code style="font-size:12px;color:#4338ca;"><?php echo esc_html(substr($k->api_key,0,16)); ?>…</code></td>
-                    <td style="text-align:center;"><?php echo intval($k->calls_count); ?></td>
-                    <td>
+                    <td data-label="<?php esc_attr_e('Label','tempmail-pro'); ?>"><?php echo esc_html($k->label); ?></td>
+                    <td data-label="<?php esc_attr_e('Key','tempmail-pro'); ?>"><code style="font-size:12px;color:#4338ca;"><?php echo esc_html(substr($k->api_key,0,16)); ?>…</code></td>
+                    <td data-label="<?php esc_attr_e('Uses','tempmail-pro'); ?>" style="text-align:center;"><?php echo intval($k->calls_count); ?></td>
+                    <td data-label="<?php esc_attr_e('Actions','tempmail-pro'); ?>">
                         <button class="tmpmp-revoke-key tmpmp-pub-btn tmpmp-pub-btn--danger"
                             data-id="<?php echo intval($k->id); ?>"
                             style="padding:6px 12px;font-size:12px;">
