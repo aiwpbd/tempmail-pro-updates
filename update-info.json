@@ -1,9 +1,8 @@
 {
-    "version": "2.0.2",
-    "requires": "5.8",
-    "tested": "6.7",
-    "requires_php": "7.4",
-    "download_url": "https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.2/tempmail-pro-2.0.2.zip",
-    "details_url": "https://github.com/aiwpbd/tempmail-pro-updates/releases/tag/v2.0.2",
-    "upgrade_notice": "v2.0.2: FAQ section, shortcodes card, notification bar redesign, design settings, GitHub auto-updater."
+  "version"      : "2.0.3",
+  "download_url" : "https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.3/tempmail-pro-2.0.3.zip",
+  "changelog"    : "### New Features\n- Profile picture upload (JPG, PNG, GIF, WebP up to 2MB)\n- Account tab: My Profile, Change Password, Reset Password\n\n### Bug Fixes\n- Avatar not persisting on live servers (direct DB writes bypass Redis/Memcached cache)\n- Profile save not persisting — explicit meta writes\n- Encoding fix: garbled ellipsis in Generating... text (tmpmp-address)\n- Mobile responsive: account cards stack on small screens",
+  "requires"     : "5.8",
+  "requires_php" : "7.4",
+  "tested"       : "6.7"
 }
