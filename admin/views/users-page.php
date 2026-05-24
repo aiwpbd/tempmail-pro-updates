@@ -224,7 +224,7 @@ $plans_json = json_encode( array_values($plans) );
 </div>
 
 <!-- Users Panel -->
-<div id="tmpmp-panel-all" class="tmpmp-tab-panel">
+<div id="tmpmp-panel-all" class="tmpmp-tab-panel" style="display:block;">
 <div class="tmpmp-card" style="padding:0;overflow:hidden;">
 
     <!-- Toolbar -->
@@ -638,6 +638,11 @@ jQuery(function($) {
     }
 
     $('#tmpmp-user-search, #tmpmp-plan-filter, #tmpmp-status-filter').on('input change', filterTable);
+
+    // ── Initialize on page load: ensure panel is visible and table is filtered ─
+    $('#tmpmp-panel-all').show();
+    $('#tmpmp-panel-blocked').hide();
+    filterTable();
 
     // ── Modal logic ──────────────────────────────────────────────────
     let currentUid = 0;
