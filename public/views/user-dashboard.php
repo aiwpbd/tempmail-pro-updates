@@ -257,6 +257,35 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     .tmpmp-dash-actions .tmpmp-pub-badge { text-align: center; width: 100%; }
     .dash-tab-btn { font-size: 11px; padding: 8px 5px; }
 }
+/* ── Password Generator ───────────────────────────────────────────── */
+.tmpmp-pass-input-wrap { position:relative; display:flex; align-items:center; }
+.tmpmp-pass-input-wrap input { padding-right:44px !important; box-sizing:border-box; }
+.tmpmp-pass-eye {
+    position:absolute; right:12px; background:none; border:none; cursor:pointer;
+    font-size:17px; color:#94a3b8; padding:0; line-height:1; transition:color .15s;
+}
+.tmpmp-pass-eye:hover { color:#374151; }
+.tmpmp-pass-actions { display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap; }
+.tmpmp-gen-pass-btn {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:7px 14px; background:#f5f3ff; color:#6d28d9;
+    border:1.5px solid #ddd6fe; border-radius:9px; font-size:13px; font-weight:700;
+    cursor:pointer; transition:all .15s; white-space:nowrap;
+}
+.tmpmp-gen-pass-btn:hover { background:#ede9fe; border-color:#a78bfa; }
+.tmpmp-pass-copy-btn {
+    background:#f8fafc; border:1.5px solid #e2e8f0; border-radius:9px;
+    padding:7px 12px; cursor:pointer; font-size:13px; color:#64748b;
+    transition:all .15s; white-space:nowrap; font-weight:600;
+}
+.tmpmp-pass-copy-btn:hover { background:#f1f5f9; color:#0f172a; border-color:#94a3b8; }
+.tmpmp-pass-strength-wrap { display:flex; align-items:center; gap:6px; }
+.tmpmp-pass-strength-bars { display:flex; gap:3px; }
+.tmpmp-pass-strength-bars span {
+    display:block; width:24px; height:5px; border-radius:3px;
+    background:#e2e8f0; transition:background .2s;
+}
+.tmpmp-pass-strength-label { font-size:12px; font-weight:700; }
 </style>
 <div class="tmpmp-page-section tmpmp-dashboard-wrap">
 
@@ -530,11 +559,25 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
                     </div>
                     <div class="tmpmp-field">
                         <label for="acc-new-pass"><?php esc_html_e('New Password','tempmail-pro'); ?></label>
-                        <input type="password" id="acc-new-pass" autocomplete="new-password">
+                        <div class="tmpmp-pass-input-wrap">
+                            <input type="password" id="acc-new-pass" autocomplete="new-password" placeholder="<?php esc_attr_e('Min 8 characters…','tempmail-pro'); ?>">
+                            <button type="button" class="tmpmp-pass-eye" data-target="acc-new-pass" title="<?php esc_attr_e('Show / Hide','tempmail-pro'); ?>">👁</button>
+                        </div>
+                        <div class="tmpmp-pass-actions">
+                            <button type="button" class="tmpmp-gen-pass-btn" data-targets="acc-new-pass,acc-conf-pass">🔑 <?php esc_html_e('Generate Password','tempmail-pro'); ?></button>
+                            <div class="tmpmp-pass-strength-wrap" id="acc-new-pass-sw" style="display:none;">
+                                <div class="tmpmp-pass-strength-bars"><span></span><span></span><span></span><span></span><span></span></div>
+                                <span class="tmpmp-pass-strength-label"></span>
+                            </div>
+                            <button type="button" class="tmpmp-pass-copy-btn" id="acc-new-pass-copy" data-target="acc-new-pass" style="display:none;">📋 <?php esc_html_e('Copy','tempmail-pro'); ?></button>
+                        </div>
                     </div>
                     <div class="tmpmp-field">
                         <label for="acc-conf-pass"><?php esc_html_e('Confirm New Password','tempmail-pro'); ?></label>
-                        <input type="password" id="acc-conf-pass" autocomplete="new-password">
+                        <div class="tmpmp-pass-input-wrap">
+                            <input type="password" id="acc-conf-pass" autocomplete="new-password" placeholder="<?php esc_attr_e('Re-enter password…','tempmail-pro'); ?>">
+                            <button type="button" class="tmpmp-pass-eye" data-target="acc-conf-pass" title="<?php esc_attr_e('Show / Hide','tempmail-pro'); ?>">👁</button>
+                        </div>
                     </div>
                     <button id="tmpmp-change-pass" class="tmpmp-pub-btn tmpmp-pub-btn--primary" style="width:100%;margin-top:4px;">
                         <?php esc_html_e('Update Password','tempmail-pro'); ?>
@@ -754,4 +797,92 @@ jQuery(function($){
             .finally(() => { btn.disabled = false; });
     });
 });
+
+// ── Password Generator ──────────────────────────────────────────────────
+(function() {
+    function genPass(len) {
+        len = len || 18;
+        var lower='abcdefghijklmnopqrstuvwxyz', upper='ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+            digits='0123456789', syms='!@#$%^&*_+-=';
+        var all = lower+upper+digits+syms;
+        var arr = new Uint8Array(len);
+        crypto.getRandomValues(arr);
+        var pass = [
+            lower[arr[0]%lower.length], upper[arr[1]%upper.length],
+            digits[arr[2]%digits.length], syms[arr[3]%syms.length]
+        ];
+        for (var i=4;i<len;i++) pass.push(all[arr[i]%all.length]);
+        for (var i=pass.length-1;i>0;i--) {
+            var j=arr[i%arr.length]%(i+1);
+            var t=pass[i]; pass[i]=pass[j]; pass[j]=t;
+        }
+        return pass.join('');
+    }
+    function passStrength(p) {
+        var s=0;
+        if(p.length>=8) s++; if(p.length>=12) s++;
+        if(/[A-Z]/.test(p)) s++; if(/[0-9]/.test(p)) s++; if(/[^A-Za-z0-9]/.test(p)) s++;
+        var lbl=['','Weak','Fair','Good','Strong','Very Strong'];
+        var col=['','#ef4444','#f97316','#eab308','#22c55e','#10b981'];
+        return { score:s, label:lbl[s]||'Very Strong', color:col[s]||'#10b981' };
+    }
+    function updateStrength(inputId) {
+        var inp = document.getElementById(inputId);
+        var sw  = document.getElementById(inputId+'-sw');
+        if (!inp||!sw) return;
+        if (!inp.value) { sw.style.display='none'; return; }
+        var s = passStrength(inp.value);
+        var bars = sw.querySelectorAll('.tmpmp-pass-strength-bars span');
+        bars.forEach(function(b,i){ b.style.background = i<s.score ? s.color : '#e2e8f0'; });
+        var lbl = sw.querySelector('.tmpmp-pass-strength-label');
+        if(lbl){ lbl.textContent=s.label; lbl.style.color=s.color; }
+        sw.style.display='flex';
+    }
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.tmpmp-pass-eye');
+        if (!btn) return;
+        var inp = document.getElementById(btn.dataset.target);
+        if (!inp) return;
+        inp.type = inp.type==='password' ? 'text' : 'password';
+        btn.textContent = inp.type==='text' ? '🙈' : '👁';
+    });
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.tmpmp-gen-pass-btn');
+        if (!btn) return;
+        var pass = genPass(18);
+        var targets = (btn.dataset.targets||'').split(',').filter(Boolean);
+        targets.forEach(function(id) {
+            id = id.trim();
+            var inp = document.getElementById(id);
+            if (!inp) return;
+            inp.value = pass;
+            inp.type  = 'text';
+            inp.dispatchEvent(new Event('input'));
+            updateStrength(id);
+            var eye = inp.closest && inp.closest('.tmpmp-pass-input-wrap') && inp.closest('.tmpmp-pass-input-wrap').querySelector('.tmpmp-pass-eye');
+            if (eye) eye.textContent = '🙈';
+            var copy = document.getElementById(id+'-copy');
+            if (copy) copy.style.display='';
+        });
+        var sw = document.getElementById((targets[0]||'').trim()+'-sw');
+        if (sw) sw.style.display='flex';
+        btn.textContent = '🔄 Regenerate';
+    });
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.tmpmp-pass-copy-btn');
+        if (!btn) return;
+        var inp = document.getElementById(btn.dataset.target);
+        if (!inp||!inp.value) return;
+        navigator.clipboard.writeText(inp.value).then(function() {
+            var orig=btn.textContent;
+            btn.textContent='✓ Copied!';
+            setTimeout(function(){ btn.textContent=orig; }, 1600);
+        });
+    });
+    document.addEventListener('input', function(e) {
+        var inp = e.target;
+        if (!inp.id) return;
+        updateStrength(inp.id);
+    });
+})();
 </script>
