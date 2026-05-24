@@ -422,7 +422,246 @@ $plans_json = json_encode( array_values($plans) );
 </div><!-- /panel blocked -->
 </div><!-- .wrap -->
 
-<!-- ── Edit User Modal ─────────────────────────────────────────────────────── -->
+<!-- ══ Export / Import Panel ════════════════════════════════════════════════════ -->
+<div class="wrap tmpmp-admin-wrap" style="margin-top:0;">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:0;">
+
+    <!-- Export Card -->
+    <div class="tmpmp-card" style="padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+            <span style="font-size:28px;">📦</span>
+            <div>
+                <h2 style="margin:0;font-size:17px;font-weight:700;color:#1e293b;"><?php esc_html_e('Export User Data','tempmail-pro'); ?></h2>
+                <p style="margin:4px 0 0;font-size:12px;color:#64748b;"><?php esc_html_e('Download a full backup as a JSON file.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+        <p style="font-size:13px;color:#475569;margin:0 0 14px;line-height:1.6;">
+            <?php esc_html_e('Select what to include in the export. The file can be imported later to restore data on a new server.','tempmail-pro'); ?>
+        </p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px;" id="tmpmp-export-options">
+            <?php
+            $export_opts = [
+                'inc_users'       => __('👤 Users & Profiles','tempmail-pro'),
+                'inc_subs'        => __('💎 Subscriptions','tempmail-pro'),
+                'inc_payments'    => __('💳 Payment History','tempmail-pro'),
+                'inc_api_keys'    => __('🔑 API Keys','tempmail-pro'),
+                'inc_addresses'   => __('📬 Inbox Addresses','tempmail-pro'),
+                'inc_blocked_ips' => __('🚫 Blocked IPs','tempmail-pro'),
+                'inc_plans'       => __('📋 Plans Config','tempmail-pro'),
+            ];
+            foreach ( $export_opts as $key => $label ) : ?>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:#374151;cursor:pointer;padding:7px 10px;border:1.5px solid #e2e8f0;border-radius:8px;background:#f8fafc;">
+                <input type="checkbox" name="<?php echo esc_attr($key); ?>" checked style="accent-color:#6366f1;width:15px;height:15px;">
+                <?php echo esc_html($label); ?>
+            </label>
+            <?php endforeach; ?>
+        </div>
+        <button id="tmpmp-export-btn" class="tmpmp-action-btn" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;width:100%;padding:11px;font-size:14px;font-weight:700;border-radius:9px;border:none;cursor:pointer;transition:opacity .15s;">
+            ⬇️ <?php esc_html_e('Export All Data','tempmail-pro'); ?>
+        </button>
+        <div id="tmpmp-export-msg" style="margin-top:10px;font-size:13px;color:#64748b;display:none;"></div>
+    </div>
+
+    <!-- Import Card -->
+    <div class="tmpmp-card" style="padding:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+            <span style="font-size:28px;">📥</span>
+            <div>
+                <h2 style="margin:0;font-size:17px;font-weight:700;color:#1e293b;"><?php esc_html_e('Import User Data','tempmail-pro'); ?></h2>
+                <p style="margin:4px 0 0;font-size:12px;color:#64748b;"><?php esc_html_e('Restore from a previously exported JSON file.','tempmail-pro'); ?></p>
+            </div>
+        </div>
+        <div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:9px;padding:10px 14px;margin-bottom:16px;">
+            <p style="margin:0;font-size:12px;color:#92400e;line-height:1.5;">
+                ⚠️ <strong><?php esc_html_e('Merge mode:','tempmail-pro'); ?></strong>
+                <?php esc_html_e('Existing users are updated, new users are created. No data is deleted.','tempmail-pro'); ?>
+            </p>
+        </div>
+
+        <!-- Drop zone -->
+        <div id="tmpmp-import-dropzone" style="border:2px dashed #c7d2fe;border-radius:12px;padding:28px 20px;text-align:center;background:#f5f3ff;cursor:pointer;transition:all .2s;margin-bottom:14px;">
+            <div style="font-size:36px;margin-bottom:8px;">📂</div>
+            <p style="margin:0;font-size:13px;font-weight:600;color:#6366f1;"><?php esc_html_e('Click to choose file or drag & drop here','tempmail-pro'); ?></p>
+            <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;"><?php esc_html_e('Accepts: .json export files only','tempmail-pro'); ?></p>
+            <input type="file" id="tmpmp-import-file" accept=".json,application/json" style="display:none;">
+        </div>
+        <div id="tmpmp-import-filename" style="font-size:12px;color:#6366f1;font-weight:600;margin-bottom:10px;display:none;padding:6px 12px;background:#ede9fe;border-radius:7px;"></div>
+
+        <!-- Progress -->
+        <div id="tmpmp-import-progress-wrap" style="display:none;margin-bottom:12px;">
+            <div style="background:#e2e8f0;border-radius:99px;height:7px;overflow:hidden;">
+                <div id="tmpmp-import-progress-bar" style="height:100%;background:linear-gradient(90deg,#6366f1,#8b5cf6);width:0%;transition:width .4s;border-radius:99px;"></div>
+            </div>
+            <p style="margin:5px 0 0;font-size:11px;color:#64748b;" id="tmpmp-import-progress-label"><?php esc_html_e('Uploading…','tempmail-pro'); ?></p>
+        </div>
+
+        <button id="tmpmp-import-btn" class="tmpmp-action-btn" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;width:100%;padding:11px;font-size:14px;font-weight:700;border-radius:9px;border:none;cursor:pointer;transition:opacity .15s;" disabled>
+            ⬆️ <?php esc_html_e('Import Data','tempmail-pro'); ?>
+        </button>
+
+        <!-- Results -->
+        <div id="tmpmp-import-results" style="display:none;margin-top:16px;background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:10px;padding:14px;">
+            <p style="margin:0 0 10px;font-size:13px;font-weight:700;color:#1e293b;">📊 <?php esc_html_e('Import Summary','tempmail-pro'); ?></p>
+            <div id="tmpmp-import-stats" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;"></div>
+            <div id="tmpmp-import-errors" style="margin-top:10px;display:none;"></div>
+        </div>
+    </div>
+
+</div><!-- /grid -->
+</div><!-- .wrap -->
+
+<script>
+jQuery(function($) {
+    const nonce   = '<?php echo esc_js($nonce); ?>';
+    const ajaxUrl = '<?php echo esc_js($ajax_url); ?>';
+
+    // ── Export ────────────────────────────────────────────────────────
+    $('#tmpmp-export-btn').on('click', function() {
+        const $btn = $(this);
+        const opts = {};
+        $('#tmpmp-export-options input[type=checkbox]').each(function() {
+            opts[ $(this).attr('name') ] = $(this).is(':checked') ? '1' : '';
+        });
+
+        $btn.prop('disabled', true).text('⏳ <?php esc_html_e('Exporting…','tempmail-pro'); ?>');
+        $('#tmpmp-export-msg').show().text('<?php esc_html_e('Building export…','tempmail-pro'); ?>');
+
+        $.post(ajaxUrl, { action: 'tmpmp_export_users', nonce, ...opts }, function(r) {
+            $btn.prop('disabled', false).html('⬇️ <?php esc_html_e('Export All Data','tempmail-pro'); ?>');
+            if (!r.success) {
+                $('#tmpmp-export-msg').css('color','#dc2626').text(r.data?.message || '<?php esc_html_e('Export failed.','tempmail-pro'); ?>');
+                return;
+            }
+            // Trigger JSON download
+            const blob = new Blob([r.data.json], {type:'application/json'});
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            const date = new Date().toISOString().slice(0,10);
+            a.href     = url;
+            a.download = 'tmpmp-backup-' + date + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            $('#tmpmp-export-msg').css('color','#16a34a').text('✓ <?php esc_html_e('Export downloaded successfully!','tempmail-pro'); ?>');
+        }).fail(function() {
+            $btn.prop('disabled', false).html('⬇️ <?php esc_html_e('Export All Data','tempmail-pro'); ?>');
+            $('#tmpmp-export-msg').css('color','#dc2626').text('<?php esc_html_e('Request failed. Please try again.','tempmail-pro'); ?>');
+        });
+    });
+
+    // ── Import – file picker / drop zone ─────────────────────────────
+    const $dropzone = $('#tmpmp-import-dropzone');
+    const $fileInput = $('#tmpmp-import-file');
+
+    $dropzone.on('click', function() { $fileInput.trigger('click'); });
+
+    $dropzone.on('dragover', function(e) {
+        e.preventDefault();
+        $(this).css({ borderColor:'#6366f1', background:'#ede9fe' });
+    }).on('dragleave dragend', function() {
+        $(this).css({ borderColor:'#c7d2fe', background:'#f5f3ff' });
+    }).on('drop', function(e) {
+        e.preventDefault();
+        $(this).css({ borderColor:'#c7d2fe', background:'#f5f3ff' });
+        const file = e.originalEvent.dataTransfer.files[0];
+        if (file) setImportFile(file);
+    });
+
+    $fileInput.on('change', function() {
+        if (this.files[0]) setImportFile(this.files[0]);
+    });
+
+    function setImportFile(file) {
+        if (!file.name.endsWith('.json')) {
+            alert('<?php esc_html_e('Please select a valid .json export file.','tempmail-pro'); ?>');
+            return;
+        }
+        $('#tmpmp-import-filename').show().text('📄 ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)');
+        $('#tmpmp-import-btn').prop('disabled', false);
+        $('#tmpmp-import-results').hide();
+    }
+
+    // ── Import – submit ───────────────────────────────────────────────
+    $('#tmpmp-import-btn').on('click', function() {
+        const file = $fileInput[0].files[0];
+        if (!file) return;
+        if (!confirm('<?php esc_html_e('Import this file? Existing data will be merged/updated.','tempmail-pro'); ?>')) return;
+
+        const $btn = $(this);
+        $btn.prop('disabled', true).text('⏳ <?php esc_html_e('Importing…','tempmail-pro'); ?>');
+        $('#tmpmp-import-progress-wrap').show();
+        $('#tmpmp-import-progress-bar').css('width','0%');
+        $('#tmpmp-import-progress-label').text('<?php esc_html_e('Uploading…','tempmail-pro'); ?>');
+        $('#tmpmp-import-results').hide();
+
+        // Animate progress (fake progress for UX)
+        let prog = 0;
+        const ticker = setInterval(function() {
+            prog = Math.min(prog + Math.random()*15, 85);
+            $('#tmpmp-import-progress-bar').css('width', prog + '%');
+        }, 300);
+
+        const fd = new FormData();
+        fd.append('action',      'tmpmp_import_users');
+        fd.append('nonce',       nonce);
+        fd.append('import_file', file);
+
+        $.ajax({
+            url: ajaxUrl, type:'POST', data: fd,
+            processData: false, contentType: false,
+            success: function(r) {
+                clearInterval(ticker);
+                $('#tmpmp-import-progress-bar').css('width','100%');
+                $('#tmpmp-import-progress-label').text(r.success ? '✓ <?php esc_html_e('Done!','tempmail-pro'); ?>' : '✗ <?php esc_html_e('Failed','tempmail-pro'); ?>');
+                $btn.prop('disabled', false).html('⬆️ <?php esc_html_e('Import Data','tempmail-pro'); ?>');
+
+                if (!r.success) {
+                    $('#tmpmp-import-results').show();
+                    $('#tmpmp-import-stats').html('<p style="color:#dc2626">' + (r.data?.message || '<?php esc_html_e('Import failed.','tempmail-pro'); ?>') + '</p>');
+                    return;
+                }
+
+                const s = r.data.stats;
+                const statRows = [
+                    ['👤 <?php esc_html_e('Users Created','tempmail-pro'); ?>',      s.users_created],
+                    ['🔄 <?php esc_html_e('Users Updated','tempmail-pro'); ?>',      s.users_updated],
+                    ['💎 <?php esc_html_e('Subscriptions','tempmail-pro'); ?>',      s.subs_imported],
+                    ['💳 <?php esc_html_e('Payments','tempmail-pro'); ?>',           s.payments_imported],
+                    ['🔑 <?php esc_html_e('API Keys','tempmail-pro'); ?>',           s.api_keys_imported],
+                    ['📬 <?php esc_html_e('Addresses','tempmail-pro'); ?>',          s.addresses_imported],
+                    ['🚫 <?php esc_html_e('Blocked IPs','tempmail-pro'); ?>',        s.blocked_ips_imported],
+                    ['📋 <?php esc_html_e('Plans','tempmail-pro'); ?>',              s.plans_imported],
+                ];
+                let html = '';
+                statRows.forEach(function(row) {
+                    html += '<div style="background:#fff;border:1.5px solid #e2e8f0;border-radius:7px;padding:6px 10px;display:flex;justify-content:space-between;align-items:center;">'
+                          + '<span style="color:#475569;">' + row[0] + '</span>'
+                          + '<strong style="color:#1e293b;">' + (row[1] || 0) + '</strong></div>';
+                });
+                $('#tmpmp-import-stats').html(html);
+
+                // Errors
+                if (s.errors && s.errors.length) {
+                    let errHtml = '<details style="margin-top:8px;"><summary style="font-size:12px;font-weight:700;color:#dc2626;cursor:pointer;">⚠️ ' + s.errors.length + ' <?php esc_html_e('warnings','tempmail-pro'); ?></summary><ul style="margin:8px 0 0;padding-left:18px;font-size:11px;color:#7f1d1d;">';
+                    s.errors.forEach(function(e) { errHtml += '<li>' + e + '</li>'; });
+                    errHtml += '</ul></details>';
+                    $('#tmpmp-import-errors').show().html(errHtml);
+                }
+                $('#tmpmp-import-results').show();
+            },
+            error: function() {
+                clearInterval(ticker);
+                $btn.prop('disabled', false).html('⬆️ <?php esc_html_e('Import Data','tempmail-pro'); ?>');
+                $('#tmpmp-import-progress-label').text('<?php esc_html_e('Request failed. Please try again.','tempmail-pro'); ?>');
+            }
+        });
+    });
+});
+</script>
+
+<!-- ── Edit User Modal
+ ─────────────────────────────────────────────────────── -->
 <div id="tmpmp-user-modal-overlay">
 <div id="tmpmp-user-modal">
 

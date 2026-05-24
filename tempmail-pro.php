@@ -53,6 +53,7 @@ spl_autoload_register( function ( $class ) {
         'TempMail_Admin_Payments'   => 'admin/class-tempmail-admin-payments.php',
         'TempMail_Admin_Ads'        => 'admin/class-tempmail-admin-ads.php',
         'TempMail_Admin_Analytics'  => 'admin/class-tempmail-admin-analytics.php',
+        'TempMail_Admin_Export'     => 'admin/class-tempmail-admin-export.php',
         'TempMail_Gutenberg'        => 'includes/class-tempmail-gutenberg.php',
         'TempMail_Setup'            => 'includes/class-tempmail-setup.php',
         'TempMail_Visitors'         => 'includes/class-tempmail-visitors.php',
@@ -123,6 +124,7 @@ function tmpmp_init() {
         TempMail_Admin_Payments::instance();
         TempMail_Admin_Ads::instance();
         TempMail_Admin_Analytics::instance();
+        TempMail_Admin_Export::instance();
     }
 }
 
