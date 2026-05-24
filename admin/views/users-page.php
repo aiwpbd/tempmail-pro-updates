@@ -706,6 +706,12 @@ jQuery(function($) {
         $('#modal-display-name').val(name);
         $('#modal-email').val(email);
         $('#modal-password').val('');
+        // Reset password generator UI on every modal open
+        $('#modal-password').attr('type', 'password');
+        $('.tmpmp-pass-eye[data-target="modal-password"]').text('\ud83d\udc41');
+        $('.tmpmp-gen-pass-btn[data-targets="modal-password"]').text('\ud83d\udd11 <?php esc_html_e("Generate Password","tempmail-pro"); ?>');
+        $('#modal-password-sw').hide();
+        $('#modal-password-copy').hide();
         $('#qi-uid').text('#' + currentUid);
         const reg = $b.data('registered') || '';
         $('#qi-reg').text(reg ? new Date(reg).toLocaleDateString('en', dateOpts) : '—');
@@ -993,99 +999,95 @@ jQuery(function($) {
         });
     });
 
-});
-
-// ── Password Generator (shared) ──────────────────────────────────────────────
-(function() {
-    function genPass(len) {
+    // ── Password Generator ──────────────────────────────────────────────────────
+    // Bound to #tmpmp-user-modal (not document) so it fires even with stopPropagation
+    function tmpmpGenPass(len) {
         len = len || 18;
         var lower='abcdefghijklmnopqrstuvwxyz', upper='ABCDEFGHIJKLMNOPQRSTUVWXYZ',
             digits='0123456789', syms='!@#$%^&*_+-=';
-        var all = lower+upper+digits+syms;
+        var all = lower + upper + digits + syms;
         var arr = new Uint8Array(len);
         crypto.getRandomValues(arr);
         var pass = [
             lower[arr[0]%lower.length], upper[arr[1]%upper.length],
             digits[arr[2]%digits.length], syms[arr[3]%syms.length]
         ];
-        for (var i=4;i<len;i++) pass.push(all[arr[i]%all.length]);
+        for (var i = 4; i < len; i++) pass.push(all[arr[i] % all.length]);
         // Fisher-Yates shuffle
-        for (var i=pass.length-1;i>0;i--) {
-            var j=arr[i%arr.length]%(i+1);
-            var t=pass[i]; pass[i]=pass[j]; pass[j]=t;
+        for (var i = pass.length - 1; i > 0; i--) {
+            var j = arr[i % arr.length] % (i + 1);
+            var t = pass[i]; pass[i] = pass[j]; pass[j] = t;
         }
         return pass.join('');
     }
-    function passStrength(p) {
-        var s=0;
-        if(p.length>=8) s++; if(p.length>=12) s++;
-        if(/[A-Z]/.test(p)) s++; if(/[0-9]/.test(p)) s++; if(/[^A-Za-z0-9]/.test(p)) s++;
-        var lbl=['','Weak','Fair','Good','Strong','Very Strong'];
-        var col=['','#ef4444','#f97316','#eab308','#22c55e','#10b981'];
-        return { score:s, label:lbl[s]||'Very Strong', color:col[s]||'#10b981' };
+    function tmpmpPassStrength(p) {
+        var s = 0;
+        if (p.length >= 8)  s++;
+        if (p.length >= 12) s++;
+        if (/[A-Z]/.test(p)) s++;
+        if (/[0-9]/.test(p)) s++;
+        if (/[^A-Za-z0-9]/.test(p)) s++;
+        var lbl = ['','Weak','Fair','Good','Strong','Very Strong'];
+        var col = ['','#ef4444','#f97316','#eab308','#22c55e','#10b981'];
+        return { score: s, label: lbl[s] || 'Very Strong', color: col[s] || '#10b981' };
     }
-    function updateStrength(inputId) {
-        var inp = document.getElementById(inputId);
-        var sw  = document.getElementById(inputId+'-sw');
-        if (!inp||!sw) return;
-        if (!inp.value) { sw.style.display='none'; return; }
-        var s = passStrength(inp.value);
-        var bars = sw.querySelectorAll('.tmpmp-pass-strength-bars span');
-        bars.forEach(function(b,i){ b.style.background = i<s.score ? s.color : '#e2e8f0'; });
-        var lbl = sw.querySelector('.tmpmp-pass-strength-label');
-        if(lbl){ lbl.textContent=s.label; lbl.style.color=s.color; }
-        sw.style.display='flex';
+    function tmpmpUpdateStrength(inputId) {
+        var $inp = $('#' + inputId);
+        var $sw  = $('#' + inputId + '-sw');
+        if (!$inp.length || !$sw.length) return;
+        var val = $inp.val();
+        if (!val) { $sw.hide(); return; }
+        var s = tmpmpPassStrength(val);
+        $sw.find('.tmpmp-pass-strength-bars span').each(function(i) {
+            $(this).css('background', i < s.score ? s.color : '#e2e8f0');
+        });
+        $sw.find('.tmpmp-pass-strength-label').text(s.label).css('color', s.color);
+        $sw.show();
     }
-    // Eye toggle
-    document.addEventListener('click', function(e) {
-        var btn = e.target.closest('.tmpmp-pass-eye');
-        if (!btn) return;
-        var inp = document.getElementById(btn.dataset.target);
-        if (!inp) return;
-        var isPass = inp.type==='password';
-        inp.type = isPass ? 'text' : 'password';
-        btn.textContent = isPass ? '🙈' : '👁';
+
+    // Eye toggle — delegated to modal so it fires despite stopPropagation
+    $('#tmpmp-user-modal').on('click', '.tmpmp-pass-eye', function(e) {
+        var $inp = $('#' + $(this).data('target'));
+        if (!$inp.length) return;
+        var isPass = $inp.attr('type') === 'password';
+        $inp.attr('type', isPass ? 'text' : 'password');
+        $(this).text(isPass ? '\ud83d\ude48' : '\ud83d\udc41');
     });
-    // Generate
-    document.addEventListener('click', function(e) {
-        var btn = e.target.closest('.tmpmp-gen-pass-btn');
-        if (!btn) return;
-        var pass = genPass(18);
-        var targets = (btn.dataset.targets||'').split(',').filter(Boolean);
+
+    // Generate password — delegated to modal
+    $('#tmpmp-user-modal').on('click', '.tmpmp-gen-pass-btn', function() {
+        var $btn    = $(this);
+        var pass    = tmpmpGenPass(18);
+        var targets = ($btn.data('targets') || '').split(',').filter(Boolean);
         targets.forEach(function(id) {
             id = id.trim();
-            var inp = document.getElementById(id);
-            if (!inp) return;
-            inp.value = pass;
-            inp.type  = 'text';
-            inp.dispatchEvent(new Event('input'));
-            updateStrength(id);
-            var eye = inp.closest('.tmpmp-pass-input-wrap') && inp.closest('.tmpmp-pass-input-wrap').querySelector('.tmpmp-pass-eye');
-            if (eye) eye.textContent = '🙈';
-            var copy = document.getElementById(id+'-copy');
-            if (copy) copy.style.display='';
+            var $inp = $('#' + id);
+            if (!$inp.length) return;
+            $inp.val(pass).attr('type', 'text').trigger('input');
+            tmpmpUpdateStrength(id);
+            $inp.closest('.tmpmp-pass-input-wrap').find('.tmpmp-pass-eye').text('\ud83d\ude48');
+            $('#' + id + '-copy').show();
         });
-        var sw = document.getElementById((targets[0]||'').trim()+'-sw');
-        if (sw) sw.style.display='flex';
-        btn.textContent = '🔄 Regenerate';
+        if (targets.length) $('#' + targets[0].trim() + '-sw').show();
+        $btn.text('\ud83d\udd04 <?php esc_html_e("Regenerate","tempmail-pro"); ?>');
     });
-    // Copy
-    document.addEventListener('click', function(e) {
-        var btn = e.target.closest('.tmpmp-pass-copy-btn');
-        if (!btn) return;
-        var inp = document.getElementById(btn.dataset.target);
-        if (!inp) return;
-        navigator.clipboard.writeText(inp.value).then(function() {
-            var orig=btn.textContent;
-            btn.textContent='✓ Copied!';
-            setTimeout(function(){ btn.textContent=orig; }, 1600);
+
+    // Copy to clipboard — delegated to modal
+    $('#tmpmp-user-modal').on('click', '.tmpmp-pass-copy-btn', function() {
+        var val = $('#' + $(this).data('target')).val();
+        if (!val) return;
+        var $btn = $(this);
+        navigator.clipboard.writeText(val).then(function() {
+            var orig = $btn.text();
+            $btn.text('\u2713 <?php esc_html_e("Copied!","tempmail-pro"); ?>');
+            setTimeout(function() { $btn.text(orig); }, 1600);
         });
     });
-    // Strength on manual input
-    document.addEventListener('input', function(e) {
-        var inp = e.target;
-        if (!inp.id) return;
-        updateStrength(inp.id);
+
+    // Strength meter on manual typing — delegated to modal
+    $('#tmpmp-user-modal').on('input', '.tmpmp-pass-input-wrap input', function() {
+        tmpmpUpdateStrength(this.id);
     });
-})();
+
+});
 </script>
