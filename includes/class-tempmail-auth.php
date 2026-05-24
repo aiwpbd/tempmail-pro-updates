@@ -57,38 +57,54 @@ class TempMail_Auth {
         return $page ? get_permalink( $page->ID ) : home_url('/login/');
     }
 
-    // ── Header Nav — inject account button ───────────────────────────────────
+    // ── Header Nav — inject account button (dropdown) ────────────────────────
     public function inject_nav_account_btn( string $items, object $args ) : string {
-        // Apply to all menu locations; admins can restrict via the filter below
-        $loc     = $args->theme_location ?? '';
-        $skip    = apply_filters( 'tmpmp_nav_skip_locations', [] ); // e.g. ['footer-menu']
+        $loc  = $args->theme_location ?? '';
+        $skip = apply_filters( 'tmpmp_nav_skip_locations', [] );
         if ( in_array( $loc, $skip, true ) ) return $items;
 
         if ( is_user_logged_in() ) {
             $user       = wp_get_current_user();
-            $name       = esc_html( mb_strimwidth( $user->display_name ?: $user->user_email, 0, 20, '…' ) );
+            $name       = esc_html( mb_strimwidth( $user->display_name ?: $user->user_email, 0, 18, "\u2026" ) );
             $avatar     = get_user_meta( $user->ID, 'tmpmp_avatar_url', true );
             $dash_url   = esc_url( self::dashboard_url() );
             $logout_url = esc_url( wp_logout_url( get_permalink() ?: home_url('/') ) );
+            $initial    = esc_html( strtoupper( substr( $user->display_name ?: $user->user_email, 0, 1 ) ) );
 
-            $avatar_html = $avatar
-                ? '<img src="' . esc_url( $avatar ) . '" alt="" class="tmpmp-nav-avatar-img">'
-                : '<span class="tmpmp-nav-initial">' . esc_html( strtoupper( substr( $user->display_name ?: $user->user_email, 0, 1 ) ) ) . '</span>';
+            $av = $avatar
+                ? '<img src="' . esc_url( $avatar ) . '" alt="" class="tmpmp-nav-av-img">'
+                : '<span class="tmpmp-nav-av-init">' . $initial . '</span>';
 
-            $items .= '<li class="menu-item tmpmp-nav-account-item">'
-                . '<a href="' . $dash_url . '" class="tmpmp-nav-acct-btn tmpmp-nav-acct-btn--dash">'
-                . $avatar_html . $name
-                . '</a>'
-                . '<a href="' . $logout_url . '" class="tmpmp-nav-acct-btn tmpmp-nav-acct-btn--logout" title="' . esc_attr__( 'Logout', 'tempmail-pro' ) . '">'
-                . '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
-                . esc_html__( 'Logout', 'tempmail-pro' )
-                . '</a>'
+            $chevron = '<svg class="tmpmp-nav-chevron" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>';
+
+            $items .=
+                '<li class="menu-item tmpmp-nav-account-item">'
+                  . '<div class="tmpmp-nav-trigger">'
+                      . '<div class="tmpmp-nav-av">' . $av . '</div>'
+                      . '<span class="tmpmp-nav-uname">' . $name . '</span>'
+                      . $chevron
+                  . '</div>'
+                  . '<div class="tmpmp-nav-dropdown">'
+                      . '<div class="tmpmp-nav-drop-head">'
+                          . '<div class="tmpmp-nav-av tmpmp-nav-av--lg">' . $av . '</div>'
+                          . '<span>' . $name . '</span>'
+                      . '</div>'
+                      . '<div class="tmpmp-nav-drop-divider"></div>'
+                      . '<a href="' . $dash_url . '" class="tmpmp-nav-drop-item">'
+                          . '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
+                          . esc_html__( 'My Dashboard', 'tempmail-pro' )
+                      . '</a>'
+                      . '<a href="' . $logout_url . '" class="tmpmp-nav-drop-item tmpmp-nav-drop-item--logout">'
+                          . '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+                          . esc_html__( 'Logout', 'tempmail-pro' )
+                      . '</a>'
+                  . '</div>'
                 . '</li>';
         } else {
             $login_url = esc_url( self::login_url() );
             $items .= '<li class="menu-item tmpmp-nav-account-item">'
-                . '<a href="' . $login_url . '" class="tmpmp-nav-acct-btn tmpmp-nav-acct-btn--login">'
-                . '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>'
+                . '<a href="' . $login_url . '" class="tmpmp-nav-login-btn">'
+                . '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>'
                 . esc_html__( 'Sign In / Register', 'tempmail-pro' )
                 . '</a>'
                 . '</li>';
@@ -96,24 +112,42 @@ class TempMail_Auth {
         return $items;
     }
 
-    // ── Header Nav — CSS output ──────────────────────────────────────────────
+
+    // ── Header Nav — CSS output (dropdown) ──────────────────────────────────
     public function output_nav_account_css() : void { ?>
 <style id="tmpmp-nav-account-css">
-.tmpmp-nav-account-item{display:inline-flex!important;align-items:center;gap:6px;list-style:none;padding:0!important;}
-.tmpmp-nav-acct-btn{display:inline-flex!important;align-items:center;gap:6px;padding:7px 16px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none!important;transition:all .2s ease;cursor:pointer;white-space:nowrap;border:1.5px solid transparent;line-height:1.3;vertical-align:middle;margin-left:4px;}
-/* Sign In / Register */
-.tmpmp-nav-acct-btn--login{background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;color:#fff!important;box-shadow:0 2px 12px rgba(99,102,241,.35);}
-.tmpmp-nav-acct-btn--login:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(99,102,241,.55)!important;filter:brightness(1.08);color:#fff!important;}
-/* Dashboard */
-.tmpmp-nav-acct-btn--dash{background:rgba(99,102,241,.1)!important;color:#818cf8!important;border-color:rgba(99,102,241,.3)!important;}
-.tmpmp-nav-acct-btn--dash:hover{background:#6366f1!important;color:#fff!important;transform:translateY(-2px);box-shadow:0 4px 14px rgba(99,102,241,.4);}
-/* Logout */
-.tmpmp-nav-acct-btn--logout{background:rgba(239,68,68,.08)!important;color:#f87171!important;border-color:rgba(239,68,68,.2)!important;padding:7px 12px;}
-.tmpmp-nav-acct-btn--logout:hover{background:#ef4444!important;color:#fff!important;transform:translateY(-2px);box-shadow:0 4px 14px rgba(239,68,68,.35);}
-/* Avatar */
-.tmpmp-nav-avatar-img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;}
-.tmpmp-nav-initial{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:11px;font-weight:800;flex-shrink:0;}
-@media(max-width:768px){.tmpmp-nav-acct-btn{font-size:12px;padding:6px 11px;}.tmpmp-nav-acct-btn--logout span{display:none;}}
+/* TempMail Pro — header nav account dropdown */
+.tmpmp-nav-account-item{position:relative!important;display:inline-flex!important;align-items:center;list-style:none!important;padding:0!important;margin:0!important;}
+/* Trigger pill */
+.tmpmp-nav-trigger{display:inline-flex;align-items:center;gap:8px;padding:5px 12px 5px 5px;border-radius:99px;background:linear-gradient(135deg,rgba(99,102,241,.14),rgba(139,92,246,.09));border:1.5px solid rgba(99,102,241,.32);cursor:pointer;transition:all .2s ease;user-select:none;}
+.tmpmp-nav-account-item:hover .tmpmp-nav-trigger,.tmpmp-nav-account-item:focus-within .tmpmp-nav-trigger{background:linear-gradient(135deg,rgba(99,102,241,.24),rgba(139,92,246,.18));border-color:rgba(99,102,241,.6);box-shadow:0 4px 16px rgba(99,102,241,.22);}
+/* Avatar circle */
+.tmpmp-nav-av{width:28px;height:28px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#6366f1,#8b5cf6);flex-shrink:0;border:2px solid rgba(255,255,255,.15);}
+.tmpmp-nav-av--lg{width:34px;height:34px;}
+.tmpmp-nav-av-img{width:100%;height:100%;object-fit:cover;display:block;}
+.tmpmp-nav-av-init{font-size:12px;font-weight:800;color:#fff;line-height:1;}
+/* Username */
+.tmpmp-nav-uname{font-size:13px;font-weight:700;color:#818cf8;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;}
+/* Chevron */
+.tmpmp-nav-chevron{color:#818cf8;transition:transform .22s ease;flex-shrink:0;}
+.tmpmp-nav-account-item:hover .tmpmp-nav-chevron,.tmpmp-nav-account-item:focus-within .tmpmp-nav-chevron{transform:rotate(180deg);}
+/* Dropdown panel */
+.tmpmp-nav-dropdown{position:absolute;top:calc(100% + 10px);right:0;min-width:210px;background:#1a1040;border:1.5px solid rgba(99,102,241,.28);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.5),0 0 0 1px rgba(99,102,241,.08);padding:8px;z-index:99999;opacity:0;visibility:hidden;transform:translateY(-8px) scale(.97);transition:opacity .2s ease,transform .22s ease,visibility .2s;pointer-events:none;}
+.tmpmp-nav-account-item:hover .tmpmp-nav-dropdown,.tmpmp-nav-account-item:focus-within .tmpmp-nav-dropdown{opacity:1;visibility:visible;transform:translateY(0) scale(1);pointer-events:auto;}
+/* Dropdown head */
+.tmpmp-nav-drop-head{display:flex;align-items:center;gap:10px;padding:8px 10px 10px;font-size:13px;font-weight:700;color:#c7d2fe;}
+.tmpmp-nav-drop-divider{height:1px;background:rgba(99,102,241,.18);margin:4px 2px 6px;}
+/* Dropdown items */
+.tmpmp-nav-drop-item{display:flex!important;align-items:center;gap:9px;padding:10px 12px;border-radius:9px;font-size:13px;font-weight:600;color:#a5b4fc!important;text-decoration:none!important;transition:all .15s ease;white-space:nowrap;}
+.tmpmp-nav-drop-item svg{flex-shrink:0;}
+.tmpmp-nav-drop-item:hover{background:rgba(99,102,241,.18)!important;color:#fff!important;transform:translateX(3px);}
+.tmpmp-nav-drop-item--logout{color:#fca5a5!important;}
+.tmpmp-nav-drop-item--logout:hover{background:rgba(239,68,68,.18)!important;color:#fff!important;}
+/* Sign In button */
+.tmpmp-nav-login-btn{display:inline-flex!important;align-items:center;gap:7px;padding:7px 18px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none!important;background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;color:#fff!important;box-shadow:0 2px 12px rgba(99,102,241,.35);transition:all .2s ease;white-space:nowrap;}
+.tmpmp-nav-login-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(99,102,241,.55)!important;filter:brightness(1.08);color:#fff!important;}
+/* Mobile */
+@media(max-width:768px){.tmpmp-nav-uname{display:none;}.tmpmp-nav-dropdown{right:auto;left:0;}.tmpmp-nav-login-btn{padding:7px 12px;font-size:12px;}}
 </style>
     <?php }
 
