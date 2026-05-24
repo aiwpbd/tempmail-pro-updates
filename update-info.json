@@ -1,8 +1,1 @@
-{
-  "version"      : "2.0.5",
-  "download_url" : "https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.5/tempmail-pro-2.0.5.zip",
-  "changelog"    : "### New Features\n- Smart account nav bar on main email app: shows Dashboard + Logout when logged in, Sign In/Register when guest\n- Avatar displayed in nav bar (initials fallback)\n- Welcome greeting with username\n\n### Bug Fixes\n- Dashboard/Logout were hidden before login — now always accessible from the main page",
-  "requires"     : "5.8",
-  "requires_php" : "7.4",
-  "tested"       : "6.7"
-}
+{"version":"2.0.6","download_url":"https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.6/tempmail-pro-2.0.6.zip","changelog":"### New Features\n- Sign In / Register button injected into WordPress header nav menu (guest)\n- Dashboard + Logout buttons injected into header nav menu (logged-in)\n- Avatar / initial letter shown next to username in nav\n- Full CSS with hover effects, responsive mobile support\n\n### Bug Fixes\n- Fixed missing 2.0.4 array key causing PHP parse error in changelog class","requires":"5.8","requires_php":"7.4","tested":"6.7"}

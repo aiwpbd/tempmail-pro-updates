@@ -34,6 +34,9 @@ class TempMail_Auth {
         // Shortcodes
         add_shortcode( 'tempmail_login',     [ $this, 'render_login_page'     ] );
         add_shortcode( 'tempmail_dashboard', [ $this, 'render_user_dashboard' ] );
+        // Header nav menu account button
+        add_filter( 'wp_nav_menu_items', [ $this, 'inject_nav_account_btn' ], 99, 2 );
+        add_action( 'wp_head',           [ $this, 'output_nav_account_css'  ], 99    );
     }
 
     // ── URL Helpers ────────────────────────────────────────────────────────────
@@ -53,6 +56,67 @@ class TempMail_Auth {
         $page = get_page_by_path('tempmail-login') ?? get_page_by_path('login');
         return $page ? get_permalink( $page->ID ) : home_url('/login/');
     }
+
+    // ── Header Nav — inject account button ───────────────────────────────────
+    public function inject_nav_account_btn( string $items, object $args ) : string {
+        // Apply to all menu locations; admins can restrict via the filter below
+        $loc     = $args->theme_location ?? '';
+        $skip    = apply_filters( 'tmpmp_nav_skip_locations', [] ); // e.g. ['footer-menu']
+        if ( in_array( $loc, $skip, true ) ) return $items;
+
+        if ( is_user_logged_in() ) {
+            $user       = wp_get_current_user();
+            $name       = esc_html( mb_strimwidth( $user->display_name ?: $user->user_email, 0, 20, '…' ) );
+            $avatar     = get_user_meta( $user->ID, 'tmpmp_avatar_url', true );
+            $dash_url   = esc_url( self::dashboard_url() );
+            $logout_url = esc_url( wp_logout_url( get_permalink() ?: home_url('/') ) );
+
+            $avatar_html = $avatar
+                ? '<img src="' . esc_url( $avatar ) . '" alt="" class="tmpmp-nav-avatar-img">'
+                : '<span class="tmpmp-nav-initial">' . esc_html( strtoupper( substr( $user->display_name ?: $user->user_email, 0, 1 ) ) ) . '</span>';
+
+            $items .= '<li class="menu-item tmpmp-nav-account-item">'
+                . '<a href="' . $dash_url . '" class="tmpmp-nav-acct-btn tmpmp-nav-acct-btn--dash">'
+                . $avatar_html . $name
+                . '</a>'
+                . '<a href="' . $logout_url . '" class="tmpmp-nav-acct-btn tmpmp-nav-acct-btn--logout" title="' . esc_attr__( 'Logout', 'tempmail-pro' ) . '">'
+                . '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+                . esc_html__( 'Logout', 'tempmail-pro' )
+                . '</a>'
+                . '</li>';
+        } else {
+            $login_url = esc_url( self::login_url() );
+            $items .= '<li class="menu-item tmpmp-nav-account-item">'
+                . '<a href="' . $login_url . '" class="tmpmp-nav-acct-btn tmpmp-nav-acct-btn--login">'
+                . '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>'
+                . esc_html__( 'Sign In / Register', 'tempmail-pro' )
+                . '</a>'
+                . '</li>';
+        }
+        return $items;
+    }
+
+    // ── Header Nav — CSS output ──────────────────────────────────────────────
+    public function output_nav_account_css() : void { ?>
+<style id="tmpmp-nav-account-css">
+.tmpmp-nav-account-item{display:inline-flex!important;align-items:center;gap:6px;list-style:none;padding:0!important;}
+.tmpmp-nav-acct-btn{display:inline-flex!important;align-items:center;gap:6px;padding:7px 16px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none!important;transition:all .2s ease;cursor:pointer;white-space:nowrap;border:1.5px solid transparent;line-height:1.3;vertical-align:middle;margin-left:4px;}
+/* Sign In / Register */
+.tmpmp-nav-acct-btn--login{background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;color:#fff!important;box-shadow:0 2px 12px rgba(99,102,241,.35);}
+.tmpmp-nav-acct-btn--login:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(99,102,241,.55)!important;filter:brightness(1.08);color:#fff!important;}
+/* Dashboard */
+.tmpmp-nav-acct-btn--dash{background:rgba(99,102,241,.1)!important;color:#818cf8!important;border-color:rgba(99,102,241,.3)!important;}
+.tmpmp-nav-acct-btn--dash:hover{background:#6366f1!important;color:#fff!important;transform:translateY(-2px);box-shadow:0 4px 14px rgba(99,102,241,.4);}
+/* Logout */
+.tmpmp-nav-acct-btn--logout{background:rgba(239,68,68,.08)!important;color:#f87171!important;border-color:rgba(239,68,68,.2)!important;padding:7px 12px;}
+.tmpmp-nav-acct-btn--logout:hover{background:#ef4444!important;color:#fff!important;transform:translateY(-2px);box-shadow:0 4px 14px rgba(239,68,68,.35);}
+/* Avatar */
+.tmpmp-nav-avatar-img{width:22px;height:22px;border-radius:50%;object-fit:cover;flex-shrink:0;}
+.tmpmp-nav-initial{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:11px;font-weight:800;flex-shrink:0;}
+@media(max-width:768px){.tmpmp-nav-acct-btn{font-size:12px;padding:6px 11px;}.tmpmp-nav-acct-btn--logout span{display:none;}}
+</style>
+    <?php }
+
 
     // ── Login Redirect Filter ──────────────────────────────────────────────────
     public function filter_login_redirect( string $redirect_to, string $requested_redirect_to, $user ) : string {
