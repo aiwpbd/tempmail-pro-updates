@@ -479,11 +479,13 @@ $plans_json = json_encode( array_values($plans) );
         </div>
 
         <!-- Drop zone -->
-        <div id="tmpmp-import-dropzone" style="border:2px dashed #c7d2fe;border-radius:12px;padding:28px 20px;text-align:center;background:#f5f3ff;cursor:pointer;transition:all .2s;margin-bottom:14px;">
-            <div style="font-size:36px;margin-bottom:8px;">📂</div>
-            <p style="margin:0;font-size:13px;font-weight:600;color:#6366f1;"><?php esc_html_e('Click to choose file or drag & drop here','tempmail-pro'); ?></p>
-            <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;"><?php esc_html_e('Accepts: .json export files only','tempmail-pro'); ?></p>
-            <input type="file" id="tmpmp-import-file" accept=".json,application/json" style="display:none;">
+        <div id="tmpmp-import-dropzone" style="position:relative;border:2px dashed #c7d2fe;border-radius:12px;padding:28px 20px;text-align:center;background:#f5f3ff;transition:all .2s;margin-bottom:14px;overflow:hidden;">
+            <div style="font-size:36px;margin-bottom:8px;pointer-events:none;">📂</div>
+            <p style="margin:0;font-size:13px;font-weight:600;color:#6366f1;pointer-events:none;"><?php esc_html_e('Click to choose file or drag & drop here','tempmail-pro'); ?></p>
+            <p style="margin:4px 0 0;font-size:11px;color:#94a3b8;pointer-events:none;"><?php esc_html_e('Accepts: .json export files only','tempmail-pro'); ?></p>
+            <!-- Invisible overlay input captures all clicks natively -->
+            <input type="file" id="tmpmp-import-file" accept=".json,application/json"
+                   style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:0;">
         </div>
         <div id="tmpmp-import-filename" style="font-size:12px;color:#6366f1;font-weight:600;margin-bottom:10px;display:none;padding:6px 12px;background:#ede9fe;border-radius:7px;"></div>
 
@@ -551,11 +553,11 @@ jQuery(function($) {
     });
 
     // ── Import – file picker / drop zone ─────────────────────────────
-    const $dropzone = $('#tmpmp-import-dropzone');
+    const $dropzone  = $('#tmpmp-import-dropzone');
     const $fileInput = $('#tmpmp-import-file');
+    let   selectedFile = null;   // holds file from BOTH picker and drag-drop
 
-    $dropzone.on('click', function() { $fileInput.trigger('click'); });
-
+    // Highlight on drag-over (clicks are handled natively by the overlay input)
     $dropzone.on('dragover', function(e) {
         e.preventDefault();
         $(this).css({ borderColor:'#6366f1', background:'#ede9fe' });
@@ -565,16 +567,18 @@ jQuery(function($) {
         e.preventDefault();
         $(this).css({ borderColor:'#c7d2fe', background:'#f5f3ff' });
         const file = e.originalEvent.dataTransfer.files[0];
-        if (file) setImportFile(file);
+        if (file) { selectedFile = file; setImportFile(file); }
     });
 
+    // Native file picker via the overlay input
     $fileInput.on('change', function() {
-        if (this.files[0]) setImportFile(this.files[0]);
+        if (this.files[0]) { selectedFile = this.files[0]; setImportFile(this.files[0]); }
     });
 
     function setImportFile(file) {
-        if (!file.name.endsWith('.json')) {
+        if (!file.name.toLowerCase().endsWith('.json')) {
             alert('<?php esc_html_e('Please select a valid .json export file.','tempmail-pro'); ?>');
+            selectedFile = null;
             return;
         }
         $('#tmpmp-import-filename').show().text('📄 ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)');
@@ -584,8 +588,8 @@ jQuery(function($) {
 
     // ── Import – submit ───────────────────────────────────────────────
     $('#tmpmp-import-btn').on('click', function() {
-        const file = $fileInput[0].files[0];
-        if (!file) return;
+        const file = selectedFile;   // works for both drag-drop and file picker
+        if (!file) { alert('<?php esc_html_e('Please choose a file first.','tempmail-pro'); ?>'); return; }
         if (!confirm('<?php esc_html_e('Import this file? Existing data will be merged/updated.','tempmail-pro'); ?>')) return;
 
         const $btn = $(this);
@@ -595,7 +599,7 @@ jQuery(function($) {
         $('#tmpmp-import-progress-label').text('<?php esc_html_e('Uploading…','tempmail-pro'); ?>');
         $('#tmpmp-import-results').hide();
 
-        // Animate progress (fake progress for UX)
+        // Animated progress bar (UX feedback)
         let prog = 0;
         const ticker = setInterval(function() {
             prog = Math.min(prog + Math.random()*15, 85);
@@ -605,7 +609,7 @@ jQuery(function($) {
         const fd = new FormData();
         fd.append('action',      'tmpmp_import_users');
         fd.append('nonce',       nonce);
-        fd.append('import_file', file);
+        fd.append('import_file', file);   // file from selectedFile, always valid
 
         $.ajax({
             url: ajaxUrl, type:'POST', data: fd,
