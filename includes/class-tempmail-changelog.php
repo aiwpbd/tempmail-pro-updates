@@ -135,6 +135,45 @@ class TempMail_Changelog {
 
     public static function get_changelog() : array {
         return [
+            '2.0.4' => [
+                'date'     => '2026-05-24',
+                'label'    => 'Security & Admin Release',
+                'subtitle' => 'EXPORT · IMPORT · PASSWORD GEN · ADMIN USERS · BUG FIXES',
+                'features' => [
+                    'New: <strong>Export / Import User Data</strong> — full JSON backup & restore of users, subscriptions, payments, API keys, inbox addresses, blocked IPs, and plan config. Supports drag-and-drop file upload with animated progress bar.',
+                    'New: <strong>Password Generator</strong> in admin Edit User modal — cryptographically secure 18-char passwords via <code>crypto.getRandomValues()</code> with strength meter (5-segment colour bar), show/hide toggle, and clipboard copy.',
+                    'New: <strong>Password Generator</strong> on user dashboard Security tab — same generator fills both New Password and Confirm Password fields simultaneously.',
+                    'New: Admin Users &amp; Subscriptions page — full user list with Free/Premium badges, tab filter (All / Premium / Free / Blocked), inline quick-info sidebar, and Edit User modal with profile, plan, and security tabs.',
+                    'New: Admin Edit User modal — update display name, email, role, plan/subscription, and password from one place.',
+                    'New: Import merge mode — existing users are updated (not duplicated), new users auto-created with temporary password; old user IDs remapped to new IDs across all tables.',
+                ],
+                'bugfixes' => [
+                    'Fixed: Admin modal password generator not firing — <code>document.addEventListener</code> blocked by <code>stopPropagation()</code> on modal; moved to <code>$(\'#tmpmp-user-modal\').on()</code> jQuery delegation.',
+                    'Fixed: Import dropzone click not opening file picker — replaced <code>display:none</code> + JS trigger with <code>opacity:0; position:absolute</code> overlay input that browsers handle natively.',
+                    'Fixed: Import button not working after drag-and-drop — dragged file never assigned to <code>fileInput.files</code>; fixed by storing file in <code>selectedFile</code> variable used by both drag-drop and picker paths.',
+                    'Fixed: All Users tab not showing user list on page load — added explicit <code>display:block</code> + JS initialisation call.',
+                    'Fixed: Password generator modal UI not resetting on re-open — added reset logic for eye icon, button label, strength bar, and copy button each time the modal opens.',
+                ],
+            ],
+            '2.0.3' => [
+                'date'     => '2026-05-20',
+                'label'    => 'Profile & Dashboard Release',
+                'subtitle' => 'AVATAR · ACCOUNT TAB · PASSWORD · BUG FIXES',
+                'features' => [
+                    'New: Profile picture upload in user dashboard (JPG, PNG, GIF, WebP up to 2 MB) with live preview and avatar persistence.',
+                    'New: Account tab in user dashboard — My Profile section (display name, email, avatar) and Change Password section.',
+                    'New: Reset Password link generation from the dashboard.',
+                ],
+                'bugfixes' => [
+                    'Fixed: Avatar not persisting on live servers — switched from <code>update_user_meta()</code> cache path to direct DB write; added cache-buster query string to avatar URL.',
+                    'Fixed: Profile save not persisting — explicit meta writes bypass object-cache layers (Redis/Memcached).',
+                    'Fixed: Encoding fix: garbled ellipsis in address-generating text.',
+                    'Fixed: FAQ accordion not clickable when used as standalone shortcode.',
+                    'Fixed: <code>faq_enabled</code> toggle always saved as enabled due to <code>isset()</code> check not handling explicit <code>\'0\'</code> value.',
+                    'Fixed: Garbled emoji mojibake removed from all admin toast notifications.',
+                ],
+            ],
+
             '2.0.1' => [
                 'date'     => '2026-05-22',
                 'label'    => 'Patch Release',
