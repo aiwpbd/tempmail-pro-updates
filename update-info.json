@@ -1,7 +1,7 @@
 {
-  "version"      : "2.0.4",
-  "download_url" : "https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.4/tempmail-pro-2.0.4.zip",
-  "changelog"    : "### New Features\n- Export / Import User Data: full JSON backup & restore (users, subs, payments, API keys, addresses, blocked IPs, plans)\n- Password Generator in Admin Edit User modal (crypto-secure, strength meter, show/hide, clipboard copy)\n- Password Generator on User Dashboard Security tab (fills both New Password & Confirm Password)\n- Full Admin Users & Subscriptions page: user list, tab filters, Edit User modal (profile, plan, security)\n- Import merge mode: existing users updated, new users created; user IDs remapped automatically\n\n### Bug Fixes\n- Admin modal password generator not firing (stopPropagation blocked document listeners — moved to jQuery modal delegation)\n- Import dropzone click not opening file picker (replaced display:none trigger with opacity:0 overlay)\n- Import button not working after drag-and-drop (dragged file never assigned to fileInput.files — fixed with selectedFile variable)\n- All Users tab not showing on page load (added display:block + JS init)\n- Password generator modal UI not resetting on re-open",
+  "version"      : "2.0.5",
+  "download_url" : "https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.5/tempmail-pro-2.0.5.zip",
+  "changelog"    : "### New Features\n- Smart account nav bar on main email app: shows Dashboard + Logout when logged in, Sign In/Register when guest\n- Avatar displayed in nav bar (initials fallback)\n- Welcome greeting with username\n\n### Bug Fixes\n- Dashboard/Logout were hidden before login � now always accessible from the main page",
   "requires"     : "5.8",
   "requires_php" : "7.4",
   "tested"       : "6.7"

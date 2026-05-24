@@ -36,6 +36,56 @@ class TempMail_Shortcode {
         <div class="tmpmp-wrap" data-theme="<?php echo esc_attr($data_theme); ?>" id="tmpmp-main">
             <?php echo TempMail_Ads::render('top_banner'); ?>
 
+            <!-- ── Account Nav Bar ─────────────────────────────────────────── -->
+            <?php
+            $is_logged_in  = is_user_logged_in();
+            $current_user  = $is_logged_in ? wp_get_current_user() : null;
+            $avatar_url    = $is_logged_in ? get_user_meta( $current_user->ID, 'tmpmp_avatar_url', true ) : '';
+            $display_name  = $is_logged_in ? ( $current_user->display_name ?: $current_user->user_email ) : '';
+            $logout_url    = $is_logged_in ? wp_logout_url( get_permalink() ?: home_url('/') ) : '';
+            $dash_url      = TempMail_Auth::dashboard_url();
+            $login_url     = TempMail_Auth::login_url();
+            ?>
+            <div class="tmpmp-account-bar">
+            <?php if ( $is_logged_in ) : ?>
+                <div class="tmpmp-account-bar__user">
+                    <div class="tmpmp-account-bar__avatar">
+                        <?php if ( $avatar_url ) : ?>
+                            <img src="<?php echo esc_url( $avatar_url ); ?>" alt="">
+                        <?php else : ?>
+                            <span><?php echo esc_html( strtoupper( substr( $display_name, 0, 1 ) ) ); ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="tmpmp-account-bar__info">
+                        <span class="tmpmp-account-bar__greeting"><?php esc_html_e( 'Welcome back,', 'tempmail-pro' ); ?></span>
+                        <span class="tmpmp-account-bar__name"><?php echo esc_html( $display_name ); ?></span>
+                    </div>
+                </div>
+                <div class="tmpmp-account-bar__actions">
+                    <a href="<?php echo esc_url( $dash_url ); ?>" class="tmpmp-acct-btn tmpmp-acct-btn--dash">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                        <?php esc_html_e( 'My Dashboard', 'tempmail-pro' ); ?>
+                    </a>
+                    <a href="<?php echo esc_url( $logout_url ); ?>" class="tmpmp-acct-btn tmpmp-acct-btn--logout">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                        <?php esc_html_e( 'Logout', 'tempmail-pro' ); ?>
+                    </a>
+                </div>
+            <?php else : ?>
+                <div class="tmpmp-account-bar__guest">
+                    <span class="tmpmp-account-bar__guest-text">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        <?php esc_html_e( 'Get private inbox, history & more', 'tempmail-pro' ); ?>
+                    </span>
+                    <a href="<?php echo esc_url( $login_url ); ?>" class="tmpmp-acct-btn tmpmp-acct-btn--login">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+                        <?php esc_html_e( 'Sign In / Register', 'tempmail-pro' ); ?>
+                    </a>
+                </div>
+            <?php endif; ?>
+            </div>
+            <!-- ── / Account Nav Bar ──────────────────────────────────────── -->
+
             <!-- Address Bar -->
             <div class="tmpmp-address-bar">
                 <div class="tmpmp-addr-box">

@@ -1,11 +1,11 @@
 {
   "enabled"     : true,
-  "version"     : "2.0.4",
+  "version"     : "2.0.5",
   "dismissible" : true,
   "bg"          : "info",
-  "icon"        : "üîê",
-  "title"       : "TempMail Pro v2.0.4 Released!",
-  "message"     : "New: Export/Import user data backup, Password Generator (admin modal + user dashboard), full Admin Users page with Edit User modal. Bug fixes: modal password generator, import dropzone click, drag-drop file submit. <a href=\"https://github.com/aiwpbd/tempmail-pro-updates/releases/tag/v2.0.4\" target=\"_blank\">See full changelog</a>.",
+  "icon"        : "??",
+  "title"       : "TempMail Pro v2.0.5 Released!",
+  "message"     : "New: Smart account nav bar ó shows Dashboard + Logout after login, Sign In before login. Now visible directly on the main email app. <a href=\"https://github.com/aiwpbd/tempmail-pro-updates/releases/tag/v2.0.5\" target=\"_blank\">See changelog</a>.",
   "cta_text"    : "Update Now",
-  "cta_url"     : "https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.4/tempmail-pro-2.0.4.zip"
+  "cta_url"     : "https://github.com/aiwpbd/tempmail-pro-updates/releases/download/v2.0.5/tempmail-pro-2.0.5.zip"
 }
