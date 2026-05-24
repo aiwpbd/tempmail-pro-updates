@@ -152,6 +152,7 @@ class TempMail_Changelog {
                 ],
             ],
 
+            '2.0.4' => [
                 'date'     => '2026-05-24',
                 'label'    => 'Security & Admin Release',
                 'subtitle' => 'EXPORT · IMPORT · PASSWORD GEN · ADMIN USERS · BUG FIXES',
