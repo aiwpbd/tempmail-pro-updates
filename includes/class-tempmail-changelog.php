@@ -135,7 +135,23 @@ class TempMail_Changelog {
 
     public static function get_changelog() : array {
         return [
-            '2.0.4' => [
+            '2.0.5' => [
+                'date'     => '2026-05-24',
+                'label'    => 'UX Release',
+                'subtitle' => 'ACCOUNT NAV · DASHBOARD · LOGOUT · SIGN IN',
+                'features' => [
+                    'New: <strong>Account nav bar</strong> on the main <code>[tempmail_app]</code> shortcode — visible at the top of every email page.',
+                    'New: <strong>Logged-in state</strong> — shows user avatar (or initial letter with gradient), welcome greeting, username, <strong>My Dashboard</strong> link, and <strong>Logout</strong> button.',
+                    'New: <strong>Guest state</strong> — shows shield icon with "Get private inbox &amp; more" message and a gradient <strong>Sign In / Register</strong> button.',
+                    'New: Full dark / light theme CSS support for the account bar, including light-mode colour overrides.',
+                    'New: Responsive account bar — collapses gracefully on mobile screens.',
+                ],
+                'bugfixes' => [
+                    'Fixed: Dashboard and Logout links were inaccessible from the main email app page before this release.',
+                    'Fixed: Guest users had no visible path to login from the main app shortcode.',
+                ],
+            ],
+
                 'date'     => '2026-05-24',
                 'label'    => 'Security & Admin Release',
                 'subtitle' => 'EXPORT · IMPORT · PASSWORD GEN · ADMIN USERS · BUG FIXES',
