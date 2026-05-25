@@ -559,17 +559,22 @@ class TempMail_GitHub_Updater {
             return $reply;
         }
 
-        $tmp = wp_tempnam( basename( $package ) );
-
-        // ── Attempt 1: force TLS 1.2 via http_api_curl hook ──────────────
+        /* ── Attempt 1: force TLS 1.2 + lower cipher SECLEVEL ───────────────
+         * Fixes cURL error 35 on old OpenSSL that defaults to SSLv3.
+         * Adding DEFAULT@SECLEVEL=1 allows older cipher suites that some
+         * bundled OpenSSL builds ship with (e.g. LocalWP PHP 7.x/8.x).
+         * ─────────────────────────────────────────────────────────────────── */
         $tls12_hook = static function ( $curl_handle ) {
             if ( defined( 'CURL_SSLVERSION_TLSv1_2' ) ) {
                 curl_setopt( $curl_handle, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2 );
             }
+            // Lower SECLEVEL so old ciphers can negotiate TLS 1.2 handshake
+            @curl_setopt( $curl_handle, CURLOPT_SSL_CIPHER_LIST, 'DEFAULT@SECLEVEL=1' );
         };
 
         add_action( 'http_api_curl', $tls12_hook );
 
+        $tmp = wp_tempnam( basename( $package ) );
         $response = wp_remote_get( $package, [
             'timeout'    => 300,
             'stream'     => true,
@@ -581,7 +586,9 @@ class TempMail_GitHub_Updater {
 
         remove_action( 'http_api_curl', $tls12_hook );
 
-        // ── Attempt 2: sslverify => false fallback ────────────────────────
+        /* ── Attempt 2: sslverify => false ───────────────────────────────────
+         * Disables peer certificate verification (safe on private installs).
+         * ─────────────────────────────────────────────────────────────────── */
         if ( is_wp_error( $response ) ) {
             @unlink( $tmp );
             $tmp = wp_tempnam( basename( $package ) );
@@ -590,13 +597,62 @@ class TempMail_GitHub_Updater {
                 'timeout'    => 300,
                 'stream'     => true,
                 'filename'   => $tmp,
-                'sslverify'  => false,           // last-resort for very old OpenSSL
+                'sslverify'  => false,
                 'user-agent' => 'WordPress/' . get_bloginfo( 'version' ) . '; ' . home_url(),
                 'headers'    => [ 'Accept' => 'application/octet-stream' ],
             ] );
         }
 
-        // ── Give up — return error so WordPress shows a proper message ─────
+        /* ── Attempt 3: PHP stream_context / file_get_contents ───────────────
+         * Completely bypasses cURL and uses PHP's own SSL stack (OpenSSL via
+         * streams). On many LocalWP setups the streams SSL is newer/different
+         * from the bundled libcurl and can negotiate TLS 1.2 successfully.
+         * ─────────────────────────────────────────────────────────────────── */
+        if ( is_wp_error( $response ) && function_exists( 'stream_context_create' ) ) {
+            @unlink( $tmp );
+
+            $ssl_ctx = [
+                'verify_peer'       => false,
+                'verify_peer_name'  => false,
+                'allow_self_signed' => true,
+            ];
+            // Force TLS 1.2 via stream crypto if the constant is available
+            if ( defined( 'STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT' ) ) {
+                $ssl_ctx['crypto_method'] = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+            }
+
+            $stream_ctx = stream_context_create( [
+                'ssl'  => $ssl_ctx,
+                'http' => [
+                    'method'          => 'GET',
+                    'header'          => "User-Agent: WordPress/" . get_bloginfo( 'version' ) . "; " . home_url() . "\r\n"
+                                       . "Accept: application/octet-stream\r\n",
+                    'follow_location' => 1,
+                    'timeout'         => 300,
+                    'ignore_errors'   => false,
+                ],
+            ] );
+
+            $data = @file_get_contents( $package, false, $stream_ctx );
+
+            if ( $data !== false && strlen( $data ) > 1000 ) {
+                $tmp = wp_tempnam( basename( $package ) );
+                file_put_contents( $tmp, $data );
+                return $tmp; // success — hand local file path to WordPress
+            }
+
+            // Streams also failed — return a detailed WP_Error
+            return new \WP_Error(
+                'tmpmp_download_failed',
+                sprintf(
+                    /* translators: %s = detailed error description */
+                    __( 'TempMail Pro update download failed (all attempts exhausted). Your server\'s SSL/TLS stack (cURL + PHP streams) cannot connect to GitHub. Please update PHP/OpenSSL on your server, or install the update manually: %s', 'tempmail-pro' ),
+                    'https://github.com/' . self::GITHUB_USER . '/' . self::GITHUB_REPO . '/releases/latest'
+                )
+            );
+        }
+
+        /* ── Give up after attempts 1 & 2 if streams unavailable ────────── */
         if ( is_wp_error( $response ) ) {
             @unlink( $tmp );
             return new \WP_Error(

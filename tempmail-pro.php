@@ -3,7 +3,7 @@
  * Plugin Name: TempMail Pro
  * Plugin URI:  https://wa.me/+8801516514216
  * Description: A full-featured temporary/disposable email SaaS platform for WordPress â€” with subscriptions, multi-domain, API, and monetization.
- * Version:     2.1.0
+ * Version:     2.1.1
  * Author:      TempMail Pro
  * Author URI:  https://wa.me/+8801516514216
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-define( 'TMPMP_VERSION',     '2.1.0' );
+define( 'TMPMP_VERSION',     '2.1.1' );
 define( 'TMPMP_PLUGIN_FILE', __FILE__ );
 define( 'TMPMP_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'TMPMP_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
