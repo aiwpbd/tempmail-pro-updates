@@ -110,19 +110,21 @@ class TempMail_Auth {
                       . $chevron
                   . '</div>'
                   . '<div class="tmpmp-nav-dropdown">'
-                      . '<div class="tmpmp-nav-drop-head">'
-                          . '<div class="tmpmp-nav-av tmpmp-nav-av--lg">' . $av . '</div>'
-                          . '<span>' . $name . '</span>'
+                      . '<div class="tmpmp-nav-dropdown-inner">'
+                          . '<div class="tmpmp-nav-drop-head">'
+                              . '<div class="tmpmp-nav-av tmpmp-nav-av--lg">' . $av . '</div>'
+                              . '<span>' . $name . '</span>'
+                          . '</div>'
+                          . '<div class="tmpmp-nav-drop-divider"></div>'
+                          . '<a href="' . $dash_url . '" class="tmpmp-nav-drop-item">'
+                              . '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
+                              . esc_html__( 'My Dashboard', 'tempmail-pro' )
+                          . '</a>'
+                          . '<a href="' . $logout_url . '" class="tmpmp-nav-drop-item tmpmp-nav-drop-item--logout">'
+                              . '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
+                              . esc_html__( 'Logout', 'tempmail-pro' )
+                          . '</a>'
                       . '</div>'
-                      . '<div class="tmpmp-nav-drop-divider"></div>'
-                      . '<a href="' . $dash_url . '" class="tmpmp-nav-drop-item">'
-                          . '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
-                          . esc_html__( 'My Dashboard', 'tempmail-pro' )
-                      . '</a>'
-                      . '<a href="' . $logout_url . '" class="tmpmp-nav-drop-item tmpmp-nav-drop-item--logout">'
-                          . '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>'
-                          . esc_html__( 'Logout', 'tempmail-pro' )
-                      . '</a>'
                   . '</div>'
                 . '</li>';
         } else {
@@ -157,7 +159,8 @@ class TempMail_Auth {
 .tmpmp-nav-chevron{color:#818cf8;transition:transform .22s ease;flex-shrink:0;}
 .tmpmp-nav-account-item:hover .tmpmp-nav-chevron,.tmpmp-nav-account-item:focus-within .tmpmp-nav-chevron{transform:rotate(180deg);}
 /* Dropdown panel */
-.tmpmp-nav-dropdown{position:absolute;top:calc(100% + 10px);right:0;min-width:210px;background:#1a1040;border:1.5px solid rgba(99,102,241,.28);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.5),0 0 0 1px rgba(99,102,241,.08);padding:8px;z-index:99999;opacity:0;visibility:hidden;transform:translateY(-8px) scale(.97);transition:opacity .2s ease,transform .22s ease,visibility .2s;pointer-events:none;}
+.tmpmp-nav-dropdown{position:absolute;top:100%;right:0;padding-top:10px;min-width:210px;z-index:99999;opacity:0;visibility:hidden;transform:translateY(-6px) scale(.97);transition:opacity .2s ease,transform .22s ease,visibility .2s;pointer-events:none;}
+.tmpmp-nav-dropdown-inner{background:#1a1040;border:1.5px solid rgba(99,102,241,.28);border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.5),0 0 0 1px rgba(99,102,241,.08);padding:8px;}
 .tmpmp-nav-account-item:hover .tmpmp-nav-dropdown,.tmpmp-nav-account-item:focus-within .tmpmp-nav-dropdown{opacity:1;visibility:visible;transform:translateY(0) scale(1);pointer-events:auto;}
 /* Dropdown head */
 .tmpmp-nav-drop-head{display:flex;align-items:center;gap:10px;padding:8px 10px 10px;font-size:13px;font-weight:700;color:#c7d2fe;}
