@@ -67,7 +67,7 @@ class TempMail_Auth {
 
         // ── Pricing link ──────────────────────────────────────────────────────
         $pricing_url   = $s['nav_pricing_url']   ?? home_url('/tempmail-pricing/');
-        $pricing_label = $s['nav_pricing_label']  ?: __( 'Pricing', 'tempmail-pro' );
+        $pricing_label = ( $s['nav_pricing_label'] ?? '' ) ?: __( 'Pricing', 'tempmail-pro' );
         if ( $pricing_url ) {
             $items .= '<li class="menu-item tmpmp-nav-page-item">'
                 . '<a href="' . esc_url( $pricing_url ) . '" class="tmpmp-nav-page-link">'
