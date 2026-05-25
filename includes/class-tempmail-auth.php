@@ -170,9 +170,10 @@ class TempMail_Auth {
 .tmpmp-nav-drop-item--logout:hover{background:rgba(239,68,68,.18)!important;color:#fff!important;}
 /* Page links (Pricing / custom) */
 .tmpmp-nav-page-item{display:inline-flex!important;align-items:center;list-style:none!important;padding:0!important;margin:0!important;}
-.tmpmp-nav-page-link{display:inline-flex!important;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none!important;color:#818cf8!important;transition:all .18s ease;white-space:nowrap;border:1.5px solid transparent;}
-.tmpmp-nav-page-link:hover{background:rgba(99,102,241,.12)!important;color:#fff!important;border-color:rgba(99,102,241,.28);transform:translateY(-1px);}
-.tmpmp-nav-page-link svg{flex-shrink:0;opacity:.75;}
+.tmpmp-nav-page-link{display:inline-flex!important;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;text-decoration:none!important;color:#6366f1!important;transition:all .2s ease;white-space:nowrap;border:1.5px solid rgba(99,102,241,.25);background:transparent;}
+.tmpmp-nav-page-link:hover{background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;color:#fff!important;border-color:transparent;box-shadow:0 3px 14px rgba(99,102,241,.4);transform:translateY(-1px);}
+.tmpmp-nav-page-link svg{flex-shrink:0;}
+.tmpmp-nav-page-link:hover svg{stroke:#fff;}
 /* Sign In button */
 .tmpmp-nav-login-btn{display:inline-flex!important;align-items:center;gap:7px;padding:7px 18px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none!important;background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;color:#fff!important;box-shadow:0 2px 12px rgba(99,102,241,.35);transition:all .2s ease;white-space:nowrap;}
 .tmpmp-nav-login-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(99,102,241,.55)!important;filter:brightness(1.08);color:#fff!important;}
