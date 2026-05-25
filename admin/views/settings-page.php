@@ -1,4 +1,4 @@
-﻿<?php if ( ! defined('ABSPATH') ) exit; ?>
+<?php if ( ! defined('ABSPATH') ) exit; ?>
 <div class="wrap tmpmp-admin-wrap">
 <h1 class="tmpmp-admin-title"><span class="dashicons dashicons-admin-settings"></span> <?php esc_html_e('TempMail Pro — Settings','tempmail-pro'); ?> <span class="tmpmp-version-pill">v<?php echo esc_html(TMPMP_VERSION); ?></span></h1>
 <div id="tmpmp-settings-saved" class="notice notice-success" style="display:none;"><p><?php esc_html_e('Settings saved!','tempmail-pro'); ?></p></div>
@@ -277,7 +277,91 @@
     </script>
 </div>
 
+<!-- ── Header Nav Links ─────────────────────────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">🔗 <?php esc_html_e('Header Nav Links','tempmail-pro'); ?></p>
+    <p style="font-size:13px;color:#64748b;margin:0 0 16px;">
+        <?php esc_html_e('These links are automatically injected into every WordPress header nav menu before the account button.','tempmail-pro'); ?>
+    </p>
+
+    <!-- Pricing URL -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="nav_pricing_url"><?php esc_html_e('Pricing Page URL','tempmail-pro'); ?></label>
+        <div>
+            <input type="url" id="nav_pricing_url" name="nav_pricing_url" class="tmpmp-mail-input"
+                value="<?php echo esc_url( $s['nav_pricing_url'] ?? home_url('/tempmail-pricing/') ); ?>"
+                placeholder="https://yoursite.com/tempmail-pricing/" style="max-width:420px;">
+            <p class="tmpmp-mail-help"><?php esc_html_e('Leave empty to hide the Pricing link from the nav.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+    <!-- Pricing Label -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="nav_pricing_label"><?php esc_html_e('Pricing Link Label','tempmail-pro'); ?></label>
+        <div>
+            <input type="text" id="nav_pricing_label" name="nav_pricing_label" class="tmpmp-mail-input"
+                value="<?php echo esc_html( $s['nav_pricing_label'] ?? __('Pricing','tempmail-pro') ); ?>"
+                placeholder="Pricing" style="max-width:200px;">
+        </div>
+    </div>
+
+    <!-- Custom Links builder -->
+    <div class="tmpmp-mail-field" style="align-items:flex-start;">
+        <label class="tmpmp-mail-label" style="padding-top:8px;"><?php esc_html_e('Custom Nav Links','tempmail-pro'); ?></label>
+        <div style="flex:1;">
+            <div id="tmpmp-nav-links-wrap" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+            <?php
+            $custom_links = $s['nav_custom_links'] ?? [];
+            if ( empty($custom_links) ) $custom_links = [];
+            foreach ( $custom_links as $i => $lnk ) :
+                $lbl = esc_attr( $lnk['label'] ?? '' );
+                $url = esc_attr( $lnk['url']   ?? '' );
+            ?>
+                <div class="tmpmp-nav-link-row" style="display:flex;gap:8px;align-items:center;">
+                    <input type="text"  name="nav_custom_links[<?php echo $i; ?>][label]" value="<?php echo $lbl; ?>"
+                        class="tmpmp-mail-input" placeholder="<?php esc_attr_e('Label','tempmail-pro'); ?>" style="max-width:160px;">
+                    <input type="url"   name="nav_custom_links[<?php echo $i; ?>][url]"   value="<?php echo $url; ?>"
+                        class="tmpmp-mail-input" placeholder="https://..." style="max-width:280px;">
+                    <button type="button" class="tmpmp-nav-link-remove" title="Remove"
+                        style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:7px;cursor:pointer;font-weight:700;font-size:13px;">✕</button>
+                </div>
+            <?php endforeach; ?>
+            </div>
+
+            <button type="button" id="tmpmp-nav-link-add"
+                style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#ede9fe;color:#6366f1;border:1.5px solid rgba(99,102,241,.3);border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">
+                + <?php esc_html_e('Add Link','tempmail-pro'); ?>
+            </button>
+            <p class="tmpmp-mail-help"><?php esc_html_e('Each link is injected into the header nav in the order listed here.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var wrap = document.getElementById('tmpmp-nav-links-wrap');
+    var idx  = wrap ? wrap.querySelectorAll('.tmpmp-nav-link-row').length : 0;
+
+    document.getElementById('tmpmp-nav-link-add') && document.getElementById('tmpmp-nav-link-add').addEventListener('click', function(){
+        var row = document.createElement('div');
+        row.className = 'tmpmp-nav-link-row';
+        row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+        row.innerHTML =
+            '<input type="text" name="nav_custom_links['+idx+'][label]" class="tmpmp-mail-input" placeholder="Label" style="max-width:160px;">'
+          + '<input type="url"  name="nav_custom_links['+idx+'][url]"   class="tmpmp-mail-input" placeholder="https://..." style="max-width:280px;">'
+          + '<button type="button" class="tmpmp-nav-link-remove" title="Remove" style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:7px;cursor:pointer;font-weight:700;font-size:13px;">✕</button>';
+        wrap.appendChild(row);
+        idx++;
+        attachRemove(row.querySelector('.tmpmp-nav-link-remove'));
+    });
+
+    function attachRemove(btn){ btn && btn.addEventListener('click', function(){ btn.closest('.tmpmp-nav-link-row').remove(); }); }
+    wrap && wrap.querySelectorAll('.tmpmp-nav-link-remove').forEach(attachRemove);
+})();
+</script>
+
 </div><!-- /#tab-general -->
+
 
 <!-- Mail Server Tab -->
 <div class="tmpmp-tab-panel" id="tab-mail">

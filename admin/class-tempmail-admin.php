@@ -301,6 +301,23 @@ class TempMail_Admin {
         if ( isset($_POST['login_page_url']) ) {
             $new_data['login_page_url'] = esc_url_raw( wp_unslash( $_POST['login_page_url'] ) );
         }
+        // ── Header Nav Links ────────────────────────────────────────────────────
+        if ( isset($_POST['nav_pricing_url']) ) {
+            $new_data['nav_pricing_url'] = esc_url_raw( wp_unslash( $_POST['nav_pricing_url'] ) );
+        }
+        if ( isset($_POST['nav_pricing_label']) ) {
+            $new_data['nav_pricing_label'] = sanitize_text_field( wp_unslash( $_POST['nav_pricing_label'] ) );
+        }
+        $new_data['nav_custom_links'] = [];
+        if ( isset($_POST['nav_custom_links']) && is_array($_POST['nav_custom_links']) ) {
+            foreach ( $_POST['nav_custom_links'] as $lnk ) {
+                $lbl = sanitize_text_field( wp_unslash( $lnk['label'] ?? '' ) );
+                $url = esc_url_raw( wp_unslash( $lnk['url']   ?? '' ) );
+                if ( $lbl && $url ) {
+                    $new_data['nav_custom_links'][] = [ 'label' => $lbl, 'url' => $url ];
+                }
+            }
+        }
 
         // ── Login Email customizer ──────────────────────────────────────────────
         $le_text_fields = [

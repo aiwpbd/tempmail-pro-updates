@@ -63,6 +63,31 @@ class TempMail_Auth {
         $skip = apply_filters( 'tmpmp_nav_skip_locations', [] );
         if ( in_array( $loc, $skip, true ) ) return $items;
 
+        $s = get_option( 'tmpmp_settings', [] );
+
+        // ── Pricing link ──────────────────────────────────────────────────────
+        $pricing_url   = $s['nav_pricing_url']   ?? home_url('/tempmail-pricing/');
+        $pricing_label = $s['nav_pricing_label']  ?: __( 'Pricing', 'tempmail-pro' );
+        if ( $pricing_url ) {
+            $items .= '<li class="menu-item tmpmp-nav-page-item">'
+                . '<a href="' . esc_url( $pricing_url ) . '" class="tmpmp-nav-page-link">'
+                . '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'
+                . esc_html( $pricing_label )
+                . '</a>'
+                . '</li>';
+        }
+
+        // ── Custom links ──────────────────────────────────────────────────────
+        $custom_links = $s['nav_custom_links'] ?? [];
+        foreach ( (array) $custom_links as $lnk ) {
+            $lbl = sanitize_text_field( $lnk['label'] ?? '' );
+            $url = esc_url( $lnk['url'] ?? '' );
+            if ( ! $lbl || ! $url ) continue;
+            $items .= '<li class="menu-item tmpmp-nav-page-item">'
+                . '<a href="' . $url . '" class="tmpmp-nav-page-link">' . esc_html( $lbl ) . '</a>'
+                . '</li>';
+        }
+
         if ( is_user_logged_in() ) {
             $user       = wp_get_current_user();
             $name       = esc_html( mb_strimwidth( $user->display_name ?: $user->user_email, 0, 18, "\u2026" ) );
@@ -143,6 +168,11 @@ class TempMail_Auth {
 .tmpmp-nav-drop-item:hover{background:rgba(99,102,241,.18)!important;color:#fff!important;transform:translateX(3px);}
 .tmpmp-nav-drop-item--logout{color:#fca5a5!important;}
 .tmpmp-nav-drop-item--logout:hover{background:rgba(239,68,68,.18)!important;color:#fff!important;}
+/* Page links (Pricing / custom) */
+.tmpmp-nav-page-item{display:inline-flex!important;align-items:center;list-style:none!important;padding:0!important;margin:0!important;}
+.tmpmp-nav-page-link{display:inline-flex!important;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none!important;color:#818cf8!important;transition:all .18s ease;white-space:nowrap;border:1.5px solid transparent;}
+.tmpmp-nav-page-link:hover{background:rgba(99,102,241,.12)!important;color:#fff!important;border-color:rgba(99,102,241,.28);transform:translateY(-1px);}
+.tmpmp-nav-page-link svg{flex-shrink:0;opacity:.75;}
 /* Sign In button */
 .tmpmp-nav-login-btn{display:inline-flex!important;align-items:center;gap:7px;padding:7px 18px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none!important;background:linear-gradient(135deg,#6366f1,#8b5cf6)!important;color:#fff!important;box-shadow:0 2px 12px rgba(99,102,241,.35);transition:all .2s ease;white-space:nowrap;}
 .tmpmp-nav-login-btn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(99,102,241,.55)!important;filter:brightness(1.08);color:#fff!important;}
