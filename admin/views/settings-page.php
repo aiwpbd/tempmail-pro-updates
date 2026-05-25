@@ -125,6 +125,21 @@
         </div>
     </div>
 
+    <!-- Show Sign In / Register button in account bar -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="show_acct_login_btn"><?php esc_html_e('Account Bar Login Button','tempmail-pro'); ?></label>
+        <div>
+            <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="hidden"   name="show_acct_login_btn" value="0">
+                <input type="checkbox" name="show_acct_login_btn" id="show_acct_login_btn" value="1"
+                    style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer;"
+                    <?php checked( ! empty( $settings['show_acct_login_btn'] ) ); ?>>
+                <span style="font-size:13.5px;font-weight:600;color:#1e293b;"><?php esc_html_e('Show "Sign In / Register" button in the app Account Bar','tempmail-pro'); ?></span>
+            </label>
+            <p class="tmpmp-mail-hint"><?php esc_html_e('When disabled (default), the Sign In / Register button is hidden from the account bar for guest users. The button in the header nav menu is not affected.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
 </div>
 
 

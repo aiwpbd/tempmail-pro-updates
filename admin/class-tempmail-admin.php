@@ -301,6 +301,10 @@ class TempMail_Admin {
         if ( isset($_POST['login_page_url']) ) {
             $new_data['login_page_url'] = esc_url_raw( wp_unslash( $_POST['login_page_url'] ) );
         }
+        // show_acct_login_btn — hidden input posts 0, checkbox posts 1 if checked
+        $new_data['show_acct_login_btn'] = isset($_POST['show_acct_login_btn'])
+            ? (int) $_POST['show_acct_login_btn']
+            : 0;
         // ── Header Nav Links ────────────────────────────────────────────────────
         if ( isset($_POST['nav_pricing_url']) ) {
             $new_data['nav_pricing_url'] = esc_url_raw( wp_unslash( $_POST['nav_pricing_url'] ) );

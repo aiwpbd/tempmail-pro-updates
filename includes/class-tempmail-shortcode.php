@@ -72,6 +72,7 @@ class TempMail_Shortcode {
                     </a>
                 </div>
             <?php else : ?>
+                <?php if ( ! empty( $settings['show_acct_login_btn'] ) ) : ?>
                 <div class="tmpmp-account-bar__guest">
                     <span class="tmpmp-account-bar__guest-text">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
@@ -82,6 +83,7 @@ class TempMail_Shortcode {
                         <?php esc_html_e( 'Sign In / Register', 'tempmail-pro' ); ?>
                     </a>
                 </div>
+                <?php endif; ?>
             <?php endif; ?>
             </div>
             <!-- ── / Account Nav Bar ──────────────────────────────────────── -->
