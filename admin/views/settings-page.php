@@ -128,6 +128,88 @@
 </div>
 
 
+<!-- ── Upgrade Box Customization ──────────────────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">⭐ <?php esc_html_e('Upgrade Box Customization','tempmail-pro'); ?></p>
+    <p style="font-size:13px;color:#64748b;margin:0 0 16px;">
+        <?php esc_html_e('Customize the modal shown when a user selects a Premium or VIP domain.','tempmail-pro'); ?>
+    </p>
+
+    <!-- CTA Button Text -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="upgrade_box_cta_text"><?php esc_html_e('Upgrade Button Text','tempmail-pro'); ?></label>
+        <div>
+            <input type="text" id="upgrade_box_cta_text" name="upgrade_box_cta_text" class="tmpmp-mail-input"
+                value="<?php echo esc_html( $s['upgrade_box_cta_text'] ?? '' ); ?>"
+                placeholder="<?php esc_attr_e('Upgrade to Premium ⭐','tempmail-pro'); ?>" style="max-width:300px;">
+            <p class="tmpmp-mail-help"><?php esc_html_e('Leave empty to use the default "Upgrade to Premium/VIP ⭐/💎" text.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+    <!-- View Pricing Label -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="upgrade_box_price_label"><?php esc_html_e('"View Pricing" Button Label','tempmail-pro'); ?></label>
+        <div>
+            <input type="text" id="upgrade_box_price_label" name="upgrade_box_price_label" class="tmpmp-mail-input"
+                value="<?php echo esc_html( $s['upgrade_box_price_label'] ?? '' ); ?>"
+                placeholder="<?php esc_attr_e('View Pricing','tempmail-pro'); ?>" style="max-width:220px;">
+            <p class="tmpmp-mail-help"><?php esc_html_e('Label for the secondary "View Pricing" button. The URL comes from "Header Nav Links → Pricing Page URL" above.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+    <!-- Feature List builder -->
+    <div class="tmpmp-mail-field" style="align-items:flex-start;">
+        <label class="tmpmp-mail-label" style="padding-top:8px;"><?php esc_html_e('Feature List','tempmail-pro'); ?></label>
+        <div style="flex:1;">
+            <div id="tmpmp-upgrade-features-wrap" style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px;">
+            <?php
+            $ub_features = $s['upgrade_box_features'] ?? [];
+            if ( empty($ub_features) ) {
+                $ub_features = [
+                    __('Exclusive Premium / VIP domains','tempmail-pro'),
+                    __('Extended inbox lifetime','tempmail-pro'),
+                    __('No ads, faster refresh','tempmail-pro'),
+                ];
+            }
+            foreach ( $ub_features as $fi => $feat ) :
+            ?>
+                <div class="tmpmp-ub-feat-row" style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" name="upgrade_box_features[<?php echo $fi; ?>]"
+                        value="<?php echo esc_attr( $feat ); ?>"
+                        class="tmpmp-mail-input" placeholder="<?php esc_attr_e('Feature text…','tempmail-pro'); ?>" style="max-width:380px;">
+                    <button type="button" class="tmpmp-ub-feat-remove" title="Remove"
+                        style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:7px;cursor:pointer;font-weight:700;font-size:13px;">✕</button>
+                </div>
+            <?php endforeach; ?>
+            </div>
+
+            <button type="button" id="tmpmp-ub-feat-add"
+                style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:#ede9fe;color:#6366f1;border:1.5px solid rgba(99,102,241,.3);border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;">
+                + <?php esc_html_e('Add Feature','tempmail-pro'); ?>
+            </button>
+            <p class="tmpmp-mail-help"><?php esc_html_e('Leave empty to use built-in defaults. Each row is one bullet point in the upgrade modal.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var wrap = document.getElementById('tmpmp-upgrade-features-wrap');
+    var idx  = wrap ? wrap.querySelectorAll('.tmpmp-ub-feat-row').length : 0;
+    document.getElementById('tmpmp-ub-feat-add') && document.getElementById('tmpmp-ub-feat-add').addEventListener('click', function(){
+        var row = document.createElement('div');
+        row.className = 'tmpmp-ub-feat-row';
+        row.style.cssText = 'display:flex;gap:8px;align-items:center;';
+        row.innerHTML = '<input type="text" name="upgrade_box_features['+idx+']" class="tmpmp-mail-input" placeholder="Feature text…" style="max-width:380px;">'
+            + '<button type="button" class="tmpmp-ub-feat-remove" title="Remove" style="padding:5px 10px;background:#fee2e2;color:#dc2626;border:none;border-radius:7px;cursor:pointer;font-weight:700;font-size:13px;">✕</button>';
+        wrap.appendChild(row); idx++;
+        attachRm(row.querySelector('.tmpmp-ub-feat-remove'));
+    });
+    function attachRm(btn){ btn && btn.addEventListener('click', function(){ btn.closest('.tmpmp-ub-feat-row').remove(); }); }
+    wrap && wrap.querySelectorAll('.tmpmp-ub-feat-remove').forEach(attachRm);
+})();
+</script>
+
 <!-- Rate Limiting -->
 <div class="tmpmp-mail-card">
     <p class="tmpmp-mail-section-title">🛡️ <?php esc_html_e('Rate Limiting','tempmail-pro'); ?></p>

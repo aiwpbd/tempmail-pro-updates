@@ -814,7 +814,40 @@
         const isPremium  = cat === 'premium';
         const label      = isPremium ? 'Premium' : 'VIP';
         const icon       = isPremium ? '⭐' : '💎';
-        const upgradeUrl = (TempMailPro.upgrade_url || '').trim();
+        const upgradeUrl = (TempMailPro.upgrade_url   || '').trim();
+        const pricingUrl = (TempMailPro.pricing_url   || '').trim();
+        const ctaText    = (TempMailPro.upgrade_box_cta_text    || '').trim() || ('Upgrade to ' + label + ' ' + icon);
+        const priceLabel = (TempMailPro.upgrade_box_price_label || '').trim() || 'View Pricing';
+
+        // Build features list (custom admin list, or built-in defaults)
+        var customFeatures = TempMailPro.upgrade_box_features || [];
+        var defaultFeatures = [
+            'Exclusive ' + label + ' domains',
+            'Extended inbox lifetime',
+            'No ads, faster refresh',
+        ];
+        if (cat === 'vip' && !customFeatures.length) {
+            defaultFeatures.push('Priority support & API access');
+        }
+        var featuresList = customFeatures.length ? customFeatures : defaultFeatures;
+        var featuresHtml = featuresList.map(function(f) {
+            return '<div class="tmpmp-upgrade-feature"><span>✓</span> ' + escHtml(f) + '</div>';
+        }).join('');
+
+        // Build action buttons
+        var actionsHtml = '';
+        if (upgradeUrl) {
+            actionsHtml += '<a href="' + escAttr(upgradeUrl) + '" class="tmpmp-btn tmpmp-upgrade-cta" id="tmpmp-upgrade-cta">' + escHtml(ctaText) + '</a>';
+        }
+        if (pricingUrl) {
+            actionsHtml += '<a href="' + escAttr(pricingUrl) + '" class="tmpmp-upgrade-pricing-btn" id="tmpmp-upgrade-pricing-btn">'
+                + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>'
+                + escHtml(priceLabel)
+                + '</a>';
+        }
+        if (!actionsHtml) {
+            actionsHtml = '<p class="tmpmp-upgrade-noctx">Contact the administrator to upgrade your plan.</p>';
+        }
 
         // Remove any existing modal
         $('#tmpmp-upgrade-modal').remove();
@@ -826,15 +859,8 @@
                 '<div class="tmpmp-upgrade-icon">' + icon + '</div>' +
                 '<h3 class="tmpmp-upgrade-title">' + label + ' Domain</h3>' +
                 '<p class="tmpmp-upgrade-desc">This domain is exclusive to <strong>' + label + '</strong> plan members. Upgrade your plan to unlock it and enjoy premium features.</p>' +
-                '<div class="tmpmp-upgrade-features">' +
-                    '<div class="tmpmp-upgrade-feature"><span>✓</span> Exclusive ' + label + ' domains</div>' +
-                    '<div class="tmpmp-upgrade-feature"><span>✓</span> Extended inbox lifetime</div>' +
-                    '<div class="tmpmp-upgrade-feature"><span>✓</span> No ads, faster refresh</div>' +
-                    (cat === 'vip' ? '<div class="tmpmp-upgrade-feature"><span>✓</span> Priority support &amp; API access</div>' : '') +
-                '</div>' +
-                (upgradeUrl
-                    ? '<a href="' + upgradeUrl + '" class="tmpmp-btn tmpmp-upgrade-cta" id="tmpmp-upgrade-cta">Upgrade to ' + label + ' ' + icon + '</a>'
-                    : '<p class="tmpmp-upgrade-noctx">Contact the administrator to upgrade your plan.</p>') +
+                '<div class="tmpmp-upgrade-features">' + featuresHtml + '</div>' +
+                '<div class="tmpmp-upgrade-actions">' + actionsHtml + '</div>' +
             '</div>' +
             '</div>'
         );

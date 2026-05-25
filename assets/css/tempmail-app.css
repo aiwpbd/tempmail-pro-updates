@@ -793,8 +793,12 @@
     flex-shrink: 0;
 }
 
+.tmpmp-upgrade-actions {
+    display: flex; flex-direction: column; gap: 10px;
+    margin-top: 4px;
+}
 .tmpmp-upgrade-cta {
-    display: block; width: 100%;
+    display: flex; align-items: center; justify-content: center; width: 100%;
     background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
     color: #fff !important; text-decoration: none !important;
     padding: 13px 24px; border-radius: 12px;
@@ -807,9 +811,26 @@
     box-shadow: 0 6px 28px rgba(99,102,241,.65);
     transform: translateY(-1px);
 }
+.tmpmp-upgrade-pricing-btn {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    width: 100%; padding: 11px 24px; border-radius: 12px;
+    font-weight: 600; font-size: 14px;
+    color: #818cf8 !important; text-decoration: none !important;
+    border: 1.5px solid rgba(99,102,241,.35);
+    background: rgba(99,102,241,.08);
+    transition: background var(--tr), border-color var(--tr), transform var(--tr), color var(--tr);
+    cursor: pointer; text-align: center;
+}
+.tmpmp-upgrade-pricing-btn:hover {
+    background: rgba(99,102,241,.18);
+    border-color: rgba(99,102,241,.6);
+    color: #c7d2fe !important;
+    transform: translateY(-1px);
+}
+.tmpmp-upgrade-pricing-btn svg { flex-shrink: 0; }
 .tmpmp-upgrade-noctx {
     font-size: 13px; color: var(--text3);
-    margin: 0; font-style: italic;
+    margin: 0; font-style: italic; text-align: center;
 }
 
 /* Domain optgroup labels (limited browser support but nice where supported) */

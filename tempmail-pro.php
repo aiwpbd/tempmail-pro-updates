@@ -3,7 +3,7 @@
  * Plugin Name: TempMail Pro
  * Plugin URI:  https://wa.me/+8801516514216
  * Description: A full-featured temporary/disposable email SaaS platform for WordPress â€” with subscriptions, multi-domain, API, and monetization.
- * Version:     2.0.8
+ * Version:     2.0.9
  * Author:      TempMail Pro
  * Author URI:  https://wa.me/+8801516514216
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-define( 'TMPMP_VERSION',     '2.0.8' );
+define( 'TMPMP_VERSION',     '2.0.9' );
 define( 'TMPMP_PLUGIN_FILE', __FILE__ );
 define( 'TMPMP_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'TMPMP_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -165,7 +165,12 @@ function tmpmp_enqueue_frontend() {
         'version'          => TMPMP_VERSION,
         'is_premium'       => TempMail_Subscription::is_premium_user() ? 1 : 0,
         'user_plan'        => TempMail_Subscription::get_user_plan(),
-        'upgrade_url'      => esc_url( $settings['upgrade_url'] ?? '' ),
+        'upgrade_url'            => esc_url( $settings['upgrade_url'] ?? '' ),
+        'pricing_url'            => esc_url( $settings['nav_pricing_url'] ?? home_url('/tempmail-pricing/') ),
+        'upgrade_box_cta_text'   => sanitize_text_field( $settings['upgrade_box_cta_text']     ?? '' ),
+        'upgrade_box_price_label'=> sanitize_text_field( $settings['upgrade_box_price_label']  ?? '' ),
+        'upgrade_box_features'   => array_values( array_filter( array_map( 'sanitize_text_field',
+                                        $settings['upgrade_box_features'] ?? [] ) ) ),
         'strings'          => [
             'copy_success'   => __( 'Copied!', 'tempmail-pro' ),
             'copy_fail'      => __( 'Copy failed', 'tempmail-pro' ),

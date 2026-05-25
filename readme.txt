@@ -3,7 +3,7 @@ Contributors: tempmail-pro
 Tags: temporary email, disposable email, temp mail, fake email, spam protection, saas, email privacy
 Requires at least: 5.8
 Tested up to: 6.7
-Stable tag: 2.0.8
+Stable tag: 2.0.9
 Requires PHP: 8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html

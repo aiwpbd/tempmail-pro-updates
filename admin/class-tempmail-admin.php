@@ -318,6 +318,21 @@ class TempMail_Admin {
                 }
             }
         }
+        // ── Upgrade Box Customization ────────────────────────────────────────────
+        foreach ( ['upgrade_box_cta_text', 'upgrade_box_price_label'] as $k ) {
+            if ( isset($_POST[$k]) ) {
+                $new_data[$k] = sanitize_text_field( wp_unslash( $_POST[$k] ) );
+            }
+        }
+        $new_data['upgrade_box_features'] = [];
+        if ( isset($_POST['upgrade_box_features']) && is_array($_POST['upgrade_box_features']) ) {
+            foreach ( $_POST['upgrade_box_features'] as $feat ) {
+                $f = sanitize_text_field( wp_unslash( $feat ) );
+                if ( $f !== '' ) {
+                    $new_data['upgrade_box_features'][] = $f;
+                }
+            }
+        }
 
         // ── Login Email customizer ──────────────────────────────────────────────
         $le_text_fields = [
