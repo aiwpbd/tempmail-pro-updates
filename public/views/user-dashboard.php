@@ -872,13 +872,37 @@ jQuery(function($){
         var btn = e.target.closest('.tmpmp-pass-copy-btn');
         if (!btn) return;
         var inp = document.getElementById(btn.dataset.target);
-        if (!inp||!inp.value) return;
-        navigator.clipboard.writeText(inp.value).then(function() {
-            var orig=btn.textContent;
-            btn.textContent='✓ Copied!';
-            setTimeout(function(){ btn.textContent=orig; }, 1600);
-        });
+        if (!inp || !inp.value) return;
+
+        function onCopied() {
+            var orig = btn.innerHTML;
+            btn.innerHTML = '✓ Copied!';
+            setTimeout(function(){ btn.innerHTML = orig; }, 1600);
+        }
+
+        // Prefer modern Clipboard API (HTTPS only)
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(inp.value).then(onCopied).catch(function() {
+                fallbackCopy(inp.value, onCopied);
+            });
+        } else {
+            fallbackCopy(inp.value, onCopied);
+        }
     });
+
+    function fallbackCopy(text, cb) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+            var ok = document.execCommand('copy');
+            if (ok && typeof cb === 'function') cb();
+        } catch(err) {}
+        document.body.removeChild(ta);
+    }
     document.addEventListener('input', function(e) {
         var inp = e.target;
         if (!inp.id) return;
