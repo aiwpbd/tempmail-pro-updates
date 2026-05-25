@@ -1320,12 +1320,31 @@ jQuery(function($) {
         var val = $('#' + $(this).data('target')).val();
         if (!val) return;
         var $btn = $(this);
-        navigator.clipboard.writeText(val).then(function() {
-            var orig = $btn.text();
-            $btn.text('\u2713 <?php esc_html_e("Copied!","tempmail-pro"); ?>');
-            setTimeout(function() { $btn.text(orig); }, 1600);
-        });
+
+        function onCopied() {
+            var orig = $btn.html();
+            $btn.html('✓ <?php esc_html_e("Copied!","tempmail-pro"); ?>');
+            setTimeout(function() { $btn.html(orig); }, 1600);
+        }
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(val).then(onCopied).catch(function() {
+                tmpmpFallbackCopy(val, onCopied);
+            });
+        } else {
+            tmpmpFallbackCopy(val, onCopied);
+        }
     });
+
+    function tmpmpFallbackCopy(text, cb) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus(); ta.select();
+        try { if (document.execCommand('copy') && typeof cb === 'function') cb(); } catch(e) {}
+        document.body.removeChild(ta);
+    }
 
     // Strength meter on manual typing — delegated to modal
     $('#tmpmp-user-modal').on('input', '.tmpmp-pass-input-wrap input', function() {
