@@ -25,6 +25,17 @@ class TempMail_AJAX {
             add_action( "wp_ajax_{$action}",        [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
             add_action( "wp_ajax_nopriv_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
         }
+
+        // Logged-in-only actions (history)
+        $auth_actions = [
+            'tmpmp_get_address_history',
+            'tmpmp_get_history_emails',
+            'tmpmp_delete_history_address',
+            'tmpmp_get_history_email_body',
+        ];
+        foreach ( $auth_actions as $action ) {
+            add_action( "wp_ajax_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
+        }
     }
 
     // ── Nonce check helper ────────────────────────────────────────────────────
@@ -139,5 +150,72 @@ class TempMail_AJAX {
         $ad_id = intval( $_POST['ad_id'] ?? 0 );
         if ( $ad_id ) TempMail_Ads::track_click( $ad_id );
         wp_send_json_success();
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Address History — premium users only
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private function require_premium() : int {
+        $this->nonce();
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            wp_send_json_error( ['message' => __('You must be logged in.','tempmail-pro')], 401 );
+        }
+        if ( ! TempMail_Subscription::is_premium_user( $user_id ) ) {
+            wp_send_json_error( ['message' => __('This feature requires a Premium subscription.','tempmail-pro')], 403 );
+        }
+        return $user_id;
+    }
+
+    // ── GET paginated history list ────────────────────────────────────────────
+    public function handle_get_address_history() : void {
+        $user_id  = $this->require_premium();
+        $page     = max(1, intval( $_POST['page']     ?? 1 ));
+        $per_page = max(1, min(50, intval( $_POST['per_page'] ?? 20 )));
+        $result   = TempMail_Database::get_address_history_for_user( $user_id, $per_page, $page );
+        wp_send_json_success( $result );
+    }
+
+    // ── GET email list for a history address ─────────────────────────────────
+    public function handle_get_history_emails() : void {
+        $user_id    = $this->require_premium();
+        $address_id = intval( $_POST['address_id'] ?? 0 );
+        if ( ! $address_id ) wp_send_json_error(['message' => 'address_id required.'], 400);
+        $result = TempMail_Database::get_history_emails( $address_id, $user_id );
+        if ( $result === null ) wp_send_json_error(['message' => __('Address not found.','tempmail-pro')], 404);
+        wp_send_json_success( $result );
+    }
+
+    // ── GET single email body from history ────────────────────────────────────
+    public function handle_get_history_email_body() : void {
+        global $wpdb;
+        $user_id    = $this->require_premium();
+        $email_id   = intval( $_POST['email_id']   ?? 0 );
+        $address_id = intval( $_POST['address_id'] ?? 0 );
+        if ( ! $email_id || ! $address_id ) wp_send_json_error(['message'=>'Invalid params.'], 400);
+
+        // Verify ownership
+        $owned = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}tmpmp_addresses WHERE id = %d AND user_id = %d",
+            $address_id, $user_id
+        ) );
+        if ( ! $owned ) wp_send_json_error(['message' => __('Access denied.','tempmail-pro')], 403);
+
+        $email = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}tmpmp_emails WHERE id = %d AND address_id = %d",
+            $email_id, $address_id
+        ) );
+        if ( ! $email ) wp_send_json_error(['message' => __('Email not found.','tempmail-pro')], 404);
+        wp_send_json_success( $email );
+    }
+
+    // ── DELETE a history address ──────────────────────────────────────────────
+    public function handle_delete_history_address() : void {
+        $user_id    = $this->require_premium();
+        $address_id = intval( $_POST['address_id'] ?? 0 );
+        if ( ! $address_id ) wp_send_json_error(['message' => 'address_id required.'], 400);
+        $ok = TempMail_Database::delete_history_address( $address_id, $user_id );
+        $ok ? wp_send_json_success() : wp_send_json_error(['message' => __('Delete failed.','tempmail-pro')]);
     }
 }

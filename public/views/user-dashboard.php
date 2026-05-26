@@ -17,6 +17,7 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     "SELECT * FROM {$wpdb->prefix}tmpmp_api_keys WHERE user_id=%d AND is_active=1 ORDER BY created_at DESC",
     $user->ID
 ));
+$is_premium = TempMail_Subscription::is_premium_user( $user->ID );
 ?>
 <style>
 /* ── Dashboard responsive override (guaranteed, not cached) ── */
@@ -165,6 +166,50 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     .tmpmp-avatar--lg { width: 80px; height: 80px; }
     .tmpmp-avatar-section { gap: 14px; }
 }
+/* Locked tab */
+.tmpmp-tab-locked { opacity:.55; cursor:not-allowed; }
+.tmpmp-tab-locked:hover { background:transparent !important; color:inherit !important; }
+
+/* History tab */
+.tmpmp-history-table { width:100%; border-collapse:collapse; font-size:13.5px; }
+.tmpmp-history-table th { text-align:left; padding:9px 12px; font-weight:600; color:#64748b; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
+.tmpmp-history-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.tmpmp-history-table tbody tr:hover { background:#f8fafc; cursor:pointer; }
+.tmpmp-history-table .tmpmp-hist-addr { font-family:monospace; font-size:13px; color:#0f172a; font-weight:600; }
+.tmpmp-hist-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; }
+.tmpmp-hist-badge--active  { background:#dcfce7; color:#16a34a; }
+.tmpmp-hist-badge--expired { background:#f1f5f9; color:#94a3b8; }
+.tmpmp-hist-badge--free    { background:#e0f2fe; color:#0369a1; }
+.tmpmp-hist-badge--premium { background:#ede9fe; color:#6d28d9; }
+.tmpmp-hist-badge--vip     { background:#fef3c7; color:#d97706; }
+.tmpmp-hist-actions { display:flex; gap:8px; }
+.tmpmp-hist-del-btn { background:none; border:1px solid #fca5a5; color:#ef4444; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:background .15s; }
+.tmpmp-hist-del-btn:hover { background:#fee2e2; }
+.tmpmp-history-inbox { margin-top:20px; }
+.tmpmp-history-inbox-header { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px 10px 0 0; }
+.tmpmp-history-inbox-header h4 { margin:0; font-size:14px; color:#0f172a; flex:1; }
+.tmpmp-hist-back { background:none; border:1px solid #e2e8f0; border-radius:6px; padding:4px 12px; font-size:12px; cursor:pointer; color:#475569; }
+.tmpmp-hist-back:hover { background:#f1f5f9; }
+.tmpmp-hist-email-list { border:1px solid #e2e8f0; border-top:none; border-radius:0 0 10px 10px; overflow:hidden; }
+.tmpmp-hist-email-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; }
+.tmpmp-hist-email-row:last-child { border-bottom:none; }
+.tmpmp-hist-email-row:hover { background:#f8fafc; }
+.tmpmp-hist-email-row.unread { font-weight:600; }
+.tmpmp-hist-email-sender { min-width:140px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:#0f172a; }
+.tmpmp-hist-email-subject { flex:1; font-size:13px; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tmpmp-hist-email-date { font-size:11px; color:#94a3b8; white-space:nowrap; }
+.tmpmp-hist-email-body { border:1px solid #e2e8f0; border-top:none; padding:20px; background:#fff; border-radius:0 0 10px 10px; }
+.tmpmp-hist-email-body-header { margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid #f1f5f9; }
+.tmpmp-hist-email-body-header h5 { margin:0 0 4px; font-size:14px; color:#0f172a; }
+.tmpmp-hist-email-body-header small { color:#64748b; font-size:12px; }
+.tmpmp-hist-empty { text-align:center; padding:40px 20px; color:#94a3b8; font-size:14px; }
+.tmpmp-hist-pagination { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:16px; }
+.tmpmp-hist-page-btn { background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:6px 14px; font-size:13px; cursor:pointer; color:#475569; transition:all .15s; }
+.tmpmp-hist-page-btn:hover:not(:disabled) { background:#6366f1; color:#fff; border-color:#6366f1; }
+.tmpmp-hist-page-btn:disabled { opacity:.4; cursor:not-allowed; }
+.tmpmp-hist-page-info { font-size:13px; color:#64748b; }
+.tmpmp-hist-loading { text-align:center; padding:40px; color:#94a3b8; }
+
 .tmpmp-dash-tabs {
     display: flex !important;
     flex-wrap: wrap !important;
@@ -334,6 +379,9 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
         <?php foreach ( ['inboxes' => '&#9993; '.__('My Inboxes','tempmail-pro'), 'billing' => '&#128179; '.__('Billing','tempmail-pro'), 'api' => '&#128273; '.__('API Keys','tempmail-pro'), 'account' => '&#128100; '.__('Account','tempmail-pro')] as $tab => $label ) : ?>
         <button class="dash-tab-btn" data-tab="<?php echo esc_attr($tab); ?>"><?php echo $label; ?></button>
         <?php endforeach; ?>
+        <button class="dash-tab-btn<?php echo $is_premium ? '' : ' tmpmp-tab-locked'; ?>" data-tab="history" title="<?php echo $is_premium ? '' : esc_attr__('Premium feature','tempmail-pro'); ?>">
+            &#128196; <?php esc_html_e('History','tempmail-pro'); ?><?php if (!$is_premium): ?> &#128274;<?php endif; ?>
+        </button>
     </div>
 
     <!-- ── Inboxes Tab ─────────────────────────────────────────────────── -->
@@ -604,6 +652,44 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
         </div><!-- /account-grid -->
     </div><!-- /#dash-tab-account -->
 
+    <!-- ── History Tab ──────────────────────────────────────────────────── -->
+    <div class="dash-tab-panel" id="dash-tab-history">
+        <?php if ( ! $is_premium ) : ?>
+        <div class="tmpmp-upgrade-notice" style="text-align:center;padding:48px 24px;">
+            <div style="font-size:48px;margin-bottom:12px;">📂</div>
+            <h3 style="margin:0 0 8px;font-size:18px;color:#0f172a;"><?php esc_html_e('Address History — Premium Feature','tempmail-pro'); ?></h3>
+            <p style="color:#64748b;margin:0 0 20px;"><?php esc_html_e('Upgrade to any paid plan to keep a full history of all your temporary email addresses for 90 days.','tempmail-pro'); ?></p>
+            <a href="<?php echo esc_url( home_url('/tempmail-pricing/') ); ?>" class="tmpmp-pub-btn tmpmp-pub-btn--primary">&#11014; <?php esc_html_e('Upgrade Now','tempmail-pro'); ?></a>
+        </div>
+        <?php else : ?>
+
+        <!-- History list view -->
+        <div id="tmpmp-hist-list-view">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
+                <h3 style="margin:0;font-size:16px;color:#0f172a;">&#128196; <?php esc_html_e('Temporary Address History','tempmail-pro'); ?></h3>
+                <span style="font-size:12px;color:#64748b;"><?php esc_html_e('Addresses are kept for 90 days. Click a row to view its inbox.','tempmail-pro'); ?></span>
+            </div>
+            <div id="tmpmp-hist-table-wrap">
+                <div class="tmpmp-hist-loading">&#9203; <?php esc_html_e('Loading history…','tempmail-pro'); ?></div>
+            </div>
+            <div class="tmpmp-hist-pagination" id="tmpmp-hist-pagination" style="display:none;"></div>
+        </div>
+
+        <!-- Inbox drill-down view (hidden by default) -->
+        <div id="tmpmp-hist-inbox-view" style="display:none;">
+            <div class="tmpmp-history-inbox-header">
+                <button class="tmpmp-hist-back" id="tmpmp-hist-back-btn">&#8592; <?php esc_html_e('Back to History','tempmail-pro'); ?></button>
+                <h4 id="tmpmp-hist-inbox-title"></h4>
+                <span id="tmpmp-hist-inbox-status" class="tmpmp-hist-badge"></span>
+            </div>
+            <div id="tmpmp-hist-inbox-body">
+                <div class="tmpmp-hist-loading">&#9203; <?php esc_html_e('Loading inbox…','tempmail-pro'); ?></div>
+            </div>
+        </div>
+
+        <?php endif; ?>
+    </div><!-- /#dash-tab-history -->
+
 </div><!-- .tmpmp-dashboard-wrap -->
 
 <script>
@@ -612,13 +698,182 @@ jQuery(function($){
 
     // Tabs
     function activateTab(tab){
+        // Block locked tabs (non-premium History)
+        if ($('.dash-tab-btn[data-tab="'+tab+'"]').hasClass('tmpmp-tab-locked')) return;
         $('.dash-tab-btn').removeClass('is-active');
         $('.dash-tab-panel').removeClass('is-active');
         $('.dash-tab-btn[data-tab="'+tab+'"]').addClass('is-active');
         $('#dash-tab-'+tab).addClass('is-active');
+        if (tab === 'history') histLoadPage(histState.page);
     }
     $('.dash-tab-btn').on('click', function(){ activateTab($(this).data('tab')); });
     activateTab('inboxes');
+
+    // ── Address History ───────────────────────────────────────────────────────
+    var histState = { page: 1, total: 0, perPage: 20, loaded: false };
+    var histCurrentAddr = null; // { id, address, status_label, plan }
+
+    function histFmt(dt){
+        if (!dt) return '—';
+        var d = new Date(dt.replace(' ','T')+'Z');
+        return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})
+             + ' ' + d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
+    }
+    function histPlanBadge(plan){
+        var cls = plan === 'vip' ? 'vip' : plan === 'free' ? 'free' : 'premium';
+        return '<span class="tmpmp-hist-badge tmpmp-hist-badge--'+cls+'">'+(plan||'free').toUpperCase()+'</span>';
+    }
+    function histStatusBadge(status){
+        var active = status === 'active';
+        return '<span class="tmpmp-hist-badge tmpmp-hist-badge--'+(active?'active':'expired')+'">'
+             + (active ? '● Active' : '✕ Expired') + '</span>';
+    }
+
+    function histLoadPage(page){
+        if (!$('#tmpmp-hist-table-wrap').length) return;
+        histState.page = page;
+        $('#tmpmp-hist-table-wrap').html('<div class="tmpmp-hist-loading">⏳ <?php esc_html_e('Loading…','tempmail-pro'); ?></div>');
+        $('#tmpmp-hist-pagination').hide();
+        $.post(url,{action:'tmpmp_get_address_history',nonce,page,per_page:histState.perPage},function(r){
+            if (!r.success){ $('#tmpmp-hist-table-wrap').html('<div class="tmpmp-hist-empty">'+escHtml(r.data?.message||'Error')+'</div>'); return; }
+            var d = r.data;
+            histState.total   = d.total;
+            histState.perPage = d.per_page;
+            if (!d.rows || !d.rows.length){
+                $('#tmpmp-hist-table-wrap').html('<div class="tmpmp-hist-empty">📭 <?php esc_html_e('No address history yet. Generate a temp email while logged in to start building history.','tempmail-pro'); ?></div>');
+                return;
+            }
+            var html = '<div class="tmpmp-pub-table-wrap"><table class="tmpmp-history-table">'
+                     + '<thead><tr>'
+                     + '<th><?php esc_html_e('Address','tempmail-pro'); ?></th>'
+                     + '<th><?php esc_html_e('Plan','tempmail-pro'); ?></th>'
+                     + '<th><?php esc_html_e('Emails','tempmail-pro'); ?></th>'
+                     + '<th><?php esc_html_e('Created','tempmail-pro'); ?></th>'
+                     + '<th><?php esc_html_e('Expired','tempmail-pro'); ?></th>'
+                     + '<th><?php esc_html_e('Status','tempmail-pro'); ?></th>'
+                     + '<th></th>'
+                     + '</tr></thead><tbody>';
+            $.each(d.rows, function(_,row){
+                html += '<tr class="tmpmp-hist-row" data-id="'+row.id+'" data-address="'+escAttr(row.address)+'" data-status="'+escAttr(row.status_label)+'" data-plan="'+escAttr(row.plan||'free')+'">'
+                      + '<td class="tmpmp-hist-addr">'+escHtml(row.address)+'</td>'
+                      + '<td>'+histPlanBadge(row.plan)+'</td>'
+                      + '<td>'+parseInt(row.email_count||0)+'</td>'
+                      + '<td style="font-size:12px;color:#64748b;">'+histFmt(row.created_at)+'</td>'
+                      + '<td style="font-size:12px;color:#64748b;">'+histFmt(row.expires_at)+'</td>'
+                      + '<td>'+histStatusBadge(row.status_label)+'</td>'
+                      + '<td><div class="tmpmp-hist-actions"><button class="tmpmp-hist-del-btn" data-id="'+row.id+'">🗑</button></div></td>'
+                      + '</tr>';
+            });
+            html += '</tbody></table></div>';
+            $('#tmpmp-hist-table-wrap').html(html);
+
+            // Pagination
+            var totalPages = Math.ceil(histState.total / histState.perPage);
+            if (totalPages > 1){
+                var pg = '<button class="tmpmp-hist-page-btn" id="tmpmp-hist-prev" '+(page<=1?'disabled':'')+'>◀ <?php esc_html_e('Prev','tempmail-pro'); ?></button>'
+                       + '<span class="tmpmp-hist-page-info"><?php esc_html_e('Page','tempmail-pro'); ?> '+page+' / '+totalPages+'</span>'
+                       + '<button class="tmpmp-hist-page-btn" id="tmpmp-hist-next" '+(page>=totalPages?'disabled':'')+'>><?php esc_html_e('Next','tempmail-pro'); ?> ▶</button>';
+                $('#tmpmp-hist-pagination').html(pg).show();
+            } else {
+                $('#tmpmp-hist-pagination').hide();
+            }
+        });
+    }
+
+    // Row click → open inbox
+    $(document).on('click', '.tmpmp-hist-row', function(e){
+        if ($(e.target).closest('.tmpmp-hist-del-btn').length) return;
+        var $r = $(this);
+        histCurrentAddr = { id:$r.data('id'), address:$r.data('address'), status:$r.data('status'), plan:$r.data('plan') };
+        histOpenInbox(histCurrentAddr);
+    });
+
+    // Delete button
+    $(document).on('click', '.tmpmp-hist-del-btn', function(e){
+        e.stopPropagation();
+        var id = $(this).data('id');
+        if (!confirm('<?php esc_html_e('Delete this address from history? This cannot be undone.','tempmail-pro'); ?>')) return;
+        var $btn = $(this).prop('disabled',true);
+        $.post(url,{action:'tmpmp_delete_history_address',nonce,address_id:id},function(r){
+            if (r.success) histLoadPage(histState.page);
+            else { alert(r.data?.message||'<?php esc_html_e('Delete failed.','tempmail-pro'); ?>'); $btn.prop('disabled',false); }
+        });
+    });
+
+    // Pagination
+    $(document).on('click','#tmpmp-hist-prev',function(){ if(histState.page>1) histLoadPage(histState.page-1); });
+    $(document).on('click','#tmpmp-hist-next',function(){
+        var tp = Math.ceil(histState.total/histState.perPage);
+        if(histState.page<tp) histLoadPage(histState.page+1);
+    });
+
+    // Back button
+    $(document).on('click','#tmpmp-hist-back-btn',function(){
+        $('#tmpmp-hist-inbox-view').hide();
+        $('#tmpmp-hist-list-view').show();
+        histCurrentAddr = null;
+    });
+
+    // Open inbox drill-down
+    function histOpenInbox(addr){
+        $('#tmpmp-hist-list-view').hide();
+        $('#tmpmp-hist-inbox-title').text(addr.address);
+        var $st = $('#tmpmp-hist-inbox-status');
+        $st.attr('class','tmpmp-hist-badge tmpmp-hist-badge--'+(addr.status==='active'?'active':'expired'))
+           .text(addr.status==='active'?'● Active':'✕ Expired');
+        $('#tmpmp-hist-inbox-body').html('<div class="tmpmp-hist-loading">⏳ <?php esc_html_e('Loading inbox…','tempmail-pro'); ?></div>');
+        $('#tmpmp-hist-inbox-view').show();
+
+        $.post(url,{action:'tmpmp_get_history_emails',nonce,address_id:addr.id},function(r){
+            if (!r.success){ $('#tmpmp-hist-inbox-body').html('<div class="tmpmp-hist-empty">'+escHtml(r.data?.message||'Error')+'</div>'); return; }
+            var emails = r.data.emails;
+            if (!emails || !emails.length){
+                $('#tmpmp-hist-inbox-body').html('<div class="tmpmp-hist-empty">📭 <?php esc_html_e('No emails found for this address. Emails are purged when the inbox expires.','tempmail-pro'); ?></div>');
+                return;
+            }
+            var html = '<div class="tmpmp-hist-email-list">';
+            $.each(emails,function(_,em){
+                var sender = em.sender_name ? escHtml(em.sender_name) : escHtml(em.sender);
+                html += '<div class="tmpmp-hist-email-row'+(em.is_read?'':' unread')+'" data-email-id="'+em.id+'" data-addr-id="'+addr.id+'">'
+                      + '<div class="tmpmp-hist-email-sender">'+sender+'</div>'
+                      + '<div class="tmpmp-hist-email-subject">'+escHtml(em.subject||'(no subject)')+'</div>'
+                      + '<div class="tmpmp-hist-email-date">'+histFmt(em.received_at)+'</div>'
+                      + '</div>';
+            });
+            html += '</div>';
+            $('#tmpmp-hist-inbox-body').html(html);
+        });
+    }
+
+    // Email row click → read email body
+    $(document).on('click','.tmpmp-hist-email-row',function(){
+        var emailId = $(this).data('email-id'), addrId = $(this).data('addr-id');
+        var $row = $(this);
+        $row.addClass('is-read').removeClass('unread');
+        // Remove any previously shown body
+        $('.tmpmp-hist-email-body').remove();
+        var $loading = $('<div class="tmpmp-hist-email-body"><div class="tmpmp-hist-loading">⏳ <?php esc_html_e('Loading…','tempmail-pro'); ?></div></div>');
+        $row.after($loading);
+
+        $.post(url,{action:'tmpmp_get_history_email_body',nonce,email_id:emailId,address_id:addrId},function(r){
+            if (!r.success){ $loading.html('<div class="tmpmp-hist-email-body"><p style="color:#ef4444;padding:16px;">'+escHtml(r.data?.message||'Error')+'</p></div>'); return; }
+            var em = r.data;
+            var bodyHtml = em.body_html
+                ? '<iframe srcdoc="'+escAttr(em.body_html)+'" style="width:100%;min-height:300px;border:none;" sandbox="allow-same-origin"></iframe>'
+                : '<pre style="white-space:pre-wrap;font-size:13px;color:#475569;">'+escHtml(em.body_text||'<?php esc_html_e('(empty)','tempmail-pro'); ?>')+'</pre>';
+            $loading.replaceWith(
+                '<div class="tmpmp-hist-email-body">'
+              + '<div class="tmpmp-hist-email-body-header">'
+              + '<h5>'+escHtml(em.subject||'(no subject)')+'</h5>'
+              + '<small><?php esc_html_e('From:','tempmail-pro'); ?> '+escHtml(em.sender_name?em.sender_name+' <'+em.sender+'>':em.sender)
+              + ' &nbsp;·&nbsp; '+histFmt(em.received_at)+'</small>'
+              + '</div>'
+              + bodyHtml
+              + '</div>'
+            );
+        });
+    });
+
 
     // Cancel subscription
     $('#tmpmp-cancel-sub').on('click', function(){

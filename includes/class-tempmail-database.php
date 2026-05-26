@@ -398,16 +398,48 @@ class TempMail_Database {
 
     public static function purge_expired() : int {
         global $wpdb;
-        $ids = $wpdb->get_col(
-            "SELECT id FROM {$wpdb->prefix}tmpmp_addresses WHERE expires_at <= UTC_TIMESTAMP()"
+        $p = $wpdb->prefix;
+
+        // ── 1. Anonymous/guest addresses — delete immediately on expiry ────────
+        $anon_ids = $wpdb->get_col(
+            "SELECT id FROM {$p}tmpmp_addresses
+              WHERE expires_at <= UTC_TIMESTAMP()
+                AND user_id = 0"
         );
-        if ( empty( $ids ) ) return 0;
-        $in = implode( ',', array_map('intval', $ids) );
-        $wpdb->query( "DELETE FROM {$wpdb->prefix}tmpmp_emails    WHERE address_id IN ($in)" );
-        $wpdb->query( "DELETE FROM {$wpdb->prefix}tmpmp_addresses WHERE id         IN ($in)" );
-        // Purge old ratelimit records (older than 24h)
-        $wpdb->query( "DELETE FROM {$wpdb->prefix}tmpmp_ratelimit WHERE created_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)" );
-        return count( $ids );
+        if ( ! empty( $anon_ids ) ) {
+            $in = implode( ',', array_map('intval', $anon_ids) );
+            $wpdb->query( "DELETE FROM {$p}tmpmp_emails    WHERE address_id IN ($in)" );
+            $wpdb->query( "DELETE FROM {$p}tmpmp_addresses WHERE id         IN ($in)" );
+        }
+
+        // ── 2. Premium user addresses — purge emails but keep address row
+        //       for history. Hard-delete after 90 days.
+        $user_expired_ids = $wpdb->get_col(
+            "SELECT id FROM {$p}tmpmp_addresses
+              WHERE expires_at <= UTC_TIMESTAMP()
+                AND user_id != 0"
+        );
+        if ( ! empty( $user_expired_ids ) ) {
+            $in = implode( ',', array_map('intval', $user_expired_ids) );
+            // Purge emails from expired premium inboxes to save storage
+            $wpdb->query( "DELETE FROM {$p}tmpmp_emails WHERE address_id IN ($in)" );
+        }
+
+        // ── 3. Hard-delete premium address records older than 90 days ──────────
+        $old_ids = $wpdb->get_col(
+            "SELECT id FROM {$p}tmpmp_addresses
+              WHERE user_id != 0
+                AND expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)"
+        );
+        if ( ! empty( $old_ids ) ) {
+            $in = implode( ',', array_map('intval', $old_ids) );
+            $wpdb->query( "DELETE FROM {$p}tmpmp_addresses WHERE id IN ($in)" );
+        }
+
+        // ── 4. Purge old ratelimit records (> 24 h) ───────────────────────────
+        $wpdb->query( "DELETE FROM {$p}tmpmp_ratelimit WHERE created_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)" );
+
+        return count( $anon_ids ) + count( $old_ids );
     }
 
     public static function get_stats() : array {
@@ -493,5 +525,66 @@ class TempMail_Database {
             "SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_blocked_ips WHERE ip_address = %s",
             $ip
         ) );
+    }
+
+    // ── Address History (premium users) ──────────────────────────────────────
+
+    /**
+     * Get paginated address history for a logged-in premium user.
+     * Returns addresses regardless of expiry (including expired ones kept for history).
+     */
+    public static function get_address_history_for_user( int $user_id, int $per_page = 20, int $page = 1 ) : array {
+        global $wpdb;
+        $offset = max(0, $page - 1) * $per_page;
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT a.*,
+                    ( SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails e WHERE e.address_id = a.id ) AS email_count,
+                    CASE WHEN a.expires_at > UTC_TIMESTAMP() THEN 'active' ELSE 'expired' END AS status_label
+             FROM {$wpdb->prefix}tmpmp_addresses a
+             WHERE a.user_id = %d
+             ORDER BY a.created_at DESC
+             LIMIT %d OFFSET %d",
+            $user_id, $per_page, $offset
+        ) ) ?: [];
+        $total = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_addresses WHERE user_id = %d",
+            $user_id
+        ) );
+        return [ 'rows' => $rows, 'total' => $total, 'per_page' => $per_page, 'page' => $page ];
+    }
+
+    /**
+     * Get emails for a history address — verifies ownership via user_id.
+     */
+    public static function get_history_emails( int $address_id, int $user_id ) : ?array {
+        global $wpdb;
+        $addr = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}tmpmp_addresses WHERE id = %d AND user_id = %d",
+            $address_id, $user_id
+        ) );
+        if ( ! $addr ) return null;
+        $emails = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, sender, sender_name, subject, received_at, is_read, has_attach, size_bytes
+             FROM {$wpdb->prefix}tmpmp_emails
+             WHERE address_id = %d
+             ORDER BY received_at DESC LIMIT 100",
+            $address_id
+        ) ) ?: [];
+        return [ 'address' => $addr, 'emails' => $emails ];
+    }
+
+    /**
+     * Delete a history address + its emails (user must own it).
+     */
+    public static function delete_history_address( int $address_id, int $user_id ) : bool {
+        global $wpdb;
+        $ok = $wpdb->delete(
+            $wpdb->prefix . 'tmpmp_addresses',
+            [ 'id' => $address_id, 'user_id' => $user_id ]
+        );
+        if ( $ok ) {
+            $wpdb->delete( $wpdb->prefix . 'tmpmp_emails', [ 'address_id' => $address_id ] );
+        }
+        return (bool) $ok;
     }
 }
