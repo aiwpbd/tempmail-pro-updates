@@ -222,8 +222,8 @@
 
 <script>
 jQuery(function($){
-    var nonce = typeof TempMailProAdmin !== 'undefined' ? TempMailProAdmin.nonce : (window.tmpmpNonce||'');
-    var url   = typeof TempMailProAdmin !== 'undefined' ? TempMailProAdmin.ajax_url : ajaxurl;
+    var nonce = (typeof TempMailAdmin !== 'undefined' ? TempMailAdmin.nonce : '') || (typeof TempMailProAdmin !== 'undefined' ? TempMailProAdmin.nonce : '');
+    var url   = (typeof TempMailAdmin !== 'undefined' ? TempMailAdmin.ajax_url : '') || ajaxurl || '';
 
     // ── Add Domain ───────────────────────────────────────────────────────────
     $('#tmpmp-add-domain-btn').on('click', function(){
