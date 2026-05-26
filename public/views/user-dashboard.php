@@ -361,7 +361,7 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
         </div>
         <div class="tmpmp-dash-actions">
             <span class="tmpmp-pub-badge <?php echo $sub ? 'tmpmp-pub-badge--green' : 'tmpmp-pub-badge--indigo'; ?>">
-                <?php echo esc_html( ucfirst( $plan->slug ?? 'free' ) ); ?> Plan
+                <?php echo esc_html( ucfirst( $plan->plan_slug ?? $plan->slug ?? 'free' ) ); ?> Plan
             </span>
             <?php if ( ! $sub ) : ?>
             <a href="<?php echo esc_url( home_url('/tempmail-pricing/') ); ?>" class="tmpmp-pub-btn tmpmp-pub-btn--primary">
