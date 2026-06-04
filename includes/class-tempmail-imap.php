@@ -63,18 +63,14 @@ class TempMail_IMAP {
             'msgs'             => [],
         ];
 
-        // ── STAGE 1: Domain-targeted search — ALL IMAP servers, highest priority ──
-        // Finds emails TO @apkfifa.com (or whatever active domains exist) directly.
-        // This guarantees temp-address emails are never crowded out by other mail.
+        // ── STAGE 1: Domain-targeted search — uses SE_UID to handle large mailboxes ──
+        // imap_search() without SE_UID silently returns FALSE when the server response
+        // exceeds PHP's internal IMAP buffer (happens on mailboxes with 10k+ messages).
+        // SE_UID returns UIDs (compact integers), never truncated by buffer limits.
         $domain_priority_uids = [];
         foreach ( $active_domains as $domain ) {
             $q     = "SINCE \"{$since3}\" TO \"{$domain}\"";
-            $found = @imap_search($conn, $q) ?: [];
-            // Also try broader BODY/HEADER search as fallback for some servers
-            if ( empty($found) ) {
-                $q2    = "SINCE \"{$since3}\"";
-                // We'll rely on Stage 2 for the full scan in this case
-            }
+            $found = @imap_search($conn, $q, SE_UID) ?: [];
             foreach ( $found as $uid ) {
                 $key = 'INBOX:' . $uid;
                 if ( ! isset($seen_keys[$key]) ) {
@@ -84,18 +80,16 @@ class TempMail_IMAP {
             }
         }
         $debug['domain_search_found'] = count($domain_priority_uids);
-        // Add domain-priority UIDs first (newest first within group)
         rsort($domain_priority_uids);
         foreach ( $domain_priority_uids as $uid ) {
             $all_uids[] = ['folder' => 'INBOX', 'uid' => $uid];
         }
 
-        // ── STAGE 2: UNSEEN + recent INBOX fallback ───────────────────────────────
-        $inbox_unseen = @imap_search($conn, 'UNSEEN')                    ?: [];
-        $inbox_since  = @imap_search($conn, "SINCE \"{$since3}\"")       ?: [];
-        // Merge, sort DESCENDING so newest messages are first (highest seq# = newest)
-        $inbox_all = array_unique(array_merge($inbox_unseen, $inbox_since));
-        rsort($inbox_all); // newest first — prevents new emails being cut off by the cap
+        // ── STAGE 2: UNSEEN + recent INBOX fallback (SE_UID) ─────────────────────────
+        $inbox_unseen = @imap_search($conn, 'UNSEEN',                    SE_UID) ?: [];
+        $inbox_since  = @imap_search($conn, "SINCE \"{$since3}\"",      SE_UID) ?: [];
+        $inbox_all    = array_unique(array_merge($inbox_unseen, $inbox_since));
+        rsort($inbox_all);
         $debug['folders']['INBOX'] = count($inbox_all);
         foreach ( $inbox_all as $uid ) {
             $key = 'INBOX:' . $uid;
@@ -113,8 +107,8 @@ class TempMail_IMAP {
                 $folder_uids = [];
                 foreach ( $active_domains as $domain ) {
                     $q = "SINCE \"{$since3}\" TO \"{$domain}\"";
-                    $found = @imap_search($conn, $q) ?: [];
-                    rsort($found); // newest first
+                    $found = @imap_search($conn, $q, SE_UID) ?: [];
+                    rsort($found);
                     foreach ( $found as $uid ) {
                         $key = $gfolder . ':' . $uid;
                         if ( ! isset($seen_keys[$key]) ) {
@@ -129,7 +123,7 @@ class TempMail_IMAP {
             @imap_reopen($conn, $base . 'INBOX', 0);
         }
 
-        // Cap at 50 messages
+        // Cap at 50 messages, newest first
         $all_uids = array_slice($all_uids, 0, 50);
         $fetched  = count($all_uids);
         $stored   = 0;
@@ -137,7 +131,7 @@ class TempMail_IMAP {
 
         foreach ( $all_uids as $item ) {
             $folder = $item['folder'];
-            $uid    = $item['uid'];
+            $uid    = $item['uid'];  // This is a UID (from SE_UID search)
 
             if ( $folder !== $current_folder ) {
                 if ( @imap_reopen($conn, $base . $folder, 0) ) {
@@ -147,17 +141,21 @@ class TempMail_IMAP {
                 }
             }
 
-            $header = imap_headerinfo($conn, $uid);
+            // imap_headerinfo() needs a sequence number, not a UID.
+            // Convert UID → msgno using imap_msgno().
+            $msgno  = imap_msgno($conn, $uid);
+            $header = $msgno ? imap_headerinfo($conn, $msgno) : null;
             if ( ! $header ) continue;
 
+            // All fetch operations use FT_UID so we pass the UID directly.
             $to_addr = self::extract_recipient($conn, $uid, $header);
             $msg_debug = [
-                'uid'        => $uid,
-                'folder'     => $folder,
-                'subject'    => isset($header->subject) ? imap_utf8($header->subject) : '',
-                'candidates' => $to_addr,
-                'matched'    => false,
-                'skip_reason'=> '',
+                'uid'         => $uid,
+                'folder'      => $folder,
+                'subject'     => isset($header->subject) ? imap_utf8($header->subject) : '',
+                'candidates'  => $to_addr,
+                'matched'     => false,
+                'skip_reason' => '',
             ];
 
             $matched = null;
@@ -180,13 +178,14 @@ class TempMail_IMAP {
             $from_name = $from ? ($from->personal ?? '') : '';
             $subject   = isset($header->subject) ? imap_utf8($header->subject) : '(No Subject)';
 
-            $raw_header = imap_fetchheader($conn, $uid);
+            // FT_UID: fetch by UID instead of sequence number
+            $raw_header = imap_fetchheader($conn, $uid, FT_UID);
             $message_id = '';
             if ( preg_match('/^Message-ID:\s*(.+)$/mi', $raw_header, $mid_m) ) {
                 $message_id = trim($mid_m[1]);
             }
 
-            $struct = @imap_fetchstructure($conn, $uid);
+            $struct = @imap_fetchstructure($conn, $uid, FT_UID);
             $html   = '';
             $text   = '';
 
@@ -201,7 +200,8 @@ class TempMail_IMAP {
                 $subtype = strtolower( $part->subtype ?? '' );
                 if ( $subtype !== 'plain' && $subtype !== 'html' ) return;
 
-                $content = imap_fetchbody( $conn, $uid, rtrim( $prefix, '.' ) );
+                // FT_UID: fetch body section by UID
+                $content = imap_fetchbody( $conn, $uid, rtrim( $prefix, '.' ), FT_UID );
                 if ( $part->encoding == 3 ) $content = base64_decode( $content );
                 if ( $part->encoding == 4 ) $content = quoted_printable_decode( $content );
 
@@ -221,13 +221,13 @@ class TempMail_IMAP {
             };
 
             if ( ! $struct ) {
-                $text = imap_fetchbody( $conn, $uid, '1' );
+                $text = imap_fetchbody( $conn, $uid, '1', FT_UID );
             } elseif ( $struct->type === 1 && ! empty( $struct->parts ) ) {
                 foreach ( $struct->parts as $pi => $part ) {
                     $extract( $part, ($pi + 1) . '.' );
                 }
             } else {
-                $content = imap_fetchbody( $conn, $uid, '1' );
+                $content = imap_fetchbody( $conn, $uid, '1', FT_UID );
                 if ( $struct->encoding == 3 ) $content = base64_decode( $content );
                 if ( $struct->encoding == 4 ) $content = quoted_printable_decode( $content );
                 $subtype = strtolower( $struct->subtype ?? '' );
@@ -245,7 +245,8 @@ class TempMail_IMAP {
                 'message_id' => $message_id,
             ]);
             if ( ! is_wp_error($result) ) {
-                imap_setflag_full($conn, (string)$uid, '\\Seen');
+                // ST_UID: mark as Seen by UID
+                imap_setflag_full($conn, (string)$uid, '\\Seen', ST_UID);
                 $stored++;
             }
         }
@@ -641,8 +642,12 @@ class TempMail_IMAP {
 
     private static function get_active_addresses() : array {
         global $wpdb;
+        // Include addresses that expired within the last 3 days (matching the poll window).
+        // Temp addresses expire quickly (1-2 hrs) but the IMAP poll window is 3 days.
+        // Without this, emails that arrived after the address expired are silently dropped.
         $rows = $wpdb->get_results(
-            "SELECT * FROM {$wpdb->prefix}tmpmp_addresses WHERE expires_at > UTC_TIMESTAMP()"
+            "SELECT * FROM {$wpdb->prefix}tmpmp_addresses
+             WHERE expires_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)"
         );
         $map = [];
         foreach ( $rows as $row ) {
@@ -650,6 +655,7 @@ class TempMail_IMAP {
         }
         return $map;
     }
+
 
     private static function extract_recipient($conn, int $uid, $header) : array {
         if ( ! $header ) return [];
@@ -663,7 +669,8 @@ class TempMail_IMAP {
             }
         }
 
-        $raw = imap_fetchheader($conn, $uid);
+        // FT_UID: uid is a UID (from SE_UID search), not a sequence number
+        $raw = imap_fetchheader($conn, $uid, FT_UID);
         $delivery_headers = [
             'Delivered-To', 'X-Original-To', 'X-Forwarded-To',
             'X-Google-Original-To', 'Envelope-To',

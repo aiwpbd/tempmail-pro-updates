@@ -14,7 +14,7 @@ class TempMail_Design {
 
     /** CSS variable defaults (mirrors tempmail-app.css :root) */
     const DEFAULTS = [
-        'design_theme'      => 'dark',
+        'design_theme'      => 'auto',
         'design_accent'     => '#6366f1',
         'design_radius'     => '14',
         'design_font'       => 'Inter',
@@ -60,7 +60,7 @@ class TempMail_Design {
 
     public function output_css_variables() : void {
         $accent    = self::get('design_accent')    ?: '#6366f1';
-        $theme     = self::get('design_theme')     ?: 'dark';
+        $theme     = self::get('design_theme')     ?: 'auto';
         $radius    = (int) ( self::get('design_radius')    ?: 14 );
         $font      = self::get('design_font')      ?: 'Inter';
         $max_w     = (int) ( self::get('design_max_width') ?: 780 );

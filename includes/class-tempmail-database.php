@@ -76,12 +76,22 @@ class TempMail_Database {
             max_storage_mb    INT NOT NULL DEFAULT 5,
             domains_allowed   LONGTEXT,
             features          LONGTEXT,
-            has_custom_user   TINYINT(1) NOT NULL DEFAULT 0,
-            has_api_access    TINYINT(1) NOT NULL DEFAULT 0,
-            has_attachments   TINYINT(1) NOT NULL DEFAULT 0,
-            no_ads            TINYINT(1) NOT NULL DEFAULT 0,
-            is_active         TINYINT(1) NOT NULL DEFAULT 1,
-            sort_order        INT NOT NULL DEFAULT 0,
+            has_custom_user              TINYINT(1) NOT NULL DEFAULT 0,
+            has_api_access               TINYINT(1) NOT NULL DEFAULT 0,
+            has_attachments              TINYINT(1) NOT NULL DEFAULT 0,
+            no_ads                       TINYINT(1) NOT NULL DEFAULT 0,
+            is_active                    TINYINT(1) NOT NULL DEFAULT 1,
+            sort_order                   INT NOT NULL DEFAULT 0,
+            has_premium_domains          TINYINT(1) NOT NULL DEFAULT 0,
+            has_premium_storage          TINYINT(1) NOT NULL DEFAULT 0,
+            has_custom_branding          TINYINT(1) NOT NULL DEFAULT 0,
+            has_inbox_retention          TINYINT(1) NOT NULL DEFAULT 0,
+            has_vip_domains              TINYINT(1) NOT NULL DEFAULT 0,
+            has_unlimited_attachments    TINYINT(1) NOT NULL DEFAULT 0,
+            has_email_forwarding         TINYINT(1) NOT NULL DEFAULT 0,
+            has_alias_management         TINYINT(1) NOT NULL DEFAULT 0,
+            has_advanced_spam            TINYINT(1) NOT NULL DEFAULT 0,
+            has_custom_domain            TINYINT(1) NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             UNIQUE KEY slug (slug)
         ) $charset;" );
@@ -207,6 +217,30 @@ class TempMail_Database {
             KEY idx_page (page_url(191))
         ) $charset;" );
 
+        // User custom domains (premium feature — DNS Verification Wizard)
+        dbDelta( "CREATE TABLE {$wpdb->prefix}tmpmp_user_domains (
+            id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            user_id          BIGINT UNSIGNED NOT NULL,
+            domain           VARCHAR(255) NOT NULL,
+            status           VARCHAR(32) NOT NULL DEFAULT 'pending',
+            verify_token     VARCHAR(128) NOT NULL DEFAULT '',
+            txt_verified     TINYINT(1) NOT NULL DEFAULT 0,
+            mx_verified      TINYINT(1) NOT NULL DEFAULT 0,
+            spf_verified     TINYINT(1) NOT NULL DEFAULT 0,
+            dkim_selector    VARCHAR(64) NOT NULL DEFAULT 'tmpro',
+            dkim_private_key LONGTEXT,
+            dkim_public_key  LONGTEXT,
+            dkim_verified    TINYINT(1) NOT NULL DEFAULT 0,
+            dmarc_verified   TINYINT(1) NOT NULL DEFAULT 0,
+            last_checked     DATETIME DEFAULT NULL,
+            verified_at      DATETIME DEFAULT NULL,
+            created_at       DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY user_domain (user_id, domain),
+            KEY status (status),
+            KEY user_id (user_id)
+        ) $charset;" );
+
         update_option( 'tmpmp_db_version', TMPMP_VERSION );
         update_option( 'tmpmp_settings', self::default_settings() );
 
@@ -311,8 +345,11 @@ class TempMail_Database {
             'google_login'          => 0,
             'google_client_id'      => '',
             'facebook_login'        => 0,
-            'adsense_code'          => '',
-            'server_cron_token'     => wp_generate_password( 48, false ),
+            'adsense_code'             => '',
+            'server_cron_token'        => wp_generate_password( 48, false ),
+            'custom_domain_mx_host'    => '',
+            'custom_domain_spf_include'=> '',
+            'custom_domain_max_per_user' => 3,
         ];
     }
 
@@ -400,17 +437,32 @@ class TempMail_Database {
         global $wpdb;
         $p = $wpdb->prefix;
 
-        // ── 1. Anonymous/guest addresses — delete immediately on expiry ────────
-        $anon_ids = $wpdb->get_col(
+        // ── 1. Anonymous/guest addresses — keep address row for 3 days post-expiry
+        //       so the IMAP poll (3-day window) can still match and deliver emails
+        //       that arrived at the temp address after it expired.
+        //       Purge their emails on expiry (storage savings), hard-delete row after 3 days.
+        $anon_expired_ids = $wpdb->get_col(
             "SELECT id FROM {$p}tmpmp_addresses
               WHERE expires_at <= UTC_TIMESTAMP()
                 AND user_id = 0"
         );
-        if ( ! empty( $anon_ids ) ) {
-            $in = implode( ',', array_map('intval', $anon_ids) );
-            $wpdb->query( "DELETE FROM {$p}tmpmp_emails    WHERE address_id IN ($in)" );
-            $wpdb->query( "DELETE FROM {$p}tmpmp_addresses WHERE id         IN ($in)" );
+        if ( ! empty( $anon_expired_ids ) ) {
+            $in = implode( ',', array_map('intval', $anon_expired_ids) );
+            // Purge the stored emails immediately (free storage), but keep address row
+            $wpdb->query( "DELETE FROM {$p}tmpmp_emails WHERE address_id IN ($in)" );
         }
+
+        // Hard-delete anonymous address rows older than 3 days (IMAP poll window elapsed)
+        $anon_old_ids = $wpdb->get_col(
+            "SELECT id FROM {$p}tmpmp_addresses
+              WHERE user_id = 0
+                AND expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)"
+        );
+        if ( ! empty( $anon_old_ids ) ) {
+            $in = implode( ',', array_map('intval', $anon_old_ids) );
+            $wpdb->query( "DELETE FROM {$p}tmpmp_addresses WHERE id IN ($in)" );
+        }
+
 
         // ── 2. Premium user addresses — purge emails but keep address row
         //       for history. Hard-delete after 90 days.
@@ -439,7 +491,7 @@ class TempMail_Database {
         // ── 4. Purge old ratelimit records (> 24 h) ───────────────────────────
         $wpdb->query( "DELETE FROM {$p}tmpmp_ratelimit WHERE created_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)" );
 
-        return count( $anon_ids ) + count( $old_ids );
+        return count( $anon_old_ids ) + count( $old_ids );
     }
 
     public static function get_stats() : array {
@@ -497,8 +549,14 @@ class TempMail_Database {
     public static function get_user_subscription( int $user_id ) : ?object {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
-            "SELECT s.*, p.slug as plan_slug, p.name as plan_name, p.features, p.max_inboxes,
-                    p.inbox_lifetime, p.refresh_interval, p.no_ads, p.has_api_access, p.has_attachments
+            "SELECT s.*, p.slug as plan_slug, p.name as plan_name, p.features,
+                    p.max_inboxes, p.inbox_lifetime, p.refresh_interval,
+                    p.max_storage_mb, p.domains_allowed, p.has_custom_user,
+                    p.no_ads, p.has_api_access, p.has_attachments,
+                    p.has_premium_domains, p.has_premium_storage, p.has_custom_branding,
+                    p.has_inbox_retention, p.has_vip_domains, p.has_unlimited_attachments,
+                    p.has_email_forwarding, p.has_alias_management, p.has_advanced_spam,
+                    p.has_custom_domain
              FROM {$wpdb->prefix}tmpmp_subscriptions s
              JOIN {$wpdb->prefix}tmpmp_plans p ON p.id = s.plan_id
              WHERE s.user_id = %d AND s.status IN ('active','trialing')
@@ -586,5 +644,18 @@ class TempMail_Database {
             $wpdb->delete( $wpdb->prefix . 'tmpmp_emails', [ 'address_id' => $address_id ] );
         }
         return (bool) $ok;
+    }
+
+    /**
+     * Get verified custom domains for a specific user.
+     */
+    public static function get_user_verified_domains( int $user_id ) : array {
+        global $wpdb;
+        return $wpdb->get_results( $wpdb->prepare(
+            "SELECT domain FROM {$wpdb->prefix}tmpmp_user_domains
+              WHERE user_id = %d AND status = 'verified'
+              ORDER BY domain ASC",
+            $user_id
+        ) ) ?: [];
     }
 }

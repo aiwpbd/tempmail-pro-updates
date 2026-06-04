@@ -49,9 +49,9 @@ class TempMail_Email_Generator {
             if ( strlen( $username ) < 3 ) {
                 return new WP_Error( 'short_user', __( 'Username too short.', 'tempmail-pro' ) );
             }
-            // Premium-only custom username
-            if ( ! TempMail_Subscription::is_premium_user( $user_id ) ) {
-                $username = self::random_username(); // override for free users
+            // Custom username requires the has_custom_user feature flag
+            if ( ! TempMail_Subscription::user_has_feature( $user_id, 'has_custom_user' ) ) {
+                $username = self::random_username(); // override if feature not enabled
             }
         }
 
@@ -157,11 +157,15 @@ class TempMail_Email_Generator {
     }
 
     private static function resolve_domain( string $requested, object $plan ) : mixed {
-        $allowed_cats  = json_decode( $plan->domains_allowed ?? '["free"]', true ) ?: ['free'];
-        $all_domains   = TempMail_Database::get_all_domains();
+        // Expand allowed categories using feature flags (has_premium_domains, has_vip_domains)
+        // We derive the user_id from the plan object's user_id if available (subscription row),
+        // falling back to current user so guests always get 'free' domains only.
+        $user_id      = isset( $plan->user_id ) ? (int) $plan->user_id : get_current_user_id();
+        $allowed_cats = TempMail_Subscription::get_allowed_domain_cats( $user_id );
+        $all_domains  = TempMail_Database::get_all_domains();
 
         if ( $requested ) {
-            // Find the domain in DB
+            // Find the domain in system DB
             foreach ( $all_domains as $d ) {
                 if ( $d->domain === $requested ) {
                     if ( in_array( $d->category, $allowed_cats, true ) ) {
@@ -170,6 +174,17 @@ class TempMail_Email_Generator {
                     return new WP_Error( 'plan_required', __( 'This domain requires a higher plan.', 'tempmail-pro' ) );
                 }
             }
+
+            // Not a system domain — check if it's the user's own verified custom domain
+            if ( $user_id > 0 && TempMail_Subscription::user_has_feature( $user_id, 'has_custom_domain' ) ) {
+                $user_domains = TempMail_Database::get_user_verified_domains( $user_id );
+                foreach ( $user_domains as $ud ) {
+                    if ( $ud->domain === $requested ) {
+                        return $requested; // Verified custom domain — allow it
+                    }
+                }
+            }
+
             return new WP_Error( 'invalid_domain', __( 'Domain not available.', 'tempmail-pro' ) );
         }
 

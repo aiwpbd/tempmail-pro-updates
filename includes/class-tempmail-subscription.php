@@ -44,18 +44,89 @@ class TempMail_Subscription {
         if ( $free ) return $free;
 
         return (object) [
-            'slug'             => 'free',
-            'name'             => 'Free',
-            'inbox_lifetime'   => 30,
-            'refresh_interval' => 15,
-            'max_inboxes'      => 3,
-            'max_storage_mb'   => 5,
-            'no_ads'           => 0,
-            'has_api_access'   => 0,
-            'has_attachments'  => 0,
-            'has_custom_user'  => 0,
-            'domains_allowed'  => '["free"]',
+            'slug'                    => 'free',
+            'name'                    => 'Free',
+            'inbox_lifetime'          => 30,
+            'refresh_interval'        => 15,
+            'max_inboxes'             => 3,
+            'max_storage_mb'          => 5,
+            'no_ads'                  => 0,
+            'has_api_access'          => 0,
+            'has_attachments'         => 0,
+            'has_custom_user'         => 0,
+            'domains_allowed'         => '["free"]',
+            'has_premium_domains'     => 0,
+            'has_premium_storage'     => 0,
+            'has_custom_branding'     => 0,
+            'has_inbox_retention'     => 0,
+            'has_vip_domains'         => 0,
+            'has_unlimited_attachments' => 0,
+            'has_email_forwarding'    => 0,
+            'has_alias_management'    => 0,
+            'has_advanced_spam'       => 0,
         ];
+    }
+
+    /**
+     * Check whether the user's active plan has a specific feature flag enabled.
+     *
+     * @param int    $user_id  0 = current user
+     * @param string $feature  Column name e.g. 'has_premium_domains'
+     */
+    public static function user_has_feature( int $user_id, string $feature ) : bool {
+        $plan = self::get_user_plan_data( $user_id );
+        return ! empty( $plan->$feature );
+    }
+
+    /**
+     * Returns the effective domain category list for a user.
+     * Starts from the plan's domains_allowed JSON and expands it based
+     * on the has_premium_domains / has_vip_domains flags.
+     *
+     * @param int $user_id  0 = current user
+     * @return string[]
+     */
+    public static function get_allowed_domain_cats( int $user_id = 0 ) : array {
+        $plan = self::get_user_plan_data( $user_id );
+        $cats = json_decode( $plan->domains_allowed ?? '["free"]', true );
+        if ( ! is_array( $cats ) ) $cats = ['free'];
+
+        if ( ! empty( $plan->has_premium_domains ) && ! in_array( 'premium', $cats, true ) ) {
+            $cats[] = 'premium';
+        }
+        if ( ! empty( $plan->has_vip_domains ) && ! in_array( 'vip', $cats, true ) ) {
+            $cats[] = 'vip';
+        }
+        return $cats;
+    }
+
+    /**
+     * Returns a flat map of all feature flags for the current user's plan.
+     * Sent to the frontend so it can show/hide premium UI elements.
+     *
+     * @param int $user_id  0 = current user
+     * @return array<string,bool>
+     */
+    public static function get_user_features( int $user_id = 0 ) : array {
+        $plan = self::get_user_plan_data( $user_id );
+        $features = [
+            'has_custom_user'           => ! empty( $plan->has_custom_user ),
+            'has_attachments'           => ! empty( $plan->has_attachments ),
+            'has_api_access'            => ! empty( $plan->has_api_access ),
+            'no_ads'                    => ! empty( $plan->no_ads ),
+            'has_premium_domains'       => ! empty( $plan->has_premium_domains ),
+            'has_premium_storage'       => ! empty( $plan->has_premium_storage ),
+            'has_custom_branding'       => ! empty( $plan->has_custom_branding ),
+            'has_inbox_retention'       => ! empty( $plan->has_inbox_retention ),
+            'has_vip_domains'           => ! empty( $plan->has_vip_domains ),
+            'has_unlimited_attachments' => ! empty( $plan->has_unlimited_attachments ),
+            'has_email_forwarding'      => ! empty( $plan->has_email_forwarding ),
+            'has_alias_management'      => ! empty( $plan->has_alias_management ),
+            'has_advanced_spam'         => ! empty( $plan->has_advanced_spam ),
+            'has_custom_domain'         => ! empty( $plan->has_custom_domain ),
+            'allowed_domain_cats'       => self::get_allowed_domain_cats( $user_id ),
+        ];
+        return $features;
     }
 
     public static function can_create_inbox( int $user_id = 0, int $current_count = 0 ) : bool {
@@ -97,7 +168,20 @@ class TempMail_Subscription {
             'updated_at'           => $now,
         ] );
 
-        return (int) $wpdb->insert_id;
+        $sub_id = (int) $wpdb->insert_id;
+
+        // ── Backfill address plan slugs ──────────────────────────────────────
+        // When a user subscribes/upgrades, sync all their existing addresses
+        // so the "My Inboxes" tab shows the correct plan badge immediately.
+        $plan_obj  = TempMail_Database::get_plan( $plan_id );
+        $plan_slug = $plan_obj ? sanitize_key( $plan_obj->slug ?? $plan_obj->plan_slug ?? 'pro' ) : 'pro';
+        $wpdb->update(
+            $wpdb->prefix . 'tmpmp_addresses',
+            [ 'plan' => $plan_slug ],
+            [ 'user_id' => $user_id ]
+        );
+
+        return $sub_id;
     }
 
     // ── Cancel ────────────────────────────────────────────────────────────────
@@ -108,6 +192,14 @@ class TempMail_Subscription {
             [ 'status' => 'cancelled', 'cancelled_at' => gmdate('Y-m-d H:i:s'), 'updated_at' => gmdate('Y-m-d H:i:s') ],
             [ 'user_id' => $user_id, 'status' => 'active' ]
         );
+        if ( $affected ) {
+            // Revert address plan badges to free
+            $wpdb->update(
+                $wpdb->prefix . 'tmpmp_addresses',
+                [ 'plan' => 'free' ],
+                [ 'user_id' => $user_id ]
+            );
+        }
         return $affected > 0;
     }
 
@@ -119,3 +211,4 @@ class TempMail_Subscription {
         return ob_get_clean();
     }
 }
+

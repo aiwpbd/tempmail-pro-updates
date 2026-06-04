@@ -27,20 +27,6 @@
         }
     }
 
-    // â”€â”€ Settings form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    $(document).on('click', '#tmpmp-save-settings', function (e) {
-        e.preventDefault();
-        const self = this;
-        btn(self, true);
-        const data = $('#tmpmp-settings-form').serializeArray().reduce((o, f) => { o[f.name] = f.value; return o; }, {});
-        data.action = 'tmpmp_save_settings';
-        data.nonce  = nonce;
-        $.post(url, data, function (r) {
-            btn(self, false);
-            r.success ? toast(r.data.message) : toast(r.data?.message || 'Error', 'error');
-        });
-    });
-
     // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '.tmpmp-regen-token', function () {
         const field = $(this).data('field');
@@ -89,17 +75,6 @@
             }
         });
     });
-
-    // ---------------------------------------------------------------------------------------------------------
-    $(document).on('click', '.tmpmp-tab-link', function (e) {
-        e.preventDefault();
-        const target = $(this).data('tab');
-        $('.tmpmp-tab-link').removeClass('nav-tab-active');
-        $(this).addClass('nav-tab-active');
-        $('.tmpmp-settings-tab').hide();
-        $('#tab-' + target).show();
-    });
-    $('.tmpmp-tab-link:first').trigger('click');
 
     // ---------------------------------------------------------------------------------------------------------
     $(document).on('click', '#tmpmp-add-domain-btn', function () {

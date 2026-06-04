@@ -20,18 +20,23 @@ class TempMail_AJAX {
             'tmpmp_get_domains',
             'tmpmp_background_poll_imap',
             'tmpmp_track_ad_click',
+            'tmpmp_get_user_features',
         ];
         foreach ( $public_actions as $action ) {
             add_action( "wp_ajax_{$action}",        [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
             add_action( "wp_ajax_nopriv_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
         }
 
-        // Logged-in-only actions (history)
+        // Logged-in-only actions (history + premium features)
         $auth_actions = [
             'tmpmp_get_address_history',
             'tmpmp_get_history_emails',
             'tmpmp_delete_history_address',
             'tmpmp_get_history_email_body',
+            'tmpmp_save_forwarding_email',
+            'tmpmp_get_forwarding_email',
+            'tmpmp_save_spam_rules',
+            'tmpmp_get_spam_rules',
         ];
         foreach ( $auth_actions as $action ) {
             add_action( "wp_ajax_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
@@ -72,12 +77,23 @@ class TempMail_AJAX {
 
     // ── Get inbox ─────────────────────────────────────────────────────────────
     public function handle_get_inbox() : void {
+        // ── Prevent ANY caching layer (CDN, LiteSpeed, WP Rocket, browser)
+        //    from serving a stale inbox response. This is the #1 cause of
+        //    "inbox doesn't refresh without page reload" on live servers.
+        nocache_headers();
+        header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0, private' );
+        header( 'Pragma: no-cache' );
+        header( 'Vary: *' );
+
         $this->nonce();
         $address = TempMail_Security::sanitize_address( $_POST['address'] ?? '' );
         if ( ! $address ) wp_send_json_error(['message' => 'Address required.'], 400);
 
         $result = TempMail_Inbox::get_inbox( $address );
-        if ( is_wp_error($result) ) wp_send_json_error(['message' => $result->get_error_message()]);
+        if ( is_wp_error($result) ) wp_send_json_error([
+            'message' => $result->get_error_message(),
+            'code'    => $result->get_error_code(),
+        ]);
         wp_send_json_success( $result );
     }
 
@@ -89,7 +105,10 @@ class TempMail_AJAX {
         if ( ! $email_id || ! $address ) wp_send_json_error(['message'=>'Invalid params.'],400);
 
         $result = TempMail_Inbox::get_email( $email_id, $address );
-        if ( is_wp_error($result) ) wp_send_json_error(['message' => $result->get_error_message()]);
+        if ( is_wp_error($result) ) wp_send_json_error([
+            'message' => $result->get_error_message(),
+            'code'    => $result->get_error_code(),
+        ]);
         wp_send_json_success( $result );
     }
 
@@ -127,14 +146,30 @@ class TempMail_AJAX {
     // ── Get available domains ──────────────────────────────────────────────────
     public function handle_get_domains() : void {
         $this->nonce();
-        $user_id   = get_current_user_id();
-        $plan_slug = TempMail_Subscription::get_user_plan( $user_id );
-        $domains   = TempMail_Domains::get_for_plan( $plan_slug );
-        wp_send_json_success( array_values( $domains ) );
+        $user_id      = get_current_user_id();
+        // Use expanded category list so has_premium_domains / has_vip_domains unlock their pools
+        $allowed_cats = TempMail_Subscription::get_allowed_domain_cats( $user_id );
+        $all_domains  = TempMail_Database::get_all_domains();
+        $domains      = array_values( array_filter(
+            $all_domains,
+            fn($d) => in_array( $d->category, $allowed_cats, true )
+        ) );
+        wp_send_json_success( $domains );
+    }
+
+    // ── Get all feature flags for the current user ────────────────────────────
+    public function handle_get_user_features() : void {
+        $this->nonce();
+        $user_id  = get_current_user_id();
+        $features = TempMail_Subscription::get_user_features( $user_id );
+        wp_send_json_success( $features );
     }
 
     // ── Background IMAP poll (triggered by frontend JS) ───────────────────────
     public function handle_background_poll_imap() : void {
+        nocache_headers();
+        header( 'Cache-Control: no-store, no-cache, must-revalidate, max-age=0, private' );
+        header( 'Pragma: no-cache' );
         $this->nonce();
         $settings = get_option('tmpmp_settings', []);
         $protocol = $settings['mail_protocol'] ?? 'webhook';
@@ -217,5 +252,68 @@ class TempMail_AJAX {
         if ( ! $address_id ) wp_send_json_error(['message' => 'address_id required.'], 400);
         $ok = TempMail_Database::delete_history_address( $address_id, $user_id );
         $ok ? wp_send_json_success() : wp_send_json_error(['message' => __('Delete failed.','tempmail-pro')]);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Email Forwarding — requires has_email_forwarding
+    // ══════════════════════════════════════════════════════════════════════════
+
+    private function require_feature( string $feature ) : int {
+        $this->nonce();
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            wp_send_json_error( ['message' => __('You must be logged in.','tempmail-pro')], 401 );
+        }
+        if ( ! TempMail_Subscription::user_has_feature( $user_id, $feature ) ) {
+            wp_send_json_error( [
+                'message' => sprintf(
+                    /* translators: %s: feature name */
+                    __('Your plan does not include %s. Please upgrade.','tempmail-pro'),
+                    $feature
+                )
+            ], 403 );
+        }
+        return $user_id;
+    }
+
+    /** Save the forwarding address for the current user */
+    public function handle_save_forwarding_email() : void {
+        $user_id = $this->require_feature( 'has_email_forwarding' );
+        $email   = sanitize_email( $_POST['forwarding_email'] ?? '' );
+        if ( $email && ! is_email( $email ) ) {
+            wp_send_json_error( ['message' => __('Invalid email address.','tempmail-pro')], 400 );
+        }
+        update_user_meta( $user_id, 'tmpmp_forwarding_email', $email );
+        wp_send_json_success( ['forwarding_email' => $email] );
+    }
+
+    /** Get the forwarding address for the current user */
+    public function handle_get_forwarding_email() : void {
+        $this->nonce();
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) wp_send_json_error(['message'=>'Login required.'],401);
+        $email = get_user_meta( $user_id, 'tmpmp_forwarding_email', true ) ?: '';
+        wp_send_json_success( ['forwarding_email' => $email] );
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // Advanced Spam Rules — requires has_advanced_spam
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /** Save per-user spam keyword list (newline-separated) */
+    public function handle_save_spam_rules() : void {
+        $user_id  = $this->require_feature( 'has_advanced_spam' );
+        $keywords = sanitize_textarea_field( $_POST['spam_keywords'] ?? '' );
+        update_user_meta( $user_id, 'tmpmp_spam_keywords', $keywords );
+        wp_send_json_success( ['spam_keywords' => $keywords] );
+    }
+
+    /** Get the per-user spam keyword list */
+    public function handle_get_spam_rules() : void {
+        $this->nonce();
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) wp_send_json_error(['message'=>'Login required.'],401);
+        $keywords = get_user_meta( $user_id, 'tmpmp_spam_keywords', true ) ?: '';
+        wp_send_json_success( ['spam_keywords' => $keywords] );
     }
 }

@@ -1,5 +1,5 @@
 /**
- * TempMail Pro — Frontend JS v2.0.0
+ * TempMail Pro — Frontend JS v2.0.1
  * Actions: tmpmp_generate_email, tmpmp_get_inbox, tmpmp_get_email,
  *          tmpmp_delete_email, tmpmp_delete_inbox
  */
@@ -7,13 +7,18 @@
     'use strict';
 
     const cfg = window.TempMailPro || {};
-    const AJAX      = cfg.ajax_url        || '';
-    const NONCE     = cfg.nonce           || '';
-    const INTERVAL  = cfg.refresh_interval || 10000;
-    const STRINGS   = cfg.strings         || {};
+    const AJAX       = cfg.ajax_url         || '';
+    const NONCE      = cfg.nonce            || '';
+    const NONCE_REST = cfg.rest_nonce       || '';
+    const INTERVAL   = cfg.refresh_interval || 30000;
+    const STRINGS    = cfg.strings          || {};
 
-    const PROTOCOL     = cfg.mail_protocol    || 'webhook';   // imap | pop3 | webhook
-    const BG_INTERVAL  = cfg.bg_poll_interval  || 15000;       // ms between IMAP fetches (default 15s)
+    const PROTOCOL     = cfg.mail_protocol   || 'webhook';  // imap | pop3 | webhook
+    const BG_INTERVAL  = cfg.bg_poll_interval || 45000;     // ms between IMAP fetches
+
+    // SSE — premium users only
+    const USE_SSE = cfg.use_sse === 1 && typeof EventSource !== 'undefined';
+    const SSE_URL = cfg.sse_url || '';
 
     /* ── State ── */
     const TMP = {
@@ -23,9 +28,12 @@
         expires_at : '',
         total_secs : 0,
         poll_timer : null,
-        bg_timer   : null,   // background IMAP fetch timer
+        bg_timer   : null,        // background IMAP fetch timer
         expiry_timer: null,
         current_email_id: 0,
+        sse_source      : null,   // EventSource (premium)
+        sse_reconnect   : null,   // reconnect timeout
+        sse_connected   : false,  // true while SSE stream is open
     };
 
     /* ── DOM refs ── */
@@ -201,11 +209,10 @@
 
                 $addrText.text(TMP.address);
                 startExpiryTimer();
-                startPolling();
+                startPolling();  // also (re)starts SSE for the new address
                 pollInbox();
             },
             function (msg, code) {
-                // Rate-limit / blocked errors get the styled banner
                 const rateCodes = ['rate_limit', 'rate_limited', 'blocked', 'too_many_requests'];
                 if (code && rateCodes.includes(code)) {
                     showRateLimitBanner(msg);
@@ -259,27 +266,32 @@
     }
 
     /* ══════════════════════════════════════════════════════════════
-       INBOX POLLING
+       INBOX POLLING  (two-tier: SSE for premium, interval for free)
     ══════════════════════════════════════════════════════════════ */
     function startPolling() {
         stopPolling();
+        // DB refresh interval — premium: 30s fallback, free: 30-45s primary
         TMP.poll_timer = setInterval(pollInbox, INTERVAL);
-        // For IMAP/POP3: also run a background server fetch on its own timer
+        // IMAP background fetch
         if (PROTOCOL === 'imap' || PROTOCOL === 'pop3') {
             startBgPoll();
+        }
+        // Premium: open SSE connection for near-instant push
+        if (USE_SSE && TMP.address) {
+            startSSE();
         }
     }
 
     function stopPolling() {
         if (TMP.poll_timer) { clearInterval(TMP.poll_timer); TMP.poll_timer = null; }
         stopBgPoll();
+        stopSSE();
     }
 
     /* ── Background IMAP/POP3 fetch (triggers server-side mail retrieval) ── */
     function startBgPoll() {
         stopBgPoll();
-        // Immediate first fetch, then on interval
-        bgPollImap();
+        bgPollImap(); // immediate first fetch
         TMP.bg_timer = setInterval(bgPollImap, BG_INTERVAL);
     }
 
@@ -288,8 +300,7 @@
     }
 
     /**
-     * Ask the server to fetch new messages from the IMAP/POP3 mailbox,
-     * then immediately refresh the inbox list so new emails appear.
+     * Ask the server to fetch new messages from the IMAP/POP3 mailbox.
      * Burst mode: after finding new mail, re-poll every 5s for 30s.
      */
     let burstTimer = null;
@@ -297,25 +308,109 @@
         if (!TMP.address) return;
         ajax('tmpmp_background_poll_imap', {}, function (data) {
             if (data && (data.stored > 0 || data.fetched > 0)) {
-                // New emails found — refresh inbox immediately
                 pollInbox();
-                // Start burst polling: check every 5s for 30s
                 if (!isBurst) {
                     if (burstTimer) clearInterval(burstTimer);
                     let burstCount = 0;
                     burstTimer = setInterval(function() {
                         burstCount++;
                         bgPollImap(true);
-                        if (burstCount >= 6) { // 6 × 5s = 30s
+                        if (burstCount >= 6) {
                             clearInterval(burstTimer);
                             burstTimer = null;
                         }
                     }, 5000);
                 } else {
-                    pollInbox(); // keep inbox fresh during burst
+                    pollInbox();
                 }
             }
         });
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       SSE CLIENT  (premium users — near-instant push, ~2s DB check)
+    ══════════════════════════════════════════════════════════════ */
+    function startSSE() {
+        stopSSE();
+        if (!TMP.address) return;
+        const url = SSE_URL
+            + '?address=' + encodeURIComponent(TMP.address)
+            + '&nonce='   + encodeURIComponent(NONCE_REST);
+
+        try {
+            TMP.sse_source = new EventSource(url);
+        } catch (e) {
+            // EventSource not available — fall back to interval polling silently
+            return;
+        }
+
+        TMP.sse_source.onopen = function () {
+            TMP.sse_connected = true;
+            updateSSEBadge('live');
+        };
+
+        TMP.sse_source.onmessage = function (e) {
+            try {
+                const d = JSON.parse(e.data);
+                if (d.error) {
+                    // premium_required / not_found — stop trying
+                    stopSSE();
+                    updateSSEBadge('off');
+                    return;
+                }
+                if (d.new_emails > 0) {
+                    pollInbox();      // instant DB refresh
+                    bgPollImap(true); // also re-fetch IMAP to catch more
+                }
+                if (d.reconnect) {
+                    // Server's 55s window ended — reconnect immediately
+                    stopSSE();
+                    updateSSEBadge('reconnecting');
+                    TMP.sse_reconnect = setTimeout(startSSE, 300);
+                }
+            } catch (_) {}
+        };
+
+        TMP.sse_source.onerror = function () {
+            TMP.sse_connected = false;
+            stopSSE();
+            updateSSEBadge('reconnecting');
+            // Retry after 5s
+            TMP.sse_reconnect = setTimeout(startSSE, 5000);
+        };
+    }
+
+    function stopSSE() {
+        if (TMP.sse_source) {
+            TMP.sse_source.close();
+            TMP.sse_source = null;
+        }
+        if (TMP.sse_reconnect) {
+            clearTimeout(TMP.sse_reconnect);
+            TMP.sse_reconnect = null;
+        }
+        TMP.sse_connected = false;
+    }
+
+    /* ── Live status badge (shown only for premium SSE users) ── */
+    function updateSSEBadge(state) {
+        if (!USE_SSE) return;
+        let $badge = $('#tmpmp-sse-badge');
+        if (!$badge.length) {
+            // Inject badge next to the refresh button on first call
+            $badge = $('<span id="tmpmp-sse-badge"></span>');
+            $refreshBtn.after($badge);
+        }
+        $badge.removeClass('sse-live sse-reconnecting sse-off');
+        if (state === 'live') {
+            $badge.addClass('sse-live').html(
+                '<span class="sse-dot"></span> Live'
+            );
+        } else if (state === 'reconnecting') {
+            $badge.addClass('sse-reconnecting').text('↻ Reconnecting…');
+        } else {
+            $badge.addClass('sse-off').text('⏱ Polling');
+        }
     }
 
     function pollInbox() {
@@ -324,7 +419,7 @@
             generateEmail(false);
             return;
         }
-        ajax('tmpmp_get_inbox', { address: TMP.address }, function (data) {
+        ajax('tmpmp_get_inbox', { address: TMP.address, _t: Date.now() }, function (data) {
             renderInbox(data.emails || []);
             // Sync expiry timer from server so client & server stay aligned
             if (data.expires_at) {
@@ -336,7 +431,7 @@
             }
         }, function (msg, code) {
             // Expired inbox → clear state and auto-generate a fresh address
-            if (code === 'expired' || code === 'not_found') {
+            if (code === 'expired' || code === 'not_found' || code === 'address_not_found' || code === 'no_inbox') {
                 clearSession();
                 stopPolling();
                 clearExpiryTimer();
@@ -412,6 +507,21 @@
                 doc.head.insertBefore(meta, doc.head.firstChild);
             }
 
+            // ── Security: strip all scripts and inline event handlers ───────────
+            // Prevents "Blocked script execution" console errors on live servers.
+            // Legitimate HTML emails never need JS to display correctly.
+            doc.querySelectorAll('script, noscript').forEach(function(el) { el.remove(); });
+            doc.querySelectorAll('*').forEach(function(el) {
+                Array.from(el.attributes).forEach(function(attr) {
+                    if (/^on/i.test(attr.name)) el.removeAttribute(attr.name);
+                });
+                // Also block javascript: hrefs / src
+                ['href','src','action'].forEach(function(a) {
+                    const val = el.getAttribute(a);
+                    if (val && /^\s*javascript:/i.test(val)) el.setAttribute(a, '#');
+                });
+            });
+
             // ── DOM pass: strip inline min-width and fixed px widths ──────────
             // CSS !important cannot override inline styles, so we must remove them
             const allEls = doc.querySelectorAll('*');
@@ -453,7 +563,7 @@
     }
 
     function openEmail(emailId) {
-        if (!TMP.address) return;
+        if (!TMP.address || !emailId) return;
         TMP.current_email_id = emailId;
         ajax('tmpmp_get_email', { email_id: emailId, address: TMP.address }, function (data) {
             $viewerSubj.text(data.subject || '(no subject)');
@@ -461,28 +571,25 @@
                 `<strong>From:</strong> ${escHtml(data.sender_name || '')} &lt;${escHtml(data.sender)}&gt;<br>` +
                 `<strong>Date:</strong> ${formatTime(data.received_at)}`
             );
-            // HTML body — extract & move styles to <head>, then write to iframe
+            // HTML body — use srcdoc (no doc.write, no console errors)
             if (data.body_html) {
-                $bodyHtml.html('<iframe class="tmpmp-email-iframe" sandbox="allow-same-origin allow-popups"></iframe>');
-                const iframe = $bodyHtml.find('iframe')[0];
-                try {
-                    const doc = iframe.contentDocument || iframe.contentWindow.document;
-                    doc.open();
-                    doc.write(prepareEmailHtml(data.body_html));
-                    doc.close();
-                    // Auto-resize iframe to full email height after render
-                    const resize = function() {
-                        try {
-                            const h = iframe.contentDocument.documentElement.scrollHeight || 400;
-                            iframe.style.minHeight = Math.max(h, 300) + 'px';
-                        } catch(e) {}
-                    };
-                    iframe.onload = resize;
-                    setTimeout(resize, 300);
-                    setTimeout(resize, 900);
-                } catch(e) {
-                    $bodyHtml.html('<p style="color:var(--text3);font-size:13px;padding:16px;">Could not render HTML email.</p>');
-                }
+                const iframe = document.createElement('iframe');
+                iframe.className = 'tmpmp-email-iframe';
+                // allow-same-origin needed for height detection;
+                // scripts are already stripped by prepareEmailHtml so nothing gets blocked
+                iframe.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+                $bodyHtml.html('').append(iframe);
+                iframe.srcdoc = prepareEmailHtml(data.body_html);
+                // Auto-resize iframe to full email height after render
+                const resize = function() {
+                    try {
+                        const h = iframe.contentDocument.documentElement.scrollHeight || 400;
+                        iframe.style.minHeight = Math.max(h, 300) + 'px';
+                    } catch(e) {}
+                };
+                iframe.onload = resize;
+                setTimeout(resize, 300);
+                setTimeout(resize, 900);
             } else {
                 $bodyHtml.html('<p style="color:var(--text3);font-size:13px;padding:16px;">No HTML content.</p>');
             }
@@ -495,6 +602,23 @@
             }
             // Mark row as read
             $emailList.find('.tmpmp-email-row[data-id="' + emailId + '"]').removeClass('unread').addClass('read');
+        }, function (msg, code) {
+            // Email no longer exists (deleted / expired) — silently refresh inbox
+            if (code === 'not_found') {
+                pollInbox();
+                return;
+            }
+            // Inbox itself has expired — trigger session recovery
+            if (code === 'expired' || code === 'no_inbox' || code === 'address_not_found') {
+                clearSession();
+                stopPolling();
+                clearExpiryTimer();
+                toast(STRINGS.email_expired || 'Inbox expired. Generating new address…', 'error');
+                setTimeout(function () { generateEmail(false); }, 1500);
+                return;
+            }
+            // Unexpected error — show briefly
+            toast(msg || 'Could not load email.', 'error');
         });
     }
 
@@ -652,7 +776,7 @@
                 var val    = $(this).val();
                 var cat    = $(this).data('cat')    || 'free';
                 var locked = $(this).data('locked') == 1;
-                var icon   = cat === 'premium' ? '⭐' : (cat === 'vip' ? '💎' : '');
+                var icon   = cat === 'premium' ? '⭐' : (cat === 'vip' ? '💎' : (cat === 'custom' ? '🌐' : ''));
 
                 var $row = $('<button class="tmpmp-domain-opt" type="button" role="option">')
                     .attr('data-value', val)
@@ -750,7 +874,7 @@
         if (!$domainTriggerText) return;
         var $opt = $domainPanel.find('.tmpmp-domain-opt[data-value="' + val + '"]');
         var cat  = $opt.data('cat') || 'free';
-        var icon = cat === 'premium' ? '⭐' : (cat === 'vip' ? '💎' : '');
+        var icon = cat === 'premium' ? '⭐' : (cat === 'vip' ? '💎' : (cat === 'custom' ? '🌐' : ''));
         $domainTriggerCat.text(icon);
         $domainTriggerText.text('@' + val);
     }
@@ -879,6 +1003,354 @@
         $m.removeClass('tmpmp-upgrade-show');
         $(document).off('keydown.upgradeModal');
         setTimeout(function () { $m.remove(); }, 300);
+    }
+
+    /* ══════════════════════════════════════════════════════════════
+       INBOX HISTORY POPUP MODAL (Premium users only)
+    ══════════════════════════════════════════════════════════════ */
+    var $historyBtn     = $('#tmpmp-history-btn');
+    var $historyModal   = $('#tmpmp-history-modal');   // outer wrapper
+    var $historyDrawer  = $('#tmpmp-history-drawer');  // the modal box (legacy ID kept for tab events)
+    var $historyOverlay = $('#tmpmp-history-overlay');
+    var $historyClose   = $('#tmpmp-history-close');
+    var $historyList    = $('#tmpmp-history-list');
+    var $historyPag     = $('#tmpmp-history-pagination');
+    var $historyCount   = $('#tmpmp-history-count');
+    var $historyLimitTx = $('#tmpmp-history-limit-text');
+
+    // Sub-view refs
+    var $hListView      = $('#tmpmp-history-list-view');
+    var $hEmailView     = $('#tmpmp-history-email-view');
+    var $hBodyView      = $('#tmpmp-history-body-view');
+    var $hEmailAddr     = $('#tmpmp-history-email-addr');
+    var $hEmailList     = $('#tmpmp-history-email-list');
+    var $hBodySubject   = $('#tmpmp-history-body-subject');
+    var $hBodyMeta      = $('#tmpmp-history-body-meta');
+    var $hHtml          = $('#tmpmp-history-html');
+    var $hText          = $('#tmpmp-history-text');
+
+    var historyState = {
+        open          : false,
+        page          : 1,
+        perPage       : 10,
+        total         : 0,
+        currentAddrId : 0,
+        currentAddr   : '',
+        planMaxInboxes: -1,
+    };
+
+    /* ── Open / Close modal ── */
+    function openHistoryDrawer() {
+        historyState.open = true;
+        $historyModal.addClass('open').attr('aria-hidden', 'false');
+        $historyBtn.addClass('is-active');
+        $('body').css('overflow', 'hidden');
+        showHistoryListView();
+        loadHistory(1);
+    }
+
+    function closeHistoryDrawer() {
+        historyState.open = false;
+        $historyModal.removeClass('open').attr('aria-hidden', 'true');
+        $historyBtn.removeClass('is-active');
+        $('body').css('overflow', '');
+    }
+
+    /* ── Show sub-views ── */
+    function showHistoryListView() {
+        $hListView.show();
+        $hEmailView.hide();
+        $hBodyView.hide();
+    }
+
+    function showHistoryEmailView(addrId, addr) {
+        historyState.currentAddrId = addrId;
+        historyState.currentAddr   = addr;
+        $hEmailAddr.text(addr);
+        $hListView.hide();
+        $hEmailView.css('display', 'flex');
+        $hBodyView.hide();
+        loadHistoryEmails(addrId);
+    }
+
+    function showHistoryBodyView(emailId, addrId) {
+        $hEmailView.hide();
+        $hBodyView.css('display', 'flex');
+        loadHistoryEmailBody(emailId, addrId);
+    }
+
+    /* ── Load address history list ── */
+    function loadHistory(page) {
+        historyState.page = page;
+        // Show skeletons
+        $historyList.html(
+            '<div class="tmpmp-skeleton" style="height:52px;margin:4px 0"></div>' +
+            '<div class="tmpmp-skeleton" style="height:52px;margin:4px 0"></div>' +
+            '<div class="tmpmp-skeleton" style="height:52px;margin:4px 0"></div>'
+        );
+        $historyPag.empty();
+
+        ajax('tmpmp_get_address_history', { page: page, per_page: historyState.perPage },
+            function (data) {
+                historyState.total = data.total || 0;
+                renderHistoryList(data.rows || []);
+                renderHistoryPagination(data.total, data.per_page, data.page);
+
+                // Update count / plan info
+                $historyCount.text(data.total + ' address' + (data.total !== 1 ? 'es' : ''));
+                updateHistoryLimitBar(data.total);
+            },
+            function (msg) {
+                $historyList.html('<div class="tmpmp-history-empty"><div class="tmpmp-history-empty-icon">🔒</div><p>' + escHtml(msg) + '</p></div>');
+            }
+        );
+    }
+
+    function updateHistoryLimitBar(total) {
+        var max = historyState.planMaxInboxes;
+        // Try to read plan limit from cfg if available
+        if (cfg.plan_max_inboxes !== undefined) {
+            max = parseInt(cfg.plan_max_inboxes, 10);
+            historyState.planMaxInboxes = max;
+        }
+        var plan = (cfg.plan_name || '').trim();
+        var keepDays = (cfg.plan_history_days || 90);
+
+        if (max === -1 || max === 0) {
+            $historyLimitTx.text(
+                (plan ? plan + ' plan · ' : '') +
+                'Unlimited inboxes · History kept for ' + keepDays + ' days'
+            );
+        } else {
+            $historyLimitTx.text(
+                (plan ? plan + ' plan · ' : '') +
+                total + ' / ' + max + ' inboxes used · History kept for ' + keepDays + ' days'
+            );
+        }
+    }
+
+    /* ── Render list of address rows ── */
+    function renderHistoryList(rows) {
+        if (!rows.length) {
+            $historyList.html(
+                '<div class="tmpmp-history-empty">' +
+                '<div class="tmpmp-history-empty-icon">' +
+                '<svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" style="opacity:.3;color:var(--c-primary)"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 7 12 13 22 7"/></svg>' +
+                '</div>' +
+                '<p>No address history yet.<br>Addresses you generate while logged in will appear here.</p>' +
+                '</div>'
+            );
+            return;
+        }
+        var html = '';
+        rows.forEach(function (r) {
+            var isActive  = r.status_label === 'active';
+            var emailCnt  = parseInt(r.email_count, 10) || 0;
+            var created   = r.created_at ? formatDate(r.created_at) : '';
+
+            // SVG icons — no broken emoji rendering
+            var iconSvg = isActive
+                ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 7 12 13 22 7"/></svg>'
+                : '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="4" x2="22" y2="20"/></svg>';
+
+            html +=
+                '<div class="tmpmp-history-row" data-id="' + escAttr(String(r.id)) + '" data-addr="' + escAttr(r.address) + '">' +
+                    '<div class="tmpmp-history-row-icon' + (isActive ? '' : ' expired') + '">' + iconSvg + '</div>' +
+                    '<div class="tmpmp-history-row-info">' +
+                        '<div class="tmpmp-history-row-addr">' + escHtml(r.address) + '</div>' +
+                        '<div class="tmpmp-history-row-meta">' +
+                            '<span class="tmpmp-history-row-status ' + (isActive ? 'active' : 'expired') + '">' + (isActive ? 'Active' : 'Expired') + '</span>' +
+                            '<span class="tmpmp-history-row-meta-dot"></span>' +
+                            '<span class="tmpmp-history-row-meta-text">' + emailCnt + ' email' + (emailCnt !== 1 ? 's' : '') + '</span>' +
+                            '<span class="tmpmp-history-row-meta-dot"></span>' +
+                            '<span class="tmpmp-history-row-meta-text">' + created + '</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<button class="tmpmp-history-row-del" data-del-id="' + escAttr(String(r.id)) + '" title="Remove from history">' +
+                        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>' +
+                    '</button>' +
+                '</div>';
+        });
+        $historyList.html(html);
+
+        // Drill-in to email list on row click
+        $historyList.find('.tmpmp-history-row').on('click', function (e) {
+            if ($(e.target).closest('.tmpmp-history-row-del').length) return;
+            var id   = $(this).data('id');
+            var addr = $(this).data('addr');
+            showHistoryEmailView(id, addr);
+        });
+
+        // Delete address
+        $historyList.find('.tmpmp-history-row-del').on('click', function (e) {
+            e.stopPropagation();
+            var id = $(this).data('del-id');
+            if (!confirm('Delete this address and all its emails from history?')) return;
+            ajax('tmpmp_delete_history_address', { address_id: id },
+                function () {
+                    toast('Address removed from history.', 'info');
+                    loadHistory(historyState.page);
+                },
+                function (msg) { toast(msg, 'error'); }
+            );
+        });
+    }
+
+    /* ── Pagination ── */
+    function renderHistoryPagination(total, perPage, currentPage) {
+        $historyPag.empty();
+        if (!total || !perPage || total <= perPage) return;
+        var pages = Math.ceil(total / perPage);
+        if (pages <= 1) return;
+
+        if (currentPage > 1) {
+            $historyPag.append(
+                $('<button class="tmpmp-history-page-btn">‹ Prev</button>')
+                    .on('click', function () { loadHistory(currentPage - 1); })
+            );
+        }
+        for (var i = 1; i <= pages; i++) {
+            (function(p) {
+                var $b = $('<button class="tmpmp-history-page-btn">' + p + '</button>');
+                if (p === currentPage) $b.addClass('current');
+                $b.on('click', function () { loadHistory(p); });
+                $historyPag.append($b);
+            })(i);
+        }
+        if (currentPage < pages) {
+            $historyPag.append(
+                $('<button class="tmpmp-history-page-btn">Next ›</button>')
+                    .on('click', function () { loadHistory(currentPage + 1); })
+            );
+        }
+    }
+
+    /* ── Load emails for a history address ── */
+    function loadHistoryEmails(addrId) {
+        $hEmailList.html(
+            '<div class="tmpmp-skeleton" style="height:48px;margin:4px 0"></div>' +
+            '<div class="tmpmp-skeleton" style="height:48px;margin:4px 0"></div>'
+        );
+        ajax('tmpmp_get_history_emails', { address_id: addrId },
+            function (data) {
+                renderHistoryEmails(data.emails || [], addrId);
+            },
+            function (msg) {
+                $hEmailList.html('<div class="tmpmp-history-empty"><div class="tmpmp-history-empty-icon">❌</div><p>' + escHtml(msg) + '</p></div>');
+            }
+        );
+    }
+
+    function renderHistoryEmails(emails, addrId) {
+        if (!emails.length) {
+            $hEmailList.html(
+                '<div class="tmpmp-history-empty">' +
+                '<div class="tmpmp-history-empty-icon" style="font-size:32px;line-height:1;">✉️</div>' +
+                '<p>No emails in this inbox.</p>' +
+                '</div>'
+            );
+            return;
+        }
+        var html = '';
+        emails.forEach(function (e) {
+            var cls = e.is_read ? '' : ' unread';
+            html +=
+                '<div class="tmpmp-history-email-row' + cls + '" data-eid="' + escAttr(String(e.id)) + '" data-aid="' + escAttr(String(addrId)) + '">' +
+                    '<div class="tmpmp-history-email-row-body">' +
+                        '<div class="tmpmp-history-email-sender">' + escHtml(e.sender_name || e.sender) + '</div>' +
+                        '<div class="tmpmp-history-email-subject">' + escHtml(e.subject || '(no subject)') + '</div>' +
+                    '</div>' +
+                    '<div class="tmpmp-history-email-time">' + formatTime(e.received_at) + '</div>' +
+                '</div>';
+        });
+        $hEmailList.html(html);
+
+        $hEmailList.find('.tmpmp-history-email-row').on('click', function () {
+            var eid = $(this).data('eid');
+            var aid = $(this).data('aid');
+            showHistoryBodyView(eid, aid);
+        });
+    }
+
+    /* ── Load & render single email body from history ── */
+    function loadHistoryEmailBody(emailId, addrId) {
+        $hBodySubject.text('Loading…');
+        $hBodyMeta.empty();
+        $hHtml.html('<div class="tmpmp-skeleton" style="height:200px;border-radius:10px;"></div>');
+        $hText.empty();
+
+        ajax('tmpmp_get_history_email_body', { email_id: emailId, address_id: addrId },
+            function (data) {
+                $hBodySubject.text(data.subject || '(no subject)');
+                $hBodyMeta.html(
+                    '<strong>From:</strong> ' + escHtml(data.sender_name || '') + ' &lt;' + escHtml(data.sender) + '&gt;<br>' +
+                    '<strong>Date:</strong> ' + formatTime(data.received_at)
+                );
+                if (data.body_html) {
+                    var hiframe = document.createElement('iframe');
+                    hiframe.className = 'tmpmp-email-iframe';
+                    hiframe.setAttribute('sandbox', 'allow-same-origin allow-popups allow-popups-to-escape-sandbox');
+                    $hHtml.html('').append(hiframe);
+                    hiframe.srcdoc = prepareEmailHtml(data.body_html);
+                    var hresize = function() {
+                        try {
+                            var h = hiframe.contentDocument.documentElement.scrollHeight || 300;
+                            hiframe.style.minHeight = Math.max(h, 200) + 'px';
+                        } catch(ex) {}
+                    };
+                    hiframe.onload = hresize;
+                    setTimeout(hresize, 300);
+                    setTimeout(hresize, 900);
+                } else {
+                    $hHtml.html('<p style="color:var(--text3);font-size:13px;padding:16px;">No HTML content.</p>');
+                }
+                $hText.text(data.body_text || '');
+            },
+            function (msg) {
+                $hBodySubject.text('Error');
+                $hHtml.html('<p style="color:var(--danger);padding:16px;">' + escHtml(msg) + '</p>');
+            }
+        );
+    }
+
+    /* ── History body view tabs ── */
+    $historyModal.on('click', '[data-htab]', function () {
+        var tab = $(this).data('htab');
+        $historyModal.find('[data-htab]').removeClass('active');
+        $(this).addClass('active');
+        $hHtml.toggleClass('active', tab === 'html');
+        $hText.toggleClass('active', tab === 'text');
+    });
+
+    /* ── Back navigation ── */
+    $('#tmpmp-history-back-btn').on('click', showHistoryListView);
+    $('#tmpmp-history-body-back').on('click', function () {
+        $hBodyView.hide();
+        $hEmailView.css('display', 'flex');
+    });
+
+    /* ── Format date helper ── */
+    function formatDate(dt) {
+        if (!dt) return '';
+        var d = new Date(dt.replace(' ', 'T') + 'Z');
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    /* ── Event bindings ── */
+    if ($historyBtn.length) {
+        $historyBtn.on('click', function () {
+            historyState.open ? closeHistoryDrawer() : openHistoryDrawer();
+        });
+        $historyClose.on('click', closeHistoryDrawer);
+        // Click on overlay (not the box) closes modal
+        $historyModal.on('click', function (e) {
+            if ($(e.target).is($historyOverlay) || $(e.target).is($historyModal)) {
+                closeHistoryDrawer();
+            }
+        });
+        $(document).on('keydown.history', function (e) {
+            if (e.key === 'Escape' && historyState.open) closeHistoryDrawer();
+        });
     }
 
     /* ══════════════════════════════════════════════════════════════

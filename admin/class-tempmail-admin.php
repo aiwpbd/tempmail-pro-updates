@@ -12,6 +12,7 @@ class TempMail_Admin {
     private function __construct() {
         add_action( 'admin_menu',            [ $this, 'register_menus'   ] );
         add_action( 'admin_head',             [ $this, 'menu_icon_color'  ] );
+        add_action( 'admin_head',             [ $this, 'crypto_polyfill'  ], 1 );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets'   ] );
         add_action( 'admin_notices',         [ 'TempMail_Changelog', 'render_banner' ] );
         add_action( 'wp_ajax_tmpmp_save_settings',          [ $this, 'ajax_save_settings'         ] );
@@ -23,6 +24,12 @@ class TempMail_Admin {
         add_action( 'wp_ajax_tmpmp_eg_preview',              [ $this, 'ajax_eg_preview'            ] );
         add_action( 'wp_ajax_tmpmp_recreate_pages',           [ $this, 'ajax_recreate_pages'        ] );
         add_action( 'wp_ajax_tmpmp_test_cron',                 [ $this, 'ajax_test_cron'             ] );
+        // User custom domains admin panel
+        add_action( 'wp_ajax_tmpmp_admin_add_user_domain',     [ $this, 'ajax_admin_add_user_domain'    ] );
+        add_action( 'wp_ajax_tmpmp_admin_delete_user_domain',  [ $this, 'ajax_admin_delete_user_domain' ] );
+        add_action( 'wp_ajax_tmpmp_admin_suspend_user_domain', [ $this, 'ajax_admin_suspend_user_domain'] );
+        add_action( 'wp_ajax_tmpmp_admin_verify_user_domain',  [ $this, 'ajax_admin_verify_user_domain' ] );
+        add_action( 'wp_ajax_tmpmp_admin_bulk_user_domains',   [ $this, 'ajax_admin_bulk_user_domains'  ] );
     }
 
     // ── Menus ─────────────────────────────────────────────────────────────────
@@ -45,6 +52,7 @@ class TempMail_Admin {
         add_submenu_page('tempmail-pro', __('Ads','tempmail-pro'),         __('📢 Ads','tempmail-pro'),         'manage_options', 'tmpmp-ads',               ['TempMail_Admin_Ads','render']);
         add_submenu_page('tempmail-pro', __('Analytics','tempmail-pro'),   __('📈 Analytics','tempmail-pro'),   'manage_options', 'tmpmp-analytics',         ['TempMail_Admin_Analytics','render']);
         add_submenu_page('tempmail-pro', __('Visitors','tempmail-pro'),    __('👁️ Visitors','tempmail-pro'),    'manage_options', 'tmpmp-visitors',           [$this,'render_visitors']);
+        add_submenu_page('tempmail-pro', __('User Domains','tempmail-pro'), __('🔐 User Domains','tempmail-pro'), 'manage_options', 'tmpmp-user-domains',      [$this,'render_user_domains']);
         add_submenu_page('tempmail-pro', __('Pages','tempmail-pro'),       __('📄 Pages','tempmail-pro'),       'manage_options', 'tmpmp-pages',             [$this,'render_pages']);
         add_submenu_page('tempmail-pro', __('Settings','tempmail-pro'),    __('⚙️ Settings','tempmail-pro'),    'manage_options', 'tmpmp-settings',          [$this,'render_settings']);
         add_submenu_page('tempmail-pro', __('Changelog','tempmail-pro'),   __('🆕 Changelog','tempmail-pro'),   'manage_options', 'tmpmp-changelog',         [$this,'render_changelog']);
@@ -69,6 +77,32 @@ class TempMail_Admin {
         <?php
     }
 
+    // ── crypto.randomUUID polyfill (fixes HTTP local-dev console errors) ────────
+    // WordPress 6.x block-editor scripts call crypto.randomUUID() which requires
+    // a secure context (HTTPS). On http://mailsaas.local Chrome throws:
+    //   "Uncaught TypeError: crypto.randomUUID is not a function"
+    // This polyfill uses crypto.getRandomValues() which IS available on plain HTTP.
+    public function crypto_polyfill() : void {
+        if ( ! is_ssl() ) {
+            ?>
+<script>
+(function(){
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID !== 'function') {
+        crypto.randomUUID = function() {
+            var bytes = new Uint8Array(16);
+            crypto.getRandomValues(bytes);
+            bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+            bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant RFC4122
+            var hex = Array.from(bytes).map(function(b){ return b.toString(16).padStart(2,'0'); });
+            return hex[0]+hex[1]+hex[2]+hex[3]+'-'+hex[4]+hex[5]+'-'+hex[6]+hex[7]+'-'+hex[8]+hex[9]+'-'+hex[10]+hex[11]+hex[12]+hex[13]+hex[14]+hex[15];
+        };
+    }
+})();
+</script>
+            <?php
+        }
+    }
+
     // ── Asset enqueue ─────────────────────────────────────────────────────────
     public function enqueue_assets( string $hook ) : void {
         if ( strpos($hook, 'tempmail') === false && strpos($hook, 'tmpmp') === false ) return;
@@ -80,8 +114,8 @@ class TempMail_Admin {
             'rest_url' => esc_url_raw(rest_url('tempmail-pro/v1')),
             'version'  => TMPMP_VERSION,
         ]);
-        // Chart.js only on analytics page
-        if ( strpos($hook,'tmpmp-analytics') !== false ) {
+        // Chart.js on analytics + visitors pages (visitors had a hardcoded raw <script> tag before)
+        if ( strpos($hook,'tmpmp-analytics') !== false || strpos($hook,'tmpmp-visitors') !== false ) {
             wp_enqueue_script('chartjs', 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js', [], '4.4.0', true);
         }
         // WP Media Library for branding image pickers on settings page
@@ -277,7 +311,9 @@ class TempMail_Admin {
 
         $int_fields = ['refresh_interval','imap_port','rate_limit','rate_window','spam_filter',
                        'stripe_enabled','paypal_enabled','ssl_live','google_login','facebook_login','enable_captcha',
-                       'wc_enabled','custom_api_enabled'];
+                       'wc_enabled','custom_api_enabled',
+                       // Mail Polling Tiers
+                       'free_poll_interval','premium_poll_interval','sse_enabled'];
         foreach ( $int_fields as $k ) {
             $new_data[$k] = intval($_POST[$k] ?? $current[$k] ?? 0);
         }
@@ -322,7 +358,57 @@ class TempMail_Admin {
                 }
             }
         }
+        // ── Header Menu (menu-temp) Settings ────────────────────────────────────
+        $new_data['nav_enabled'] = isset($_POST['nav_enabled']) ? intval($_POST['nav_enabled']) : 0;
+        if ( isset($_POST['nav_target']) && in_array($_POST['nav_target'], ['all','specific'], true) ) {
+            $new_data['nav_target'] = $_POST['nav_target'];
+        }
+        if ( isset($_POST['nav_target_locations']) ) {
+            // Sanitize: strip anything that's not a slug char or comma/space
+            $raw_locs = sanitize_text_field( wp_unslash( $_POST['nav_target_locations'] ) );
+            $locs     = array_filter( array_map( 'sanitize_key', preg_split('/[\s,]+/', $raw_locs) ) );
+            $new_data['nav_target_locations'] = implode(', ', $locs);
+        }
+        if ( isset($_POST['nav_logo_text']) )  $new_data['nav_logo_text']  = sanitize_text_field( wp_unslash( $_POST['nav_logo_text']  ) );
+        if ( isset($_POST['nav_logo_icon']) )  $new_data['nav_logo_icon']  = sanitize_text_field( wp_unslash( $_POST['nav_logo_icon']  ) );
+        if ( isset($_POST['nav_logo_url'])  )  $new_data['nav_logo_url']   = esc_url_raw( wp_unslash( $_POST['nav_logo_url']   ) );
+        $new_data['nav_show_home']       = isset($_POST['nav_show_home'])       ? intval($_POST['nav_show_home'])       : 0;
+        if ( isset($_POST['nav_home_label']) ) $new_data['nav_home_label']  = sanitize_text_field( wp_unslash( $_POST['nav_home_label']  ) );
+        if ( isset($_POST['nav_home_url'])   ) $new_data['nav_home_url']    = esc_url_raw( wp_unslash( $_POST['nav_home_url']   ) );
+        $new_data['nav_show_account_btn']  = isset($_POST['nav_show_account_btn'])  ? intval($_POST['nav_show_account_btn'])  : 0;
+        if ( isset($_POST['nav_account_btn_label']) ) {
+            $new_data['nav_account_btn_label'] = sanitize_text_field( wp_unslash( $_POST['nav_account_btn_label'] ) );
+        }
+        $new_data['nav_show_account_drop'] = isset($_POST['nav_show_account_drop']) ? intval($_POST['nav_show_account_drop']) : 0;
+        if ( isset($_POST['nav_dashboard_label']) ) {
+            $new_data['nav_dashboard_label'] = sanitize_text_field( wp_unslash( $_POST['nav_dashboard_label'] ) );
+        }
+        if ( isset($_POST['nav_link_style']) && in_array($_POST['nav_link_style'], ['pill','flat','minimal'], true) ) {
+            $new_data['nav_link_style'] = $_POST['nav_link_style'];
+        }
+        if ( isset($_POST['nav_btn_style']) && in_array($_POST['nav_btn_style'], ['gradient','solid','outline'], true) ) {
+            $new_data['nav_btn_style'] = $_POST['nav_btn_style'];
+        }
+        // ── Header Menu: Spacing & Sizing ────────────────────────────────────────
+        $spacing_fields = [
+            'nav_item_gap'       => [0,  40],
+            'nav_link_px'        => [0,  40],
+            'nav_link_py'        => [0,  24],
+            'nav_link_radius'    => [0,  32],
+            'nav_font_size'      => [10, 22],
+            'nav_margin_top'     => [0,  40],
+            'nav_margin_bottom'  => [0,  40],
+            'nav_bar_min_height' => [0,  80],
+        ];
+        foreach ( $spacing_fields as $key => [$min, $max] ) {
+            if ( isset($_POST[$key]) ) {
+                $val = intval( $_POST[$key] );
+                $new_data[$key] = max( $min, min( $max, $val ) );
+            }
+        }
+
         // ── Upgrade Box Customization ────────────────────────────────────────────
+
         foreach ( ['upgrade_box_cta_text', 'upgrade_box_price_label'] as $k ) {
             if ( isset($_POST[$k]) ) {
                 $new_data[$k] = sanitize_text_field( wp_unslash( $_POST[$k] ) );
@@ -590,5 +676,130 @@ class TempMail_Admin {
         }
 
         wp_send_json_success([ 'address' => strtolower( $username . '@' . $domain ) ]);
+    }
+
+    // ── User Custom Domains admin page ────────────────────────────────────────
+
+    public function render_user_domains() : void {
+        if ( ! current_user_can('manage_options') ) wp_die( esc_html__('Access denied.','tempmail-pro') );
+        require_once TMPMP_PLUGIN_DIR . 'admin/views/user-domains-page.php';
+    }
+
+    /** AJAX: Admin adds a custom domain for a specific user. */
+    public function ajax_admin_add_user_domain() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! current_user_can('manage_options') ) wp_send_json_error([], 403);
+
+        $user_id = (int) ( $_POST['user_id'] ?? 0 );
+        $domain  = sanitize_text_field( $_POST['domain'] ?? '' );
+
+        if ( ! $user_id || ! get_userdata( $user_id ) ) {
+            wp_send_json_error([ 'message' => __('Invalid user.','tempmail-pro') ]);
+        }
+
+        $result = TempMail_UserDomains::admin_add( $user_id, $domain );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error([ 'message' => $result->get_error_message() ]);
+        }
+        wp_send_json_success([ 'id' => $result, 'message' => __('Domain added.','tempmail-pro') ]);
+    }
+
+    /** AJAX: Admin deletes any user custom domain. */
+    public function ajax_admin_delete_user_domain() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! current_user_can('manage_options') ) wp_send_json_error([], 403);
+
+        $id = (int) ( $_POST['id'] ?? 0 );
+        if ( ! $id ) wp_send_json_error([ 'message' => __('Invalid ID.','tempmail-pro') ]);
+
+        TempMail_UserDomains::admin_delete( $id );
+        wp_send_json_success([ 'message' => __('Domain deleted.','tempmail-pro') ]);
+    }
+
+    /** AJAX: Admin suspends or unsuspends a user custom domain. */
+    public function ajax_admin_suspend_user_domain() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! current_user_can('manage_options') ) wp_send_json_error([], 403);
+
+        $id     = (int)    ( $_POST['id']      ?? 0 );
+        $action = sanitize_key( $_POST['action_type'] ?? 'suspend' );
+
+        if ( ! $id ) wp_send_json_error([ 'message' => __('Invalid ID.','tempmail-pro') ]);
+
+        if ( $action === 'unsuspend' ) {
+            TempMail_UserDomains::unsuspend( $id );
+            $row     = TempMail_UserDomains::admin_get( $id );
+            $new_status = $row ? $row->status : 'pending';
+            wp_send_json_success([ 'status' => $new_status, 'message' => __('Domain unsuspended.','tempmail-pro') ]);
+        } else {
+            TempMail_UserDomains::suspend( $id );
+            wp_send_json_success([ 'status' => 'suspended', 'message' => __('Domain suspended.','tempmail-pro') ]);
+        }
+    }
+
+    /** AJAX: Admin triggers DNS verification for a user custom domain. */
+    public function ajax_admin_verify_user_domain() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! current_user_can('manage_options') ) wp_send_json_error([], 403);
+
+        $id = (int) ( $_POST['id'] ?? 0 );
+        if ( ! $id ) wp_send_json_error([ 'message' => __('Invalid ID.','tempmail-pro') ]);
+
+        $result = TempMail_UserDomains::admin_verify( $id );
+        if ( is_wp_error( $result ) ) {
+            wp_send_json_error([ 'message' => $result->get_error_message() ]);
+        }
+
+        // Build detailed check array for the modal UI
+        $row    = TempMail_UserDomains::admin_get( $id );
+        $checks = [];
+        if ( $row ) {
+            $cfg      = get_option('tmpmp_settings', []);
+            $mx_host  = ! empty($cfg['custom_domain_mx_host'])    ? $cfg['custom_domain_mx_host']    : 'mail.' . (parse_url(home_url(),PHP_URL_HOST)?:'example.com');
+            $spf_inc  = ! empty($cfg['custom_domain_spf_include']) ? $cfg['custom_domain_spf_include'] : (parse_url(home_url(),PHP_URL_HOST)?:'example.com');
+            $selector = $row->dkim_selector ?: 'tmpro';
+            $checks   = [
+                [ 'id'=>'txt',  'label'=>'TXT Ownership', 'host'=>$row->domain,                            'verified'=>(bool)$row->txt_verified  ],
+                [ 'id'=>'mx',   'label'=>'MX Record',     'host'=>$row->domain,                            'value'=>$mx_host,  'verified'=>(bool)$row->mx_verified   ],
+                [ 'id'=>'spf',  'label'=>'SPF Record',    'host'=>$row->domain,                            'value'=>"v=spf1 include:{$spf_inc} ~all", 'verified'=>(bool)$row->spf_verified  ],
+                [ 'id'=>'dkim', 'label'=>'DKIM Record',   'host'=>"{$selector}._domainkey.{$row->domain}", 'verified'=>(bool)$row->dkim_verified ],
+                [ 'id'=>'dmarc','label'=>'DMARC Record',  'host'=>"_dmarc.{$row->domain}",                 'verified'=>(bool)$row->dmarc_verified],
+            ];
+        }
+
+        wp_send_json_success( array_merge( $result, [ 'checks_detail' => $checks ] ) );
+    }
+
+    /** AJAX: Bulk action on selected user custom domains. */
+    public function ajax_admin_bulk_user_domains() : void {
+        check_ajax_referer( 'tempmail_pro_nonce', 'nonce' );
+        if ( ! current_user_can('manage_options') ) wp_send_json_error([], 403);
+
+        $bulk_action = sanitize_key( $_POST['bulk_action'] ?? '' );
+        $ids_raw     = $_POST['ids'] ?? [];
+        $ids         = array_map('intval', (array) $ids_raw);
+        $ids         = array_filter( $ids );
+
+        if ( empty($ids) ) wp_send_json_error([ 'message' => __('No domains selected.','tempmail-pro') ]);
+
+        $done = 0;
+        foreach ( $ids as $id ) {
+            switch ( $bulk_action ) {
+                case 'delete':
+                    if ( TempMail_UserDomains::admin_delete($id) ) $done++;
+                    break;
+                case 'suspend':
+                    if ( TempMail_UserDomains::suspend($id) )  $done++;
+                    break;
+                case 'unsuspend':
+                    if ( TempMail_UserDomains::unsuspend($id) ) $done++;
+                    break;
+                case 'verify':
+                    $r = TempMail_UserDomains::admin_verify($id);
+                    if ( ! is_wp_error($r) ) $done++;
+                    break;
+            }
+        }
+        wp_send_json_success([ 'done' => $done, 'message' => sprintf(__('%d domain(s) updated.','tempmail-pro'), $done) ]);
     }
 }

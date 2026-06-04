@@ -74,6 +74,13 @@ class TempMail_REST_API {
             'callback'            => [ $this, 'list_domains' ],
             'permission_callback' => '__return_true',
         ] );
+
+        // ── SSE stream — premium users: near-instant email notification ──
+        register_rest_route( $this->namespace, '/sse', [
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => [ $this, 'sse_stream' ],
+            'permission_callback' => '__return_true',
+        ] );
     }
 
     // ── Auth callbacks ────────────────────────────────────────────────────────
@@ -188,5 +195,102 @@ class TempMail_REST_API {
             'category' => $d->category,
         ], $domains);
         return new WP_REST_Response($out, 200);
+    }
+
+    // ── SSE stream — keeps connection alive, pushes when new email arrives ──────
+    public function sse_stream( WP_REST_Request $req ) : void {
+        global $wpdb;
+
+        // Validate nonce (passed as query param since EventSource can't set headers)
+        $nonce   = sanitize_text_field( $req->get_param('nonce') ?: '' );
+        $address = sanitize_email( $req->get_param('address') ?: '' );
+
+        if ( ! $nonce || ! wp_verify_nonce( $nonce, 'wp_rest' ) ) {
+            http_response_code( 403 );
+            header( 'Content-Type: text/event-stream' );
+            echo "data: {\"error\":\"invalid_nonce\"}\n\n";
+            flush(); exit;
+        }
+
+        if ( ! TempMail_Subscription::is_premium_user() ) {
+            http_response_code( 403 );
+            header( 'Content-Type: text/event-stream' );
+            echo "data: {\"error\":\"premium_required\"}\n\n";
+            flush(); exit;
+        }
+
+        if ( ! $address ) {
+            http_response_code( 400 );
+            header( 'Content-Type: text/event-stream' );
+            echo "data: {\"error\":\"address_required\"}\n\n";
+            flush(); exit;
+        }
+
+        // ── SSE headers ──
+        header( 'Content-Type: text/event-stream' );
+        header( 'Cache-Control: no-cache, no-store' );
+        header( 'X-Accel-Buffering: no' );    // disable Nginx buffering
+        header( 'Connection: keep-alive' );
+
+        @ini_set( 'output_buffering', 'off' );
+        @ini_set( 'zlib.output_compression', false );
+        @set_time_limit( 70 );                // 70s hard limit (stream runs 55s)
+        if ( ob_get_level() ) ob_end_clean();
+
+        // ── Resolve the address ID ──
+        $row = TempMail_Database::get_active_address( $address );
+        if ( ! $row ) {
+            echo "data: {\"error\":\"not_found\"}\n\n";
+            flush(); exit;
+        }
+        $address_id = (int) $row->id;
+
+        // Baseline email count — we only push when this increases
+        $last_count = (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails WHERE address_id = %d",
+            $address_id
+        ) );
+
+        // ── Send initial connected event ──
+        echo ": connected\n\n";
+        flush();
+
+        $start_time     = time();
+        $max_duration   = 55;   // seconds before telling client to reconnect
+        $check_interval = 2;    // seconds between DB checks
+        $ping_interval  = 20;   // seconds between keep-alive pings
+        $last_ping      = $start_time;
+
+        while ( time() - $start_time < $max_duration ) {
+
+            if ( connection_aborted() ) break;
+
+            // Check for new emails (fast indexed query)
+            $current_count = (int) $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails WHERE address_id = %d",
+                $address_id
+            ) );
+
+            if ( $current_count > $last_count ) {
+                $new = $current_count - $last_count;
+                $last_count = $current_count;
+                echo "data: " . wp_json_encode( [ 'new_emails' => $new ] ) . "\n\n";
+                flush();
+            }
+
+            // Keep-alive ping so proxies/load-balancers don't drop idle connections
+            if ( time() - $last_ping >= $ping_interval ) {
+                echo ": ping\n\n";
+                flush();
+                $last_ping = time();
+            }
+
+            sleep( $check_interval );
+        }
+
+        // Tell client to reconnect immediately (our 55s window is up)
+        echo "data: " . wp_json_encode( [ 'reconnect' => true ] ) . "\n\n";
+        flush();
+        exit;
     }
 }

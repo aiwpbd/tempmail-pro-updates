@@ -15,6 +15,7 @@
     <button type="button" class="tmpmp-tab-btn" data-tab="design">🎨 <?php esc_html_e('Design','tempmail-pro'); ?></button>
     <button type="button" class="tmpmp-tab-btn" data-tab="faq">❓ <?php esc_html_e('FAQ','tempmail-pro'); ?></button>
     <button type="button" class="tmpmp-tab-btn" data-tab="loginemail">✉️ <?php esc_html_e('Login Email','tempmail-pro'); ?></button>
+    <button type="button" class="tmpmp-tab-btn" data-tab="headermenu">🔗 <?php esc_html_e('Header Menu','tempmail-pro'); ?></button>
 </div>
 
 <!-- General Tab -->
@@ -32,6 +33,98 @@
             <p class="tmpmp-mail-hint"><?php esc_html_e('How often the inbox auto-refreshes. Min 5s, Max 120s.','tempmail-pro'); ?></p>
         </div>
     </div>
+
+</div><!-- /.tmpmp-mail-card Email Generation -->
+
+<!-- ⚡ Mail Polling Tiers -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">⚡ <?php esc_html_e('Mail Polling Tiers','tempmail-pro'); ?></p>
+    <p class="tmpmp-mail-hint" style="margin-bottom:16px;">
+        <?php esc_html_e('Control how often IMAP is checked and how fast emails reach each user tier.','tempmail-pro'); ?>
+    </p>
+
+    <!-- Free IMAP poll interval -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="free_poll_interval">
+            <?php esc_html_e('Free — IMAP Fetch Interval (sec)','tempmail-pro'); ?>
+        </label>
+        <div>
+            <input type="number" id="free_poll_interval" name="free_poll_interval"
+                class="tmpmp-mail-input" style="max-width:110px;"
+                value="<?php echo esc_attr($settings['free_poll_interval'] ?? 45); ?>"
+                min="10" max="300">
+            <p class="tmpmp-mail-hint">
+                <?php esc_html_e('How often the browser triggers a server-side IMAP fetch for free users. Default: 45s. Lower = faster delivery but more server load.','tempmail-pro'); ?>
+                <strong><?php esc_html_e('Expected delivery: free_poll_interval + refresh_interval seconds.','tempmail-pro'); ?></strong>
+            </p>
+        </div>
+    </div>
+
+    <!-- Premium IMAP poll interval -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="premium_poll_interval">
+            <?php esc_html_e('Premium — IMAP Fetch Interval (sec)','tempmail-pro'); ?>
+        </label>
+        <div>
+            <input type="number" id="premium_poll_interval" name="premium_poll_interval"
+                class="tmpmp-mail-input" style="max-width:110px;"
+                value="<?php echo esc_attr($settings['premium_poll_interval'] ?? 15); ?>"
+                min="5" max="120">
+            <p class="tmpmp-mail-hint">
+                <?php esc_html_e('How often IMAP is fetched for premium users. Default: 15s. With SSE enabled below, emails appear within ~2s after IMAP fetch.','tempmail-pro'); ?>
+                <strong><?php esc_html_e('Expected delivery: ≈ premium_poll_interval + 2s.','tempmail-pro'); ?></strong>
+            </p>
+        </div>
+    </div>
+
+    <!-- SSE Live Push toggle -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Premium — SSE Live Push','tempmail-pro'); ?></label>
+        <div style="padding-top:6px;">
+            <label class="tmpmp-toggle-label">
+                <input type="hidden" name="sse_enabled" value="0">
+                <input type="checkbox" name="sse_enabled" value="1" <?php checked($settings['sse_enabled'] ?? 1); ?>>
+                <span class="tmpmp-toggle-slider"></span>
+            </label>
+            <span style="margin-left:10px;font-size:13px;color:#475569;vertical-align:middle;">
+                <?php esc_html_e('Enable Server-Sent Events for premium users (near-instant push, ~2s reaction time). Disable only if your server has very low PHP worker limits.','tempmail-pro'); ?>
+            </span>
+        </div>
+        <p class="tmpmp-mail-hint" style="margin-top:8px;">
+            💡 <?php esc_html_e('When enabled, premium users see a pulsing ● Live badge in their inbox toolbar. When disabled, they fall back to the IMAP Fetch Interval above.','tempmail-pro'); ?>
+        </p>
+    </div>
+
+    <!-- Status summary box -->
+    <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.18);border-radius:10px;padding:14px 18px;margin-top:8px;font-size:13px;line-height:1.7;">
+        <strong>📊 <?php esc_html_e('Current Delivery Times','tempmail-pro'); ?></strong><br>
+        <?php
+        $fi = intval($settings['free_poll_interval']    ?? 45);
+        $pi = intval($settings['premium_poll_interval'] ?? 15);
+        $ri = intval($settings['refresh_interval']      ?? 10);
+        printf(
+            esc_html__('🟡 Free users: email arrives in ~%d – %d seconds (IMAP every %ds + DB refresh every %ds)', 'tempmail-pro'),
+            $fi, $fi + $ri, $fi, $ri
+        );
+        echo '<br>';
+        if ( ! empty($settings['sse_enabled']) ) {
+            printf(
+                esc_html__('🟢 Premium users: email arrives in ~%d – %d seconds (IMAP every %ds + SSE push within 2s)', 'tempmail-pro'),
+                $pi, $pi + 2, $pi
+            );
+        } else {
+            printf(
+                esc_html__('🔵 Premium users: email arrives in ~%d – %d seconds (IMAP every %ds + DB refresh every %ds, SSE disabled)', 'tempmail-pro'),
+                $pi, $pi + $ri, $pi, $ri
+            );
+        }
+        ?>
+    </div>
+</div><!-- /.tmpmp-mail-card Mail Polling -->
+
+<!-- Email Generation (continued) -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">⚙️ <?php esc_html_e('Email Generation (continued)','tempmail-pro'); ?></p>
 
     <div class="tmpmp-mail-field">
         <label class="tmpmp-mail-label"><?php esc_html_e('Spam Filter','tempmail-pro'); ?></label>
@@ -139,6 +232,64 @@
             <p class="tmpmp-mail-hint"><?php esc_html_e('When disabled (default), the Sign In / Register button is hidden from the account bar for guest users. The button in the header nav menu is not affected.','tempmail-pro'); ?></p>
         </div>
     </div>
+
+    <!-- Allow Account Deletion -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="allow_account_deletion"><?php esc_html_e('Allow Account Deletion','tempmail-pro'); ?></label>
+        <div>
+            <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="hidden"   name="allow_account_deletion" value="0">
+                <input type="checkbox" name="allow_account_deletion" id="allow_account_deletion" value="1"
+                    style="width:16px;height:16px;accent-color:#ef4444;cursor:pointer;"
+                    <?php checked( $settings['allow_account_deletion'] ?? 1, 1 ); ?>>
+                <span style="font-size:13.5px;font-weight:600;color:#1e293b;"><?php esc_html_e('Allow registered users to permanently delete their own account','tempmail-pro'); ?></span>
+            </label>
+            <p class="tmpmp-mail-hint"><?php esc_html_e('When enabled, a "Delete My Account" button appears in the user\'s Account tab. Users must type their email address to confirm. All their data (addresses, emails, subscriptions, API keys) will be permanently removed.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+</div>
+
+
+<!-- 🌐 Custom Domains Configuration -->
+<div class="tmpmp-mail-card">
+<p class="tmpmp-mail-section-title">🌐 <?php esc_html_e('Custom Domains (DNS Wizard)','tempmail-pro'); ?></p>
+<p style="font-size:13px;color:#64748b;margin:0 0 16px;">
+<?php esc_html_e('Configure server details shown to users in the DNS Verification Wizard when they add a custom domain.','tempmail-pro'); ?>
+</p>
+
+<!-- MX Hostname -->
+<div class="tmpmp-mail-field">
+    <label class="tmpmp-mail-label" for="custom_domain_mx_host"><?php esc_html_e('Mail Server Hostname (MX)','tempmail-pro'); ?></label>
+    <div>
+        <input type="text" id="custom_domain_mx_host" name="custom_domain_mx_host" class="tmpmp-mail-input"
+            value="<?php echo esc_attr( $settings['custom_domain_mx_host'] ?? '' ); ?>"
+            placeholder="mail.yourdomain.com" style="max-width:360px;">
+        <p class="tmpmp-mail-hint"><?php esc_html_e('The MX record value shown to users. This should be your mail server hostname (e.g. mail.yourdomain.com with priority 10).','tempmail-pro'); ?></p>
+    </div>
+</div>
+
+<!-- SPF Include -->
+<div class="tmpmp-mail-field">
+    <label class="tmpmp-mail-label" for="custom_domain_spf_include"><?php esc_html_e('SPF Include Domain','tempmail-pro'); ?></label>
+    <div>
+        <input type="text" id="custom_domain_spf_include" name="custom_domain_spf_include" class="tmpmp-mail-input"
+            value="<?php echo esc_attr( $settings['custom_domain_spf_include'] ?? '' ); ?>"
+            placeholder="yourdomain.com" style="max-width:360px;">
+        <p class="tmpmp-mail-hint"><?php esc_html_e('Used in SPF record: v=spf1 include:{this_value} ~all. Usually your main sending domain.','tempmail-pro'); ?></p>
+    </div>
+</div>
+
+<!-- Max domains per user -->
+<div class="tmpmp-mail-field">
+    <label class="tmpmp-mail-label" for="custom_domain_max_per_user"><?php esc_html_e('Max Custom Domains Per User','tempmail-pro'); ?></label>
+    <div>
+        <input type="number" id="custom_domain_max_per_user" name="custom_domain_max_per_user" class="tmpmp-mail-input"
+            value="<?php echo (int)( $settings['custom_domain_max_per_user'] ?? 3 ); ?>"
+            min="1" max="50" style="max-width:120px;">
+        <p class="tmpmp-mail-hint"><?php esc_html_e('Maximum number of custom domains a single user can register. Default: 3.','tempmail-pro'); ?></p>
+    </div>
+</div>
 
 </div>
 
@@ -1408,7 +1559,7 @@ $eg_noun_list  = $settings['eg_noun_list']   ?? '';
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <div class="tmpmp-tab-panel" id="tab-design">
 <?php
-$d_theme    = $settings['design_theme']     ?? 'dark';
+$d_theme    = $settings['design_theme']     ?? 'auto';
 $d_accent   = $settings['design_accent']    ?? '#6366f1';
 $d_radius   = $settings['design_radius']    ?? '14';
 $d_font     = $settings['design_font']      ?? 'Inter';
@@ -1725,7 +1876,7 @@ if ( empty($faq_items) ) $faq_items = TempMail_FAQ::default_items();
                 div.innerHTML = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">'
                     +'<span class="tmpmp-faq-drag" style="cursor:grab;color:#94a3b8;font-size:18px;">⠿</span>'
                     +'<span style="font-size:12px;font-weight:700;color:#6366f1;background:#ede9fe;padding:2px 8px;border-radius:4px;">Q'+(idx+1)+'</span>'
-                    +'<button type="button" class="tmpmp-faq-remove button-link" style="margin-left:auto;color:#ef4444;font-size:12px;font-weight:600;">✕ <?php esc_js( esc_html__('Remove','tempmail-pro') ); ?></button>'
+                    +'<button type="button" class="tmpmp-faq-remove button-link" style="margin-left:auto;color:#ef4444;font-size:12px;font-weight:600;">✕ <?php echo esc_js( esc_html__('Remove','tempmail-pro') ); ?></button>'
                     +'</div>'
                     +'<input type="text" class="tmpmp-faq-q-input tmpmp-input" placeholder="<?php echo esc_js( esc_attr__('Question…','tempmail-pro') ); ?>" value="'+q.replace(/"/g,'&quot;')+'" style="width:100%;margin-bottom:8px;">'
                     +'<textarea class="tmpmp-faq-a-input tmpmp-input" rows="3" placeholder="<?php echo esc_js( esc_attr__('Answer — supports basic HTML…','tempmail-pro') ); ?>" style="width:100%;resize:vertical;">'+a+'</textarea>';
@@ -2055,6 +2206,531 @@ $site_name       = get_bloginfo('name');
 
 </div><!-- /#tab-loginemail -->
 
+
+<!-- ══════════════════════════════════════════════════════════════
+     Header Menu (menu-temp) Tab
+══════════════════════════════════════════════════════════════ -->
+<div class="tmpmp-tab-panel" id="tab-headermenu">
+<?php
+$hm = get_option('tmpmp_settings', []);
+$nav_enabled         = intval( $hm['nav_enabled']          ?? 1 );
+$nav_target          = $hm['nav_target']                   ?? 'all';
+$nav_target_locs     = $hm['nav_target_locations']         ?? '';
+$nav_logo_text       = $hm['nav_logo_text']                ?? get_bloginfo('name');
+$nav_logo_url        = $hm['nav_logo_url']                 ?? home_url('/');
+$nav_logo_icon       = $hm['nav_logo_icon']                ?? '✉';
+$nav_show_home       = intval( $hm['nav_show_home']        ?? 0 );
+$nav_home_label      = $hm['nav_home_label']               ?? __('Home','tempmail-pro');
+$nav_home_url        = $hm['nav_home_url']                 ?? home_url('/');
+$nav_acct_btn_label  = $hm['nav_account_btn_label']        ?? __('Sign In / Register','tempmail-pro');
+$nav_show_acct_btn   = intval( $hm['nav_show_account_btn'] ?? 1 );
+$nav_show_acct_drop  = intval( $hm['nav_show_account_drop']?? 1 );
+$nav_dash_label      = $hm['nav_dashboard_label']          ?? __('My Dashboard','tempmail-pro');
+$nav_link_style      = $hm['nav_link_style']               ?? 'pill';
+$nav_btn_style       = $hm['nav_btn_style']                ?? 'gradient';
+// Spacing & Sizing
+$nav_item_gap        = intval( $hm['nav_item_gap']         ?? 10 );
+$nav_link_px         = intval( $hm['nav_link_px']          ?? 14 );
+$nav_link_py         = intval( $hm['nav_link_py']          ?? 6  );
+$nav_link_radius     = intval( $hm['nav_link_radius']      ?? 8  );
+$nav_font_size       = intval( $hm['nav_font_size']        ?? 13 );
+$nav_margin_top      = intval( $hm['nav_margin_top']       ?? 0  );
+$nav_margin_bottom   = intval( $hm['nav_margin_bottom']    ?? 0  );
+$nav_bar_min_height  = intval( $hm['nav_bar_min_height']   ?? 0  );
+?>
+
+<!-- ── Section: General ───────────────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">⚙️ <?php esc_html_e('General','tempmail-pro'); ?></p>
+
+    <!-- Enable / Disable -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Enable Nav Injection','tempmail-pro'); ?></label>
+        <div>
+            <label style="display:inline-flex;align-items:center;gap:10px;cursor:pointer;">
+                <input type="hidden"   name="nav_enabled" value="0">
+                <input type="checkbox" name="nav_enabled" value="1" id="nav_enabled" <?php checked($nav_enabled,1); ?> style="width:18px;height:18px;accent-color:#6366f1;">
+                <span style="font-size:13px;color:#334155;"><?php esc_html_e('Automatically inject TempMail items into WordPress nav menus','tempmail-pro'); ?></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Target locations -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Inject Into','tempmail-pro'); ?></label>
+        <div>
+            <label style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
+                <input type="radio" name="nav_target" value="all" <?php checked($nav_target,'all'); ?> style="accent-color:#6366f1;">
+                <span style="font-size:13px;color:#334155;"><?php esc_html_e('All registered nav menus','tempmail-pro'); ?></span>
+            </label><br>
+            <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;">
+                <input type="radio" name="nav_target" value="specific" <?php checked($nav_target,'specific'); ?> style="accent-color:#6366f1;">
+                <span style="font-size:13px;color:#334155;"><?php esc_html_e('Specific theme locations only (comma-separated slugs below)','tempmail-pro'); ?></span>
+            </label>
+            <div style="margin-top:8px;">
+                <input type="text" name="nav_target_locations" id="nav_target_locations" class="tmpmp-mail-input"
+                    value="<?php echo esc_attr($nav_target_locs); ?>"
+                    placeholder="primary, header-menu, menu-temp"
+                    style="max-width:380px;">
+                <p class="tmpmp-mail-help"><?php esc_html_e('Enter the exact theme_location slugs where you want TempMail items to appear. Leave empty to use "All".','tempmail-pro'); ?></p>
+            </div>
+            <?php
+            // Show registered nav menu locations from the active theme
+            $locations = get_registered_nav_menus();
+            if ( $locations ) :
+            ?>
+            <div style="margin-top:10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;">
+                <p style="font-size:11px;font-weight:700;color:#6366f1;text-transform:uppercase;letter-spacing:.5px;margin:0 0 6px;"><?php esc_html_e('Available Theme Locations','tempmail-pro'); ?></p>
+                <?php foreach($locations as $slug => $name): ?>
+                <code style="display:inline-block;background:#ede9fe;color:#4f46e5;padding:2px 8px;border-radius:5px;font-size:11px;margin:2px 3px;cursor:pointer;"
+                      onclick="(function(el){var inp=document.getElementById('nav_target_locations');inp.value=(inp.value?inp.value+', ':'')+el.textContent;})(this)"
+                      title="<?php echo esc_attr($name); ?>"><?php echo esc_html($slug); ?></code>
+                <?php endforeach; ?>
+                <p style="font-size:11px;color:#94a3b8;margin:6px 0 0;"><?php esc_html_e('Click a slug to append it to the field above.','tempmail-pro'); ?></p>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div><!-- /.General -->
+
+<!-- ── Section: Logo / Brand ─────────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">🏷️ <?php esc_html_e('Logo / Brand','tempmail-pro'); ?></p>
+    <p style="font-size:13px;color:#64748b;margin:0 0 16px;"><?php esc_html_e('Optional logo injected as the first item in the nav. Leave blank to hide it.','tempmail-pro'); ?></p>
+
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="nav_logo_icon"><?php esc_html_e('Logo Icon / Emoji','tempmail-pro'); ?></label>
+        <div>
+            <input type="text" id="nav_logo_icon" name="nav_logo_icon" class="tmpmp-mail-input"
+                value="<?php echo esc_attr($nav_logo_icon); ?>"
+                placeholder="✉" style="max-width:90px;">
+            <p class="tmpmp-mail-help"><?php esc_html_e('A single emoji or leave empty for no icon.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="nav_logo_text"><?php esc_html_e('Logo Text','tempmail-pro'); ?></label>
+        <div>
+            <input type="text" id="nav_logo_text" name="nav_logo_text" class="tmpmp-mail-input"
+                value="<?php echo esc_attr($nav_logo_text); ?>"
+                placeholder="<?php echo esc_attr(get_bloginfo('name')); ?>"
+                style="max-width:260px;">
+            <p class="tmpmp-mail-help"><?php esc_html_e('Brand name shown next to the icon. Leave empty to hide logo entirely.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="nav_logo_url"><?php esc_html_e('Logo Link URL','tempmail-pro'); ?></label>
+        <div>
+            <input type="url" id="nav_logo_url" name="nav_logo_url" class="tmpmp-mail-input"
+                value="<?php echo esc_url($nav_logo_url); ?>"
+                placeholder="<?php echo esc_attr(home_url('/')); ?>"
+                style="max-width:380px;">
+        </div>
+    </div>
+</div><!-- /.Logo -->
+
+<!-- ── Section: Navigation Links ─────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">🔗 <?php esc_html_e('Navigation Links','tempmail-pro'); ?></p>
+
+    <!-- Home Link -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Home Link','tempmail-pro'); ?></label>
+        <div>
+            <label style="display:inline-flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;">
+                <input type="hidden"   name="nav_show_home" value="0">
+                <input type="checkbox" name="nav_show_home" value="1" id="nav_show_home" <?php checked($nav_show_home,1); ?> style="width:16px;height:16px;accent-color:#6366f1;">
+                <span style="font-size:13px;color:#334155;"><?php esc_html_e('Show "Home" link in nav','tempmail-pro'); ?></span>
+            </label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:500px;">
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;"><?php esc_html_e('Label','tempmail-pro'); ?></label>
+                    <input type="text" name="nav_home_label" class="tmpmp-mail-input"
+                        value="<?php echo esc_attr($nav_home_label); ?>" placeholder="Home">
+                </div>
+                <div>
+                    <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;"><?php esc_html_e('URL','tempmail-pro'); ?></label>
+                    <input type="url" name="nav_home_url" class="tmpmp-mail-input"
+                        value="<?php echo esc_url($nav_home_url); ?>" placeholder="<?php echo esc_attr(home_url('/')); ?>">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pricing Link (existing fields, just shown here too) -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Pricing Link','tempmail-pro'); ?></label>
+        <div>
+            <p class="tmpmp-mail-help" style="margin-bottom:8px;"><?php esc_html_e('Configured in the General tab → Header Nav Links section. Leave Pricing Page URL empty there to hide it.','tempmail-pro'); ?></p>
+            <a href="#" onclick="document.querySelector('[data-tab=general]').click();setTimeout(function(){document.getElementById('nav_pricing_url').scrollIntoView({behavior:'smooth',block:'center'});},300);return false;"
+               style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#6366f1;font-weight:600;text-decoration:none;">
+               ↗ <?php esc_html_e('Jump to Pricing Link settings','tempmail-pro'); ?>
+            </a>
+        </div>
+    </div>
+
+    <!-- Custom Links (existing fields, shown here too) -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Custom Links','tempmail-pro'); ?></label>
+        <div>
+            <p class="tmpmp-mail-help" style="margin-bottom:8px;"><?php esc_html_e('Custom nav links are managed in the General tab → Header Nav Links section.','tempmail-pro'); ?></p>
+            <a href="#" onclick="document.querySelector('[data-tab=general]').click();setTimeout(function(){document.getElementById('tmpmp-nav-links-wrap').scrollIntoView({behavior:'smooth',block:'center'});},300);return false;"
+               style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#6366f1;font-weight:600;text-decoration:none;">
+               ↗ <?php esc_html_e('Jump to Custom Links settings','tempmail-pro'); ?>
+            </a>
+        </div>
+    </div>
+</div><!-- /.Navigation Links -->
+
+<!-- ── Section: Account Controls ─────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">👤 <?php esc_html_e('Account Controls','tempmail-pro'); ?></p>
+
+    <!-- Guest: Sign In button -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Guest — Sign In Button','tempmail-pro'); ?></label>
+        <div>
+            <label style="display:inline-flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;">
+                <input type="hidden"   name="nav_show_account_btn" value="0">
+                <input type="checkbox" name="nav_show_account_btn" value="1" id="nav_show_account_btn" <?php checked($nav_show_acct_btn,1); ?> style="width:16px;height:16px;accent-color:#6366f1;">
+                <span style="font-size:13px;color:#334155;"><?php esc_html_e('Show "Sign In / Register" button for logged-out visitors','tempmail-pro'); ?></span>
+            </label>
+            <div>
+                <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;"><?php esc_html_e('Button Label','tempmail-pro'); ?></label>
+                <input type="text" name="nav_account_btn_label" class="tmpmp-mail-input"
+                    value="<?php echo esc_attr($nav_acct_btn_label); ?>"
+                    placeholder="Sign In / Register"
+                    style="max-width:280px;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Logged-in: Account Dropdown -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Logged-in — Account Dropdown','tempmail-pro'); ?></label>
+        <div>
+            <label style="display:inline-flex;align-items:center;gap:10px;margin-bottom:10px;cursor:pointer;">
+                <input type="hidden"   name="nav_show_account_drop" value="0">
+                <input type="checkbox" name="nav_show_account_drop" value="1" id="nav_show_account_drop" <?php checked($nav_show_acct_drop,1); ?> style="width:16px;height:16px;accent-color:#6366f1;">
+                <span style="font-size:13px;color:#334155;"><?php esc_html_e('Show avatar + dropdown menu for logged-in users','tempmail-pro'); ?></span>
+            </label>
+            <div>
+                <label style="font-size:12px;font-weight:600;color:#64748b;display:block;margin-bottom:4px;"><?php esc_html_e('"My Dashboard" Link Label','tempmail-pro'); ?></label>
+                <input type="text" name="nav_dashboard_label" class="tmpmp-mail-input"
+                    value="<?php echo esc_attr($nav_dash_label); ?>"
+                    placeholder="My Dashboard"
+                    style="max-width:280px;">
+            </div>
+        </div>
+    </div>
+</div><!-- /.Account Controls -->
+
+<!-- ── Section: Appearance ────────────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">🎨 <?php esc_html_e('Appearance','tempmail-pro'); ?></p>
+
+    <!-- Link Style -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Nav Link Style','tempmail-pro'); ?></label>
+        <div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                <?php foreach(['pill'=>'Pill (bordered)','flat'=>'Flat (no border)','minimal'=>'Minimal (underline)'] as $val=>$label): ?>
+                <label style="display:flex;align-items:center;gap:7px;padding:8px 14px;border:2px solid <?php echo $nav_link_style===$val?'#6366f1':'#e2e8f0'; ?>;border-radius:9px;cursor:pointer;background:<?php echo $nav_link_style===$val?'#ede9fe':'#fff'; ?>;transition:all .15s;"
+                       id="nav-link-style-lbl-<?php echo esc_attr($val); ?>">
+                    <input type="radio" name="nav_link_style" value="<?php echo esc_attr($val); ?>" <?php checked($nav_link_style,$val); ?>
+                           style="accent-color:#6366f1;"
+                           onchange="document.querySelectorAll('[id^=nav-link-style-lbl-]').forEach(function(el){el.style.borderColor='#e2e8f0';el.style.background='#fff';});this.closest('label').style.borderColor='#6366f1';this.closest('label').style.background='#ede9fe';">
+                    <span style="font-size:13px;font-weight:600;color:#334155;"><?php echo esc_html($label); ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <p class="tmpmp-mail-help"><?php esc_html_e('Controls how Pricing and custom nav links are displayed in the WordPress header.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
+    <!-- Button Style -->
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label"><?php esc_html_e('Sign-In Button Style','tempmail-pro'); ?></label>
+        <div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                <?php foreach(['gradient'=>'Gradient','solid'=>'Solid','outline'=>'Outline'] as $val=>$label): ?>
+                <label style="display:flex;align-items:center;gap:7px;padding:8px 14px;border:2px solid <?php echo $nav_btn_style===$val?'#6366f1':'#e2e8f0'; ?>;border-radius:9px;cursor:pointer;background:<?php echo $nav_btn_style===$val?'#ede9fe':'#fff'; ?>;transition:all .15s;"
+                       id="nav-btn-style-lbl-<?php echo esc_attr($val); ?>">
+                    <input type="radio" name="nav_btn_style" value="<?php echo esc_attr($val); ?>" <?php checked($nav_btn_style,$val); ?>
+                           style="accent-color:#6366f1;"
+                           onchange="document.querySelectorAll('[id^=nav-btn-style-lbl-]').forEach(function(el){el.style.borderColor='#e2e8f0';el.style.background='#fff';});this.closest('label').style.borderColor='#6366f1';this.closest('label').style.background='#ede9fe';">
+                    <span style="font-size:13px;font-weight:600;color:#334155;"><?php echo esc_html($label); ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <p class="tmpmp-mail-help"><?php esc_html_e('Style of the "Sign In / Register" button shown in the nav for guest visitors.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+</div><!-- /.Appearance -->
+
+<!-- ── Section: Spacing & Sizing ────────────────────────────── -->
+<div class="tmpmp-mail-card">
+    <p class="tmpmp-mail-section-title">📐 <?php esc_html_e('Spacing & Sizing','tempmail-pro'); ?></p>
+    <p style="font-size:13px;color:#64748b;margin:0 0 16px;"><?php esc_html_e('Fine-tune the dimensions of the injected nav items. All values are in pixels. The live preview below updates instantly.','tempmail-pro'); ?></p>
+
+    <?php
+    // Helper: slider row — oninput calls tmpmpNavRender() directly for reliable live preview
+    function tmpmp_slider_row($field, $label, $min, $max, $step, $value, $unit='px', $help=''){
+        $id = 'nav_' . $field;
+    ?>
+    <div class="tmpmp-mail-field">
+        <label class="tmpmp-mail-label" for="<?php echo esc_attr($id); ?>"><?php echo esc_html($label); ?></label>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <input type="range"
+                id="<?php echo esc_attr($id); ?>"
+                name="<?php echo esc_attr($id); ?>"
+                min="<?php echo esc_attr($min); ?>"
+                max="<?php echo esc_attr($max); ?>"
+                step="<?php echo esc_attr($step); ?>"
+                value="<?php echo esc_attr($value); ?>"
+                style="width:220px;accent-color:#6366f1;cursor:pointer;"
+                oninput="document.getElementById('<?php echo esc_attr($id); ?>_num').value=this.value;if(window.tmpmpNavRender)window.tmpmpNavRender();">
+            <div style="display:flex;align-items:center;gap:5px;">
+                <input type="number"
+                    id="<?php echo esc_attr($id); ?>_num"
+                    min="<?php echo esc_attr($min); ?>"
+                    max="<?php echo esc_attr($max); ?>"
+                    step="<?php echo esc_attr($step); ?>"
+                    value="<?php echo esc_attr($value); ?>"
+                    style="width:64px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:7px;font-size:13px;font-family:inherit;text-align:center;"
+                    oninput="var r=document.getElementById('<?php echo esc_attr($id); ?>');if(r){r.value=this.value;}if(window.tmpmpNavRender)window.tmpmpNavRender();">
+                <span style="font-size:12px;font-weight:600;color:#94a3b8;"><?php echo esc_html($unit); ?></span>
+            </div>
+            <?php if($help): ?>
+            <p class="tmpmp-mail-help" style="flex-basis:100%;margin-top:4px;"><?php echo esc_html($help); ?></p>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php } /* end helper */ ?>
+
+    <?php tmpmp_slider_row('item_gap',       __('Item Gap','tempmail-pro'),         0, 40, 1, $nav_item_gap,      'px', __('Horizontal space between each nav item.','tempmail-pro')); ?>
+    <?php tmpmp_slider_row('link_px',        __('Link Padding — H','tempmail-pro'), 0, 40, 1, $nav_link_px,       'px', __('Left & right padding inside link pills and buttons.','tempmail-pro')); ?>
+    <?php tmpmp_slider_row('link_py',        __('Link Padding — V','tempmail-pro'), 0, 24, 1, $nav_link_py,       'px', __('Top & bottom padding inside link pills and buttons.','tempmail-pro')); ?>
+    <?php tmpmp_slider_row('link_radius',    __('Border Radius','tempmail-pro'),    0, 32, 1, $nav_link_radius,   'px', __('Corner roundness of link pills.','tempmail-pro')); ?>
+    <?php tmpmp_slider_row('font_size',      __('Font Size','tempmail-pro'),        10, 22, 1, $nav_font_size,    'px', __('Text size for nav links and the sign-in button.','tempmail-pro')); ?>
+    <?php tmpmp_slider_row('margin_top',     __('Margin Top','tempmail-pro'),       0, 40, 1, $nav_margin_top,    'px', __('Extra space above each injected nav item.','tempmail-pro')); ?>
+    <?php tmpmp_slider_row('margin_bottom',  __('Margin Bottom','tempmail-pro'),    0, 40, 1, $nav_margin_bottom, 'px', __('Extra space below each injected nav item.','tempmail-pro')); ?>
+    <?php tmpmp_slider_row('bar_min_height', __('Item Min-Height','tempmail-pro'),  0, 80, 1, $nav_bar_min_height,'px', __('Minimum height for each injected nav item. 0 = auto.','tempmail-pro')); ?>
+
+    <!-- Strip 'name' from number inputs so only the range value posts -->
+    <script>
+    document.querySelectorAll('#tab-headermenu input[type=range]').forEach(function(s){
+        var n = document.getElementById(s.id+'_num'); if(n) n.removeAttribute('name');
+    });
+    </script>
+</div><!-- /.Spacing -->
+
+<!-- ── Live Preview ───────────────────────────────────────────── -->
+<div class="tmpmp-mail-card" style="background:linear-gradient(135deg,#0f172a 0%,#1e1b4b 100%);border-color:rgba(99,102,241,.3);">
+    <p class="tmpmp-mail-section-title" style="color:#818cf8;">👁 <?php esc_html_e('Live Preview','tempmail-pro'); ?></p>
+    <p style="font-size:12px;color:rgba(255,255,255,.5);margin:0 0 14px;"><?php esc_html_e('Updates instantly as you change settings above.','tempmail-pro'); ?></p>
+
+    <!-- Preview bar -->
+    <div id="tmpmp-nav-preview-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(255,255,255,.05);border:1px solid rgba(99,102,241,.2);border-radius:12px;padding:14px 20px;min-height:56px;">
+
+        <!-- Logo -->
+        <a id="prev-logo" href="#" style="display:none;align-items:center;gap:7px;font-size:15px;font-weight:800;color:#fff;text-decoration:none;margin-right:6px;">
+            <span id="prev-logo-icon"></span>
+            <span id="prev-logo-text"></span>
+        </a>
+
+        <!-- Home link -->
+        <a id="prev-home" href="#" style="display:none;align-items:center;padding:5px 12px;border-radius:7px;font-size:13px;font-weight:600;color:#a5b4fc;text-decoration:none;border:1px solid rgba(99,102,241,.3);">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:5px;"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span id="prev-home-label"><?php echo esc_html($nav_home_label); ?></span>
+        </a>
+
+        <!-- Pricing link -->
+        <a id="prev-pricing" href="#" style="display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:700;color:#6366f1;text-decoration:none;border:1.5px solid rgba(99,102,241,.4);background:transparent;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            <span id="prev-pricing-label"><?php echo esc_html(($hm['nav_pricing_label'] ?? '') ?: 'Pricing'); ?></span>
+        </a>
+
+        <!-- Sign-in button (guest) -->
+        <a id="prev-signin-btn" href="#" style="display:inline-flex;align-items:center;gap:7px;padding:7px 16px;border-radius:9px;font-size:13px;font-weight:700;text-decoration:none;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;white-space:nowrap;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+            <span id="prev-signin-label"><?php echo esc_html($nav_acct_btn_label); ?></span>
+        </a>
+
+        <!-- Account dropdown (logged-in) -->
+        <div id="prev-account-drop" style="display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 5px;border-radius:99px;background:rgba(99,102,241,.2);border:1.5px solid rgba(99,102,241,.4);">
+            <div style="width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;">A</div>
+            <span style="font-size:13px;font-weight:700;color:#818cf8;"><?php echo esc_html(wp_get_current_user()->display_name ?: 'Admin'); ?></span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </div>
+
+    </div><!-- /#tmpmp-nav-preview-bar -->
+</div><!-- /.Preview -->
+
+<script>
+(function(){
+    /* ── field refs ─────────────────────────────────────────────── */
+    var fLogoIcon   = document.getElementById('nav_logo_icon');
+    var fLogoText   = document.getElementById('nav_logo_text');
+    var fShowHome   = document.getElementById('nav_show_home');
+    var fHomeLabel  = document.querySelector('[name="nav_home_label"]');
+    var fShowBtn    = document.getElementById('nav_show_account_btn');
+    var fBtnLabel   = document.querySelector('[name="nav_account_btn_label"]');
+    var fShowDrop   = document.getElementById('nav_show_account_drop');
+
+    /* ── preview element refs ────────────────────────────────────── */
+    var pBar        = document.getElementById('tmpmp-nav-preview-bar');
+    var pLogo       = document.getElementById('prev-logo');
+    var pLogoIcon   = document.getElementById('prev-logo-icon');
+    var pLogoText   = document.getElementById('prev-logo-text');
+    var pHome       = document.getElementById('prev-home');
+    var pHomeLabel  = document.getElementById('prev-home-label');
+    var pPricing    = document.getElementById('prev-pricing');
+    var pPricingLbl = document.getElementById('prev-pricing-label');
+    var pSignin     = document.getElementById('prev-signin-btn');
+    var pSigninLbl  = document.getElementById('prev-signin-label');
+    var pDrop       = document.getElementById('prev-account-drop');
+
+    /* ── helpers ───────────────────────────────────────────────────── */
+    function show(el, vis){ if(el) el.style.display = vis ? 'inline-flex' : 'none'; }
+
+    function sliderVal(id, def){
+        var el = document.getElementById(id);
+        return el ? parseInt(el.value, 10) || 0 : def;
+    }
+
+    function selectedLinkStyle(){
+        var r = document.querySelector('[name="nav_link_style"]:checked');
+        return r ? r.value : 'pill';
+    }
+    function selectedBtnStyle(){
+        var r = document.querySelector('[name="nav_btn_style"]:checked');
+        return r ? r.value : 'gradient';
+    }
+    function selectedPricingLabel(){
+        var el = document.getElementById('nav_pricing_label');
+        return el && el.value.trim() ? el.value.trim() : 'Pricing';
+    }
+
+    /* ── build dynamic CSS string for a link ───────────────────────────── */
+    function linkCss(style, px, py, radius, fs){
+        var base = 'display:inline-flex;align-items:center;gap:5px;font-weight:700;text-decoration:none;transition:all .2s;'
+                 + 'padding:'+py+'px '+px+'px;'
+                 + 'border-radius:'+radius+'px;'
+                 + 'font-size:'+fs+'px;';
+        if(style === 'pill')    return base + 'color:#6366f1;border:1.5px solid rgba(99,102,241,.4);background:transparent;';
+        if(style === 'flat')    return base + 'color:#a5b4fc;';
+        if(style === 'minimal') return base + 'color:#a5b4fc;border-bottom:2px solid rgba(99,102,241,.5);border-radius:0;padding-left:2px;padding-right:2px;';
+        return base;
+    }
+
+    function btnCss(style, px, py, radius, fs){
+        var base = 'display:inline-flex;align-items:center;gap:7px;font-weight:700;text-decoration:none;white-space:nowrap;transition:all .2s;'
+                 + 'padding:'+py+'px '+px+'px;'
+                 + 'border-radius:'+radius+'px;'
+                 + 'font-size:'+fs+'px;';
+        if(style === 'gradient') return base + 'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;';
+        if(style === 'solid')    return base + 'background:#6366f1;color:#fff;';
+        if(style === 'outline')  return base + 'background:transparent;color:#818cf8;border:2px solid #6366f1;';
+        return base;
+    }
+
+    /* ── main render ────────────────────────────────────────────────── */
+    function render(){
+        /* ── read spacing sliders ── */
+        var gap       = sliderVal('nav_item_gap',       10);
+        var px        = sliderVal('nav_link_px',        14);
+        var py        = sliderVal('nav_link_py',        6);
+        var radius    = sliderVal('nav_link_radius',    8);
+        var fs        = sliderVal('nav_font_size',      13);
+        var mTop      = sliderVal('nav_margin_top',     0);
+        var mBot      = sliderVal('nav_margin_bottom',  0);
+        var minH      = sliderVal('nav_bar_min_height', 0);
+
+        /* ── apply spacing to preview bar ── */
+        if(pBar){
+            pBar.style.gap       = gap + 'px';
+            pBar.style.minHeight = minH > 0 ? minH + 'px' : '';
+        }
+
+        var lStyle = selectedLinkStyle();
+        var bStyle = selectedBtnStyle();
+
+        /* ── Logo ── */
+        var icon = fLogoIcon ? fLogoIcon.value.trim() : '';
+        var text = fLogoText ? fLogoText.value.trim() : '';
+        if(pLogoIcon) pLogoIcon.textContent = icon;
+        if(pLogoText) pLogoText.textContent  = text;
+        show(pLogo, icon || text);
+        if(pLogo) { pLogo.style.fontSize = (fs + 2) + 'px'; pLogo.style.marginTop = mTop + 'px'; pLogo.style.marginBottom = mBot + 'px'; }
+
+        /* ── Home link ── */
+        var showHome = fShowHome ? fShowHome.checked : false;
+        show(pHome, showHome);
+        if(pHomeLabel && fHomeLabel) pHomeLabel.textContent = fHomeLabel.value.trim() || 'Home';
+        if(pHome){
+            pHome.setAttribute('style', linkCss(lStyle, px, py, radius, fs)
+                + 'margin-top:'+mTop+'px;margin-bottom:'+mBot+'px;');
+        }
+
+        /* ── Pricing link ── */
+        var pricingUrl = document.getElementById('nav_pricing_url');
+        var hasPricing = pricingUrl ? pricingUrl.value.trim() !== '' : true;
+        show(pPricing, hasPricing);
+        if(pPricingLbl) pPricingLbl.textContent = selectedPricingLabel();
+        if(pPricing){
+            pPricing.setAttribute('style', linkCss(lStyle, px, py, radius, fs)
+                + 'margin-top:'+mTop+'px;margin-bottom:'+mBot+'px;');
+        }
+
+        /* ── Sign-in button ── */
+        var showBtn = fShowBtn ? fShowBtn.checked : true;
+        show(pSignin, showBtn);
+        if(pSigninLbl && fBtnLabel) pSigninLbl.textContent = fBtnLabel.value.trim() || 'Sign In / Register';
+        if(pSignin){
+            pSignin.setAttribute('style', btnCss(bStyle, px, py, radius, fs)
+                + 'margin-top:'+mTop+'px;margin-bottom:'+mBot+'px;');
+        }
+
+        /* ── Account dropdown ── */
+        var showDrop = fShowDrop ? fShowDrop.checked : true;
+        show(pDrop, showDrop);
+        if(pDrop){
+            pDrop.style.marginTop    = mTop + 'px';
+            pDrop.style.marginBottom = mBot + 'px';
+            pDrop.style.minHeight    = minH > 0 ? minH + 'px' : '';
+            if(minH > 0) { pDrop.style.alignItems = 'center'; }
+        }
+    }
+
+    /* ── expose globally for slider sync script ── */
+    window.tmpmpNavRender = render;
+
+    /* ── bind text/url/checkbox events ───────────────────────────────── */
+    var watchFields = [fLogoIcon, fLogoText, fHomeLabel, fBtnLabel,
+                       document.getElementById('nav_pricing_label'),
+                       document.getElementById('nav_pricing_url')];
+    watchFields.forEach(function(el){
+        if(el){ el.addEventListener('input', render); el.addEventListener('change', render); }
+    });
+    var watchChecks = [fShowHome, fShowBtn, fShowDrop];
+    watchChecks.forEach(function(el){
+        if(el) el.addEventListener('change', render);
+    });
+    /* radio buttons for style */
+    document.querySelectorAll('[name="nav_link_style"],[name="nav_btn_style"]').forEach(function(el){
+        el.addEventListener('change', render);
+    });
+
+    /* run once on load */
+    render();
+})();
+</script>
+
+</div><!-- /#tab-headermenu -->
+
+
 <p class="submit" style="padding-top:4px;">
     <button type="button" class="tmpmp-test-btn" id="tmpmp-save-settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -2065,6 +2741,8 @@ $site_name       = get_bloginfo('name');
 </p>
 </form>
 </div>
+
+
 
 <script>
 jQuery(function($){
@@ -2146,7 +2824,7 @@ jQuery(function($){
         });
         const saveSvg  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>';
         const savingHtml = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Saving\u2026';
-        const saveHtml   = saveSvg + ' <?php esc_js( esc_html__('Save All Settings','tempmail-pro') ); ?>';
+        const saveHtml   = saveSvg + ' <?php echo esc_js( esc_html__('Save All Settings','tempmail-pro') ); ?>';
         $btn.prop('disabled', true).html(savingHtml);
         $.post(TempMailAdmin.ajax_url, data, function(r) {
             if ( r.success ) {
@@ -2233,7 +2911,7 @@ jQuery(function($){
             action: 'tmpmp_test_cron',
             nonce:  TempMailAdmin.nonce
         }, function(r){
-            btn.prop('disabled', false).html('&#9889; <?php esc_js( esc_html_e('Test Server Cron Now','tempmail-pro') ); ?>');
+            btn.prop('disabled', false).html('&#9889; <?php echo esc_js( esc_html__('Test Server Cron Now','tempmail-pro') ); ?>');
             const box = $('#tmpmp-cron-result');
             if(r.success){
                 const d = r.data;
@@ -2247,7 +2925,7 @@ jQuery(function($){
                 box.html(`<div style="color:#dc2626;">&#10060; ${r.data?.message || 'Cron test failed.'}</div>`).show();
             }
         }).fail(function(){
-            btn.prop('disabled', false).html('&#9889; <?php esc_js( esc_html_e('Test Server Cron Now','tempmail-pro') ); ?>');
+            btn.prop('disabled', false).html('&#9889; <?php echo esc_js( esc_html__('Test Server Cron Now','tempmail-pro') ); ?>');
             $('#tmpmp-cron-result').html('<div style="color:#dc2626;">&#10060; Network error.</div>').show();
         });
     });
@@ -2257,7 +2935,7 @@ jQuery(function($){
         var url = $(this).data('url');
         $('#upgrade_url').val(url).trigger('change');
         $(this).text('✓ Applied').css({'background':'#d1fae5','color':'#059669'});
-        setTimeout(function(){ $('#tmpmp-auto-fill-url').html('&#128279; <?php esc_js( esc_html_e('Use Pricing Page','tempmail-pro') ); ?>').css({'background':'#ede9fe','color':'#6366f1'}); }, 2000);
+        setTimeout(function(){ $('#tmpmp-auto-fill-url').html('&#128279; <?php echo esc_js( esc_html__('Use Pricing Page','tempmail-pro') ); ?>').css({'background':'#ede9fe','color':'#6366f1'}); }, 2000);
     });
 });
 </script>

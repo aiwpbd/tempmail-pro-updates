@@ -3,18 +3,147 @@ defined('ABSPATH') || exit;
 
 /**
  * TempMail_Visitors
- * Tracks front-end page views into tmpmp_visitors table.
+ * Tracks front-end page views + enforces IP / User-Agent block lists.
  */
 class TempMail_Visitors {
 
-    /** Hook in early */
+    /** Option keys for block lists */
+    const OPT_BLOCKED_IPS = 'tmpmp_blocked_ips';
+    const OPT_BLOCKED_UAS = 'tmpmp_blocked_uas';
+
+    /** Hook in early — priority 1 so block fires before anything else */
     public static function init() : void {
-        add_action( 'template_redirect', [ __CLASS__, 'track' ], 1 );
+        add_action( 'template_redirect', [ __CLASS__, 'maybe_block' ], 1 );
+        add_action( 'template_redirect', [ __CLASS__, 'track' ],       5 );
     }
 
-    /** ── Record a page visit ─────────────────────────────────────────────── */
+    // ══════════════════════════════════════════════════════════════════
+    //  BLOCKING — runs before tracking
+    // ══════════════════════════════════════════════════════════════════
+
+    /** Terminate the request with 403 if the visitor is on a block list */
+    public static function maybe_block() : void {
+        if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) return;
+        if ( defined('REST_REQUEST') && REST_REQUEST ) return;
+
+        $ip = self::get_ip();
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+        if ( self::is_blocked_ip( $ip ) || self::is_blocked_ua( $ua ) ) {
+            status_header( 403 );
+            nocache_headers();
+            wp_die(
+                esc_html__( 'Access denied.', 'tempmail-pro' ),
+                esc_html__( 'Forbidden', 'tempmail-pro' ),
+                [ 'response' => 403 ]
+            );
+        }
+    }
+
+    /** Check if an IP is in the block list (supports exact IPs and CIDR /24 ranges) */
+    public static function is_blocked_ip( string $ip ) : bool {
+        $list = self::get_blocked_ips();
+        foreach ( $list as $entry ) {
+            $entry = trim( $entry );
+            if ( $entry === '' ) continue;
+            // CIDR range e.g. 192.168.1.0/24
+            if ( str_contains( $entry, '/' ) ) {
+                if ( self::ip_in_cidr( $ip, $entry ) ) return true;
+            } elseif ( $entry === $ip ) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Check if a user-agent string matches any blocked pattern (substring, case-insensitive) */
+    public static function is_blocked_ua( string $ua ) : bool {
+        if ( $ua === '' ) return false;
+        $list = self::get_blocked_uas();
+        foreach ( $list as $pattern ) {
+            $pattern = trim( $pattern );
+            if ( $pattern === '' ) continue;
+            if ( stripos( $ua, $pattern ) !== false ) return true;
+        }
+        return false;
+    }
+
+    /** CIDR helper — checks if $ip is within $cidr (e.g. 192.168.1.0/24) */
+    private static function ip_in_cidr( string $ip, string $cidr ) : bool {
+        [ $subnet, $prefix ] = explode( '/', $cidr, 2 );
+        $prefix = (int) $prefix;
+        $ipLong  = ip2long( $ip );
+        $subLong = ip2long( $subnet );
+        if ( $ipLong === false || $subLong === false ) return false;
+        $mask = $prefix > 0 ? ( ~0 << ( 32 - $prefix ) ) : 0;
+        return ( $ipLong & $mask ) === ( $subLong & $mask );
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  BLOCK LIST CRUD
+    // ══════════════════════════════════════════════════════════════════
+
+    public static function get_blocked_ips() : array {
+        $raw = get_option( self::OPT_BLOCKED_IPS, [] );
+        return is_array( $raw ) ? array_filter( array_map( 'trim', $raw ) ) : [];
+    }
+
+    public static function get_blocked_uas() : array {
+        $raw = get_option( self::OPT_BLOCKED_UAS, [] );
+        return is_array( $raw ) ? array_filter( array_map( 'trim', $raw ) ) : [];
+    }
+
+    /** Save the full IP block list (array of strings) */
+    public static function save_blocked_ips( array $ips ) : void {
+        $clean = array_values( array_unique( array_filter( array_map( 'sanitize_text_field', $ips ) ) ) );
+        update_option( self::OPT_BLOCKED_IPS, $clean, false );
+    }
+
+    /** Save the full UA block list */
+    public static function save_blocked_uas( array $uas ) : void {
+        $clean = array_values( array_unique( array_filter( array_map( 'sanitize_text_field', $uas ) ) ) );
+        update_option( self::OPT_BLOCKED_UAS, $clean, false );
+    }
+
+    /** Add a single IP to the block list */
+    public static function block_ip( string $ip ) : void {
+        $ip   = sanitize_text_field( trim( $ip ) );
+        $list = self::get_blocked_ips();
+        if ( $ip && ! in_array( $ip, $list, true ) ) {
+            $list[] = $ip;
+            self::save_blocked_ips( $list );
+        }
+    }
+
+    /** Remove a single IP from the block list */
+    public static function unblock_ip( string $ip ) : void {
+        $ip   = sanitize_text_field( trim( $ip ) );
+        $list = array_values( array_diff( self::get_blocked_ips(), [ $ip ] ) );
+        self::save_blocked_ips( $list );
+    }
+
+    /** Add a single UA pattern to the block list */
+    public static function block_ua( string $ua ) : void {
+        $ua   = sanitize_text_field( trim( $ua ) );
+        $list = self::get_blocked_uas();
+        if ( $ua && ! in_array( $ua, $list, true ) ) {
+            $list[] = $ua;
+            self::save_blocked_uas( $list );
+        }
+    }
+
+    /** Remove a single UA pattern from the block list */
+    public static function unblock_ua( string $ua ) : void {
+        $ua   = sanitize_text_field( trim( $ua ) );
+        $list = array_values( array_diff( self::get_blocked_uas(), [ $ua ] ) );
+        self::save_blocked_uas( $list );
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    //  TRACKING
+    // ══════════════════════════════════════════════════════════════════
+
     public static function track() : void {
-        // Only track singular front-end pages (not admin, AJAX, REST, cron)
         if ( is_admin() || wp_doing_ajax() || wp_doing_cron() ) return;
         if ( defined('REST_REQUEST') && REST_REQUEST ) return;
 
@@ -28,7 +157,6 @@ class TempMail_Visitors {
         $browser    = self::parse_browser( $ua );
         $os         = self::parse_os( $ua );
         $user_id    = get_current_user_id();
-        $page_title = '';  // grabbed client-side; stored empty server-side
 
         $wpdb->insert(
             $wpdb->prefix . 'tmpmp_visitors',
@@ -37,7 +165,7 @@ class TempMail_Visitors {
                 'country'    => self::get_country( $ip ),
                 'page_url'   => esc_url_raw( substr( $page_url, 0, 1000 ) ),
                 'page_title' => '',
-                'referrer'   => esc_url_raw( substr( $referrer, 0, 1000 ) ),
+                'referrer'   => sanitize_text_field( substr( $referrer, 0, 1000 ) ),
                 'user_agent' => sanitize_text_field( substr( $ua, 0, 500 ) ),
                 'browser'    => sanitize_text_field( $browser ),
                 'os'         => sanitize_text_field( $os ),
@@ -49,7 +177,10 @@ class TempMail_Visitors {
         );
     }
 
-    /** ── Helpers ─────────────────────────────────────────────────────────── */
+    // ══════════════════════════════════════════════════════════════════
+    //  HELPERS
+    // ══════════════════════════════════════════════════════════════════
+
     private static function get_ip() : string {
         foreach ( ['HTTP_CF_CONNECTING_IP','HTTP_X_FORWARDED_FOR','HTTP_CLIENT_IP','REMOTE_ADDR'] as $key ) {
             if ( ! empty( $_SERVER[$key] ) ) {
@@ -61,12 +192,38 @@ class TempMail_Visitors {
     }
 
     private static function get_country( string $ip ) : string {
-        // Use WordPress's built-in geolocation if WooCommerce is active
-        if ( class_exists('WC_Geolocation') ) {
-            $geo  = WC_Geolocation::geolocate_ip( $ip );
-            return strtoupper( $geo['country'] ?? '' );
+        // Skip private / reserved IP ranges (localhost, LAN, etc.)
+        if ( ! filter_var( $ip, FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+            return '';
         }
-        return '';
+
+        // 1. WooCommerce built-in GeoLite2 (fastest, local DB)
+        if ( class_exists( 'WC_Geolocation' ) ) {
+            $geo     = WC_Geolocation::geolocate_ip( $ip );
+            $country = strtoupper( $geo['country'] ?? '' );
+            if ( $country ) return $country;
+        }
+
+        // 2. Transient-cached free API fallback (ip-api.com)
+        $cache_key = 'tmpmp_geo_' . md5( $ip );
+        $cached    = get_transient( $cache_key );
+        if ( $cached !== false ) return (string) $cached;
+
+        $response = wp_remote_get(
+            'http://ip-api.com/json/' . rawurlencode( $ip ) . '?fields=countryCode',
+            [ 'timeout' => 2, 'blocking' => true, 'user-agent' => 'TempMailPro/1.0' ]
+        );
+
+        $country = '';
+        if ( ! is_wp_error( $response ) ) {
+            $body = json_decode( wp_remote_retrieve_body( $response ), true );
+            $country = strtoupper( $body['countryCode'] ?? '' );
+        }
+
+        // Cache for 24 hours (even empty, to avoid hammering the API)
+        set_transient( $cache_key, $country, DAY_IN_SECONDS );
+        return $country;
     }
 
     private static function is_bot( string $ua ) : bool {
@@ -94,16 +251,21 @@ class TempMail_Visitors {
         return 'Other';
     }
 
-    /** ── Admin Queries ───────────────────────────────────────────────────── */
+    // ══════════════════════════════════════════════════════════════════
+    //  ADMIN QUERIES
+    // ══════════════════════════════════════════════════════════════════
+
     public static function get_stats() : array {
         global $wpdb;
         $t = $wpdb->prefix . 'tmpmp_visitors';
         return [
-            'total'    => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t"),
-            'unique'   => (int) $wpdb->get_var("SELECT COUNT(DISTINCT ip) FROM $t"),
-            'today'    => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE DATE(visited_at)=CURDATE()"),
-            'bots'     => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE is_bot=1"),
-            'humans'   => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE is_bot=0"),
+            'total'       => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t"),
+            'unique'      => (int) $wpdb->get_var("SELECT COUNT(DISTINCT ip) FROM $t"),
+            'today'       => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE DATE(visited_at)=CURDATE()"),
+            'bots'        => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE is_bot=1"),
+            'humans'      => (int) $wpdb->get_var("SELECT COUNT(*) FROM $t WHERE is_bot=0"),
+            'blocked_ips' => count( self::get_blocked_ips() ),
+            'blocked_uas' => count( self::get_blocked_uas() ),
         ];
     }
 
@@ -113,7 +275,7 @@ class TempMail_Visitors {
         $limit  = intval( $args['limit']  ?? 50 );
         $offset = intval( $args['offset'] ?? 0 );
         $search = sanitize_text_field( $args['search'] ?? '' );
-        $filter = sanitize_text_field( $args['filter'] ?? 'all' ); // all|bots|humans
+        $filter = sanitize_text_field( $args['filter'] ?? 'all' );
 
         $where = [];
         if ( $filter === 'bots' )   $where[] = 'is_bot = 1';
@@ -121,11 +283,10 @@ class TempMail_Visitors {
         if ( $search ) {
             $like = '%' . $wpdb->esc_like($search) . '%';
             $where[] = $wpdb->prepare(
-                '(ip LIKE %s OR page_url LIKE %s OR browser LIKE %s OR os LIKE %s)',
-                $like, $like, $like, $like
+                '(ip LIKE %s OR page_url LIKE %s OR referrer LIKE %s OR browser LIKE %s OR os LIKE %s OR user_agent LIKE %s OR country LIKE %s)',
+                $like, $like, $like, $like, $like, $like, $like
             );
         }
-
         $sql_where = $where ? 'WHERE ' . implode(' AND ', $where) : '';
         return $wpdb->get_results(
             "SELECT * FROM $t $sql_where ORDER BY visited_at DESC LIMIT $limit OFFSET $offset",
@@ -138,15 +299,14 @@ class TempMail_Visitors {
         $t      = $wpdb->prefix . 'tmpmp_visitors';
         $search = sanitize_text_field( $args['search'] ?? '' );
         $filter = sanitize_text_field( $args['filter'] ?? 'all' );
-
-        $where = [];
+        $where  = [];
         if ( $filter === 'bots' )   $where[] = 'is_bot = 1';
         if ( $filter === 'humans' ) $where[] = 'is_bot = 0';
         if ( $search ) {
             $like = '%' . $wpdb->esc_like($search) . '%';
             $where[] = $wpdb->prepare(
-                '(ip LIKE %s OR page_url LIKE %s OR browser LIKE %s OR os LIKE %s)',
-                $like, $like, $like, $like
+                '(ip LIKE %s OR page_url LIKE %s OR referrer LIKE %s OR browser LIKE %s OR os LIKE %s OR user_agent LIKE %s OR country LIKE %s)',
+                $like, $like, $like, $like, $like, $like, $like
             );
         }
         $sql_where = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -156,15 +316,14 @@ class TempMail_Visitors {
     public static function get_chart_data( int $days = 14 ) : array {
         global $wpdb;
         $t = $wpdb->prefix . 'tmpmp_visitors';
-        $rows = $wpdb->get_results( $wpdb->prepare(
+        return $wpdb->get_results( $wpdb->prepare(
             "SELECT DATE(visited_at) as d, COUNT(*) as total,
                     SUM(CASE WHEN is_bot=0 THEN 1 ELSE 0 END) as humans
              FROM $t
              WHERE visited_at >= DATE_SUB(CURDATE(), INTERVAL %d DAY)
              GROUP BY d ORDER BY d ASC",
             $days
-        ), ARRAY_A );
-        return $rows ?: [];
+        ), ARRAY_A ) ?: [];
     }
 
     public static function get_top_pages( int $limit = 10 ) : array {
@@ -203,7 +362,6 @@ class TempMail_Visitors {
         ) );
     }
 
-    /** Create the table directly (for use when plugin is already active) */
     public static function maybe_create_table() : void {
         global $wpdb;
         $charset = $wpdb->get_charset_collate();

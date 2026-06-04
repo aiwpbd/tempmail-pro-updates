@@ -15,7 +15,7 @@ class TempMail_Shortcode {
 
     public function render( array $atts ) : string {
         // Default theme comes from admin Design settings; shortcode attribute can override it.
-        $saved_theme = TempMail_Design::get('design_theme') ?: 'dark';
+        $saved_theme = TempMail_Design::get('design_theme') ?: 'auto';
 
         $a = shortcode_atts([
             'theme'  => $saved_theme,
@@ -30,6 +30,15 @@ class TempMail_Shortcode {
         $domains  = TempMail_Database::get_all_domains();
         $settings = get_option( 'tmpmp_settings', [] );
         $is_prem  = TempMail_Subscription::is_premium_user();
+
+        // Fetch the logged-in user's verified custom domains (premium feature)
+        $user_custom_domains = [];
+        if ( $is_prem && is_user_logged_in() ) {
+            $uid = get_current_user_id();
+            if ( TempMail_Subscription::user_has_feature( $uid, 'has_custom_domain' ) ) {
+                $user_custom_domains = TempMail_Database::get_user_verified_domains( $uid );
+            }
+        }
 
         ob_start();
         ?>
@@ -152,6 +161,20 @@ class TempMail_Shortcode {
                                     </option>
                                 <?php endforeach; ?>
                                 </optgroup>
+                            <?php endif;
+
+                            // User's own verified custom domains
+                            if ($user_custom_domains): ?>
+                                <optgroup label="🌐 My Domains">
+                                <?php foreach ($user_custom_domains as $d): ?>
+                                    <option value="<?php echo esc_attr($d->domain); ?>"
+                                            data-cat="custom"
+                                            data-locked="0"
+                                            class="tmpmp-opt-custom">
+                                        🌐 @<?php echo esc_html($d->domain); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                                </optgroup>
                             <?php endif; ?>
                         </select>
                         <span class="tmpmp-select-chevron" aria-hidden="true">
@@ -171,6 +194,12 @@ class TempMail_Shortcode {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
                         <?php esc_html_e('Delete','tempmail-pro'); ?>
                     </button>
+                    <?php if($is_prem): ?>
+                    <button class="tmpmp-btn tmpmp-btn--history" id="tmpmp-history-btn" title="<?php esc_attr_e('Inbox History','tempmail-pro'); ?>">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        <?php esc_html_e('History','tempmail-pro'); ?>
+                    </button>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Expiry timer -->
@@ -194,6 +223,83 @@ class TempMail_Shortcode {
                     <button class="tmpmp-rl-banner-close" id="tmpmp-rl-close" aria-label="<?php esc_attr_e('Dismiss','tempmail-pro'); ?>">✕</button>
                 </div>
             </div>
+
+            <?php if($is_prem): ?>
+            <!-- ── History Popup Modal ──────────────────────────────────────── -->
+            <div class="tmpmp-history-modal" id="tmpmp-history-modal" role="dialog" aria-modal="true" aria-hidden="true">
+                <div class="tmpmp-history-modal-overlay" id="tmpmp-history-overlay"></div>
+                <div class="tmpmp-history-modal-box" id="tmpmp-history-drawer">
+
+                    <!-- Header -->
+                    <div class="tmpmp-history-header">
+                        <div class="tmpmp-history-header-left">
+                            <div class="tmpmp-history-header-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            </div>
+                            <div>
+                                <h3><?php esc_html_e('Inbox History','tempmail-pro'); ?></h3>
+                                <p class="tmpmp-history-subtitle" id="tmpmp-history-count"><?php esc_html_e('Your saved addresses','tempmail-pro'); ?></p>
+                            </div>
+                        </div>
+                        <div class="tmpmp-history-header-right">
+                            <span class="tmpmp-history-plan-badge" id="tmpmp-history-plan-badge"><?php echo esc_html(ucfirst($plan)); ?></span>
+                            <button class="tmpmp-history-close" id="tmpmp-history-close" aria-label="<?php esc_attr_e('Close','tempmail-pro'); ?>">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Limit info bar -->
+                    <div class="tmpmp-history-limit-bar" id="tmpmp-history-limit-bar">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span id="tmpmp-history-limit-text"><?php esc_html_e('Loading…','tempmail-pro'); ?></span>
+                    </div>
+
+                    <!-- Address list view -->
+                    <div id="tmpmp-history-list-view" class="tmpmp-history-view-pane">
+                        <div class="tmpmp-history-list" id="tmpmp-history-list">
+                            <div class="tmpmp-skeleton" style="height:64px;border-radius:14px;"></div>
+                            <div class="tmpmp-skeleton" style="height:64px;border-radius:14px;"></div>
+                            <div class="tmpmp-skeleton" style="height:64px;border-radius:14px;"></div>
+                        </div>
+                        <div class="tmpmp-history-pagination" id="tmpmp-history-pagination"></div>
+                    </div>
+
+                    <!-- Email list view (drill-in 1) -->
+                    <div id="tmpmp-history-email-view" class="tmpmp-history-view-pane" style="display:none;">
+                        <div class="tmpmp-history-subnav">
+                            <button class="tmpmp-history-back-btn" id="tmpmp-history-back-btn">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                                <?php esc_html_e('Back','tempmail-pro'); ?>
+                            </button>
+                            <span class="tmpmp-history-email-addr" id="tmpmp-history-email-addr"></span>
+                        </div>
+                        <div class="tmpmp-history-email-list" id="tmpmp-history-email-list"></div>
+                    </div>
+
+                    <!-- Email body view (drill-in 2) -->
+                    <div id="tmpmp-history-body-view" class="tmpmp-history-view-pane" style="display:none;">
+                        <div class="tmpmp-history-subnav">
+                            <button class="tmpmp-history-back-btn" id="tmpmp-history-body-back">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                                <?php esc_html_e('Back','tempmail-pro'); ?>
+                            </button>
+                            <span class="tmpmp-history-email-addr" id="tmpmp-history-body-subject"></span>
+                        </div>
+                        <div class="tmpmp-history-body-meta" id="tmpmp-history-body-meta"></div>
+                        <div class="tmpmp-history-body-tabs">
+                            <button class="tmpmp-tab active" data-htab="html"><?php esc_html_e('HTML','tempmail-pro'); ?></button>
+                            <button class="tmpmp-tab" data-htab="text"><?php esc_html_e('Plain Text','tempmail-pro'); ?></button>
+                        </div>
+                        <div class="tmpmp-history-body-content">
+                            <div class="tmpmp-tab-content active" id="tmpmp-history-html"></div>
+                            <div class="tmpmp-tab-content" id="tmpmp-history-text"></div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            <?php endif; ?>
 
             <!-- QR Modal -->
             <div class="tmpmp-modal" id="tmpmp-qr-modal" hidden>

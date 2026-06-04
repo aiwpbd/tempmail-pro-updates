@@ -3,7 +3,7 @@
  * Plugin Name: TempMail Pro
  * Plugin URI:  https://wa.me/+8801516514216
  * Description: A full-featured temporary/disposable email SaaS platform for WordPress â€” with subscriptions, multi-domain, API, and monetization.
- * Version:     2.3.2
+ * Version:     2.3.3
  * Author:      TempMail Pro
  * Author URI:  https://wa.me/+8801516514216
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 // â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-define( 'TMPMP_VERSION',     '2.3.2' );
+define( 'TMPMP_VERSION',     '2.3.3' );
 define( 'TMPMP_PLUGIN_FILE', __FILE__ );
 define( 'TMPMP_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'TMPMP_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
@@ -61,6 +61,7 @@ spl_autoload_register( function ( $class ) {
         'TempMail_GitHub_Updater'   => 'includes/class-github-updater.php',
         'TempMail_Design'           => 'includes/class-tempmail-design.php',
         'TempMail_FAQ'              => 'includes/class-tempmail-faq.php',
+        'TempMail_UserDomains'      => 'includes/class-tempmail-user-domains.php',
     ];
 
     if ( isset( $map[ $class ] ) ) {
@@ -115,6 +116,10 @@ function tmpmp_init() {
     // Visitor tracker (front-end only, non-admin, non-AJAX)
     TempMail_Visitors::init();
 
+    // Run DB/plan migrations on EVERY request type (front-end, AJAX, admin).
+    // maybe_migrate() is a fast no-op after the first run (version-gated).
+    TempMail_Admin_Plans::maybe_migrate();
+
     // Admin systems
     if ( is_admin() ) {
         TempMail_Admin::instance();
@@ -127,6 +132,7 @@ function tmpmp_init() {
         TempMail_Admin_Export::instance();
     }
 }
+
 
 // â”€â”€ Frontend assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 add_action( 'wp_enqueue_scripts', 'tmpmp_enqueue_frontend' );
@@ -149,22 +155,42 @@ function tmpmp_enqueue_frontend() {
         'tempmail-pro-public',
         TMPMP_PLUGIN_URL . 'assets/js/tempmail-app.js',
         [ 'jquery', 'qrcodejs' ],
-        TMPMP_VERSION,
+        // Use filemtime so every saved change to the JS file produces a fresh
+        // ?ver= query string — no CDN, browser, or caching-plugin can serve stale JS.
+        filemtime( TMPMP_PLUGIN_DIR . 'assets/js/tempmail-app.js' ),
         true
     );
 
     $settings = get_option( 'tmpmp_settings', [] );
+    $is_prem  = TempMail_Subscription::is_premium_user();
+
+    // Tier-aware polling intervals — read from admin settings with sane defaults
+    $free_poll_sec    = max( 10,  min( 300, intval( $settings['free_poll_interval']    ?? 45 ) ) );
+    $prem_poll_sec    = max(  5,  min( 120, intval( $settings['premium_poll_interval'] ?? 15 ) ) );
+    $sse_enabled      = ! empty( $settings['sse_enabled'] ) ? 1 : 0;
+
+    $bg_poll_ms  = $is_prem ? ( $prem_poll_sec * 1000 ) : ( $free_poll_sec * 1000 );
+    $refresh_ms  = $is_prem
+        ? 30000   // premium: SSE is the fast path; interval is fallback only
+        : max( 10000, intval( $settings['refresh_interval'] ?? 10 ) * 1000 );
+
     wp_localize_script( 'tempmail-pro-public', 'TempMailPro', [
         'ajax_url'         => admin_url( 'admin-ajax.php' ),
         'rest_url'         => esc_url_raw( rest_url( 'tempmail-pro/v1' ) ),
         'nonce'            => wp_create_nonce( 'tempmail_pro_nonce' ),
         'rest_nonce'       => wp_create_nonce( 'wp_rest' ),
-        'refresh_interval' => intval( $settings['refresh_interval'] ?? 10 ) * 1000,
+        'refresh_interval' => $refresh_ms,
         'mail_protocol'    => $settings['mail_protocol'] ?? 'webhook',
-        'bg_poll_interval' => 60000,
+        'bg_poll_interval' => $bg_poll_ms,
+        // SSE — premium only, requires EventSource browser support AND admin toggle
+        'use_sse'          => ( $is_prem && $sse_enabled ) ? 1 : 0,
+        'sse_url'          => esc_url_raw( rest_url( 'tempmail-pro/v1/sse' ) ),
         'version'          => TMPMP_VERSION,
-        'is_premium'       => TempMail_Subscription::is_premium_user() ? 1 : 0,
+        'is_premium'       => $is_prem ? 1 : 0,
         'user_plan'        => TempMail_Subscription::get_user_plan(),
+        'plan_name'        => TempMail_Subscription::get_user_plan_data()->name ?? 'Free',
+        'plan_max_inboxes' => TempMail_Subscription::get_user_plan_data()->max_inboxes ?? 3,
+        'plan_history_days'=> 90,
         'upgrade_url'            => esc_url( $settings['upgrade_url'] ?? '' ),
         'pricing_url'            => esc_url( $settings['nav_pricing_url'] ?? home_url('/tempmail-pricing/') ),
         'upgrade_box_cta_text'   => sanitize_text_field( $settings['upgrade_box_cta_text']     ?? '' ),
@@ -180,4 +206,39 @@ function tmpmp_enqueue_frontend() {
             'error_generic'  => __( 'Something went wrong.', 'tempmail-pro' ),
         ],
     ] );
+}
+
+// ── Theme-compatible layout fix ────────────────────────────────────────────
+// The plugin wrapper fills whatever container the theme provides.
+// Full Width layout → plugin fills full width.
+// Boxed layout → plugin stays in the box.
+// We do NOT override any theme containers — the theme controls the layout.
+add_action( 'wp_head', 'tmpmp_layout_compat_css', 99 );
+function tmpmp_layout_compat_css() : void {
+    if ( is_admin() ) return;
+    global $post;
+    if ( ! isset( $post->post_content ) || ! has_shortcode( $post->post_content, 'tempmail_app' ) ) return;
+    ?>
+<style id="tmpmp-layout-compat">
+/* TempMail Pro — Layout compatibility
+   The plugin wrapper fills 100% of whatever container the active theme provides.
+   Full Width page template → plugin fills the full content area.
+   Boxed layout → plugin stays within the box.
+   No theme styles are overridden. */
+
+/* Fill the parent container — works with any theme and any layout */
+.tmpmp-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* Prevent the wrapper's border-radius from clipping on very narrow containers */
+@media (max-width: 600px) {
+    .tmpmp-wrap {
+        border-radius: 10px !important;
+    }
+}
+</style>
+    <?php
 }

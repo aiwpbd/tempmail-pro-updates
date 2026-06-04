@@ -10,11 +10,12 @@ class TempMail_Cron {
     public static function instance() : self { return self::$instance ??= new self(); }
 
     private function __construct() {
-        add_filter( 'cron_schedules',           [ $this, 'add_schedules'    ] );
-        add_action( 'tmpmp_purge_expired',       [ $this, 'purge_expired'   ] );
-        add_action( 'tmpmp_imap_poll',           [ $this, 'imap_poll'       ] );
-        add_action( 'tmpmp_optimize_db',         [ $this, 'optimize_db'     ] );
-        add_action( 'init',                      [ $this, 'ensure_scheduled' ] );
+        add_filter( 'cron_schedules',           [ $this, 'add_schedules'          ] );
+        add_action( 'tmpmp_purge_expired',       [ $this, 'purge_expired'         ] );
+        add_action( 'tmpmp_imap_poll',           [ $this, 'imap_poll'             ] );
+        add_action( 'tmpmp_optimize_db',         [ $this, 'optimize_db'           ] );
+        add_action( 'tmpmp_verify_user_domains', [ $this, 'verify_user_domains'   ] );
+        add_action( 'init',                      [ $this, 'ensure_scheduled'      ] );
     }
 
     public static function schedule_events() : void {
@@ -27,10 +28,13 @@ class TempMail_Cron {
         if ( ! wp_next_scheduled('tmpmp_optimize_db') ) {
             wp_schedule_event( time(), 'daily', 'tmpmp_optimize_db' );
         }
+        if ( ! wp_next_scheduled('tmpmp_verify_user_domains') ) {
+            wp_schedule_event( time(), 'hourly', 'tmpmp_verify_user_domains' );
+        }
     }
 
     public static function clear_events() : void {
-        foreach ( ['tmpmp_purge_expired','tmpmp_imap_poll','tmpmp_optimize_db'] as $hook ) {
+        foreach ( ['tmpmp_purge_expired','tmpmp_imap_poll','tmpmp_optimize_db','tmpmp_verify_user_domains'] as $hook ) {
             $ts = wp_next_scheduled( $hook );
             if ( $ts ) wp_unschedule_event( $ts, $hook );
         }
@@ -67,5 +71,9 @@ class TempMail_Cron {
         foreach ( $tables as $t ) {
             $wpdb->query( "OPTIMIZE TABLE $t" );
         }
+    }
+
+    public function verify_user_domains() : void {
+        TempMail_UserDomains::verify_all_pending();
     }
 }

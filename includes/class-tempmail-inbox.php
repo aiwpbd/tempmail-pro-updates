@@ -97,7 +97,32 @@ class TempMail_Inbox {
             return true; // already stored — silently skip
         }
 
-        // Spam filter
+        // ── Per-user advanced spam filter (has_advanced_spam) ─────────────────
+        $inbox_user_id = (int) ( $row->user_id ?? 0 );
+        if ( $inbox_user_id && TempMail_Subscription::user_has_feature( $inbox_user_id, 'has_advanced_spam' ) ) {
+            $user_kw_raw = get_user_meta( $inbox_user_id, 'tmpmp_spam_keywords', true ) ?: '';
+            $user_kws    = array_filter( array_map( 'trim', explode( "\n", $user_kw_raw ) ) );
+            foreach ( $user_kws as $kw ) {
+                if ( $kw && stripos( $subject . ' ' . $text, $kw ) !== false ) {
+                    TempMail_Database::insert_email( [
+                        'address_id'  => (int) $row->id,
+                        'sender'      => $from,
+                        'sender_name' => $name,
+                        'subject'     => $subject,
+                        'body_text'   => $text,
+                        'body_html'   => $html,
+                        'has_attach'  => $attach,
+                        'received_at' => gmdate( 'Y-m-d H:i:s' ),
+                        'is_spam'     => 1,
+                        'size_bytes'  => $size,
+                    ] );
+                    set_transient( $dedup_key, 1, 7 * DAY_IN_SECONDS );
+                    return true;
+                }
+            }
+        }
+
+        // ── Global spam filter ────────────────────────────────────────────────
         $settings = get_option( 'tmpmp_settings', [] );
         if ( ! empty( $settings['spam_filter'] ) ) {
             $keywords = array_filter( array_map( 'trim', explode( "\n", $settings['spam_keywords'] ?? '' ) ) );
@@ -137,11 +162,28 @@ class TempMail_Inbox {
         if ( $id > 0 ) {
             // Mark as processed — prevents re-insert on every IMAP poll
             set_transient( $dedup_key, 1, 7 * DAY_IN_SECONDS );
+
+            // ── Email forwarding (has_email_forwarding) ───────────────────────
+            if ( $inbox_user_id && TempMail_Subscription::user_has_feature( $inbox_user_id, 'has_email_forwarding' ) ) {
+                $fwd = get_user_meta( $inbox_user_id, 'tmpmp_forwarding_email', true );
+                if ( $fwd && is_email( $fwd ) ) {
+                    $site  = get_bloginfo('name');
+                    $body  = $text ?: wp_strip_all_tags( $html );
+                    wp_mail(
+                        $fwd,
+                        "[{$site}] Fwd: {$subject}",
+                        "--- Forwarded from {$to} ---\nFrom: {$name} <{$from}>\n\n{$body}",
+                        [ "Reply-To: {$name} <{$from}>", "X-Forwarded-From: {$to}" ]
+                    );
+                }
+            }
+
             return true;
         }
 
         return false;
     }
+
 
 
 

@@ -3,10 +3,12 @@ if ( ! defined('ABSPATH') ) exit;
 $user    = wp_get_current_user();
 $sub     = TempMail_Database::get_user_subscription($user->ID);
 $plan    = TempMail_Subscription::get_user_plan_data($user->ID);
+// Current plan slug for display — reflects the user's live subscription, not per-address stored plan
+$current_plan_slug = $sub ? ( $plan->plan_slug ?? $plan->slug ?? 'pro' ) : 'free';
 global $wpdb;
 $my_addresses = $wpdb->get_results($wpdb->prepare(
     "SELECT a.*, (SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails e WHERE e.address_id=a.id) as email_count
-     FROM {$wpdb->prefix}tmpmp_addresses a WHERE a.user_id=%d ORDER BY a.created_at DESC LIMIT 50",
+     FROM {$wpdb->prefix}tmpmp_addresses a WHERE a.user_id=%d ORDER BY a.created_at DESC LIMIT 500",
     $user->ID
 ));
 $my_payments = $wpdb->get_results($wpdb->prepare(
@@ -18,6 +20,97 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
     $user->ID
 ));
 $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
+
+
+// ── Server-side domain add (form POST, no AJAX required) ──────────────────
+$_tmpmp_domain_msg   = '';
+$_tmpmp_domain_type  = ''; // 'ok' | 'err'
+$_tmpmp_domain_debug = []; // visible debug info (cleared on success)
+if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
+    $nonce_ok = wp_verify_nonce( $_POST['tmpmp_add_domain_nonce'] ?? '', 'tmpmp_add_domain_' . $user->ID );
+    $_tmpmp_domain_debug[] = 'POST received. User ID: ' . $user->ID . ' | nonce_ok: ' . ( $nonce_ok ? 'YES' : 'NO' );
+    error_log( '[TmpmpDomain] POST received. user=' . $user->ID . ' nonce_ok=' . ( $nonce_ok ? '1' : '0' ) );
+
+    if ( ! $nonce_ok ) {
+        $_tmpmp_domain_msg  = __( 'Security check failed. Please refresh the page and try again.', 'tempmail-pro' );
+        $_tmpmp_domain_type = 'err';
+    } else {
+        $wpdb->suppress_errors( true );
+
+        // Step 1: Create table
+        $ud_table = $wpdb->prefix . 'tmpmp_user_domains';
+        $charset  = $wpdb->get_charset_collate();
+        $wpdb->query(
+            "CREATE TABLE IF NOT EXISTS `{$ud_table}` (
+                id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                user_id          BIGINT UNSIGNED NOT NULL,
+                domain           VARCHAR(255) NOT NULL,
+                status           VARCHAR(32)  NOT NULL DEFAULT 'pending',
+                verify_token     VARCHAR(128) NOT NULL DEFAULT '',
+                txt_verified     TINYINT(1)   NOT NULL DEFAULT 0,
+                mx_verified      TINYINT(1)   NOT NULL DEFAULT 0,
+                spf_verified     TINYINT(1)   NOT NULL DEFAULT 0,
+                dkim_selector    VARCHAR(64)  NOT NULL DEFAULT 'tmpro',
+                dkim_private_key LONGTEXT,
+                dkim_public_key  LONGTEXT,
+                dkim_verified    TINYINT(1)   NOT NULL DEFAULT 0,
+                dmarc_verified   TINYINT(1)   NOT NULL DEFAULT 0,
+                last_checked     DATETIME     DEFAULT NULL,
+                verified_at      DATETIME     DEFAULT NULL,
+                created_at       DATETIME     NOT NULL,
+                PRIMARY KEY  (id),
+                UNIQUE KEY user_domain (user_id, domain),
+                KEY status  (status),
+                KEY user_id (user_id)
+            ) {$charset}"
+        );
+        $create_err = $wpdb->last_error;
+        $_tmpmp_domain_debug[] = 'CREATE TABLE error: ' . ( $create_err ?: 'none' );
+        error_log( '[TmpmpDomain] CREATE TABLE last_error: ' . ( $create_err ?: 'none' ) );
+
+        // Step 2: Check subscription — show raw DB value
+        $sub_row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id, plan_id, status FROM `{$wpdb->prefix}tmpmp_subscriptions`
+             WHERE user_id = %d ORDER BY created_at DESC LIMIT 1",
+            $user->ID
+        ) );
+        $sub_err = $wpdb->last_error;
+        $_tmpmp_domain_debug[] = 'Subscription row: ' . ( $sub_row ? "id={$sub_row->id} plan={$sub_row->plan_id} status={$sub_row->status}" : 'NULL' ) . ' | db_err: ' . ( $sub_err ?: 'none' );
+        error_log( '[TmpmpDomain] sub_row: ' . json_encode( $sub_row ) . ' last_error: ' . $sub_err );
+
+        $has_sub = $sub_row && in_array( $sub_row->status, [ 'active', 'trialing' ], true );
+        $_tmpmp_domain_debug[] = 'has_sub: ' . ( $has_sub ? 'YES' : 'NO (status mismatch or no row)' );
+
+        if ( ! $has_sub ) {
+            $_tmpmp_domain_msg  = sprintf(
+                __( 'No active subscription found. DB status: %s', 'tempmail-pro' ),
+                $sub_row ? esc_html( $sub_row->status ) : 'no row'
+            );
+            $_tmpmp_domain_type = 'err';
+        } else {
+            // Step 3: Add domain
+            $raw_domain = sanitize_text_field( wp_unslash( $_POST['tmpmp_domain'] ?? '' ) );
+            $_tmpmp_domain_debug[] = 'Calling add() with domain: ' . $raw_domain;
+            error_log( '[TmpmpDomain] calling add() domain=' . $raw_domain );
+
+            $result = TempMail_UserDomains::add( $user->ID, $raw_domain );
+            $add_db_err = $wpdb->last_error;
+            $_tmpmp_domain_debug[] = 'add() result: ' . ( is_wp_error( $result ) ? 'WP_Error: ' . $result->get_error_message() : 'ID=' . $result ) . ' | db_err: ' . ( $add_db_err ?: 'none' );
+            error_log( '[TmpmpDomain] add() result=' . ( is_wp_error( $result ) ? 'ERR:' . $result->get_error_message() : $result ) . ' db_err=' . $add_db_err );
+
+            if ( is_wp_error( $result ) ) {
+                $_tmpmp_domain_msg  = $result->get_error_message();
+                $_tmpmp_domain_type = 'err';
+            } else {
+                $_tmpmp_domain_msg   = __( 'Domain added! Configure the DNS records below.', 'tempmail-pro' );
+                $_tmpmp_domain_type  = 'ok';
+                $_tmpmp_domain_debug = []; // clear debug on success
+                $my_custom_domains_fresh = TempMail_UserDomains::get_for_user( $user->ID );
+            }
+        }
+    }
+}
+
 ?>
 <style>
 /* ── Dashboard responsive override (guaranteed, not cached) ── */
@@ -170,55 +263,15 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
 .tmpmp-tab-locked { opacity:.55; cursor:not-allowed; }
 .tmpmp-tab-locked:hover { background:transparent !important; color:inherit !important; }
 
-/* History tab */
-.tmpmp-history-table { width:100%; border-collapse:collapse; font-size:13.5px; }
-.tmpmp-history-table th { text-align:left; padding:9px 12px; font-weight:600; color:#64748b; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
-.tmpmp-history-table td { padding:10px 12px; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
-.tmpmp-history-table tbody tr:hover { background:#f8fafc; cursor:pointer; }
-.tmpmp-history-table .tmpmp-hist-addr { font-family:monospace; font-size:13px; color:#0f172a; font-weight:600; }
-.tmpmp-hist-badge { display:inline-block; padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; }
-.tmpmp-hist-badge--active  { background:#dcfce7; color:#16a34a; }
-.tmpmp-hist-badge--expired { background:#f1f5f9; color:#94a3b8; }
-.tmpmp-hist-badge--free    { background:#e0f2fe; color:#0369a1; }
-.tmpmp-hist-badge--premium { background:#ede9fe; color:#6d28d9; }
-.tmpmp-hist-badge--vip     { background:#fef3c7; color:#d97706; }
-.tmpmp-hist-actions { display:flex; gap:8px; }
-.tmpmp-hist-del-btn { background:none; border:1px solid #fca5a5; color:#ef4444; border-radius:6px; padding:4px 10px; font-size:12px; cursor:pointer; transition:background .15s; }
-.tmpmp-hist-del-btn:hover { background:#fee2e2; }
-.tmpmp-history-inbox { margin-top:20px; }
-.tmpmp-history-inbox-header { display:flex; align-items:center; gap:12px; padding:12px 16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px 10px 0 0; }
-.tmpmp-history-inbox-header h4 { margin:0; font-size:14px; color:#0f172a; flex:1; }
-.tmpmp-hist-back { background:none; border:1px solid #e2e8f0; border-radius:6px; padding:4px 12px; font-size:12px; cursor:pointer; color:#475569; }
-.tmpmp-hist-back:hover { background:#f1f5f9; }
-.tmpmp-hist-email-list { border:1px solid #e2e8f0; border-top:none; border-radius:0 0 10px 10px; overflow:hidden; }
-.tmpmp-hist-email-row { display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #f1f5f9; cursor:pointer; transition:background .15s; }
-.tmpmp-hist-email-row:last-child { border-bottom:none; }
-.tmpmp-hist-email-row:hover { background:#f8fafc; }
-.tmpmp-hist-email-row.unread { font-weight:600; }
-.tmpmp-hist-email-sender { min-width:140px; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; color:#0f172a; }
-.tmpmp-hist-email-subject { flex:1; font-size:13px; color:#475569; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.tmpmp-hist-email-date { font-size:11px; color:#94a3b8; white-space:nowrap; }
-.tmpmp-hist-email-body { border:1px solid #e2e8f0; border-top:none; padding:20px; background:#fff; border-radius:0 0 10px 10px; }
-.tmpmp-hist-email-body-header { margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid #f1f5f9; }
-.tmpmp-hist-email-body-header h5 { margin:0 0 4px; font-size:14px; color:#0f172a; }
-.tmpmp-hist-email-body-header small { color:#64748b; font-size:12px; }
-.tmpmp-hist-empty { text-align:center; padding:40px 20px; color:#94a3b8; font-size:14px; }
-.tmpmp-hist-pagination { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:16px; }
-.tmpmp-hist-page-btn { background:#fff; border:1px solid #e2e8f0; border-radius:6px; padding:6px 14px; font-size:13px; cursor:pointer; color:#475569; transition:all .15s; }
-.tmpmp-hist-page-btn:hover:not(:disabled) { background:#6366f1; color:#fff; border-color:#6366f1; }
-.tmpmp-hist-page-btn:disabled { opacity:.4; cursor:not-allowed; }
-.tmpmp-hist-page-info { font-size:13px; color:#64748b; }
-.tmpmp-hist-loading { text-align:center; padding:40px; color:#94a3b8; }
 
+
+/* Ensure pill tabs scroll horizontally on any screen that can’t fit all 6 tabs */
 .tmpmp-dash-tabs {
     display: flex !important;
+    overflow-x: auto !important;
     flex-wrap: wrap !important;
-    overflow: visible !important;
-    overflow-x: unset !important;
     width: 100%;
     box-sizing: border-box;
-    border-bottom: 2px solid #e2e8f0;
-    margin-bottom: 24px;
 }
 .dash-tab-btn { flex-shrink: 0; white-space: nowrap; }
 
@@ -273,34 +326,45 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
     }
 }
 
-/* Mobile: stack header, full-width actions */
+/* Mobile: stack header vertically, horizontal-scroll tabs */
 @media (max-width: 640px) {
-    .tmpmp-dashboard-wrap { padding: 16px 12px !important; }
+    .tmpmp-dashboard-wrap { padding: 14px 10px !important; }
     .tmpmp-dash-header {
         flex-direction: column !important;
         align-items: flex-start !important;
-        gap: 12px;
+        gap: 10px;
+        padding: 14px 16px !important;
     }
     .tmpmp-dash-actions { width: 100%; display: flex; flex-wrap: wrap; gap: 8px; }
-    .tmpmp-dash-header h1 { font-size: 18px; }
-    .tmpmp-dash-tabs { gap: 4px; }
-    .dash-tab-btn {
-        flex: 1 1 auto;
-        justify-content: center;
-        padding: 9px 8px;
-        font-size: 12px;
-        border-radius: 8px 8px 0 0;
-        background: #f8fafc;
-        gap: 4px;
+    .tmpmp-dash-header h1 { font-size: 17px; }
+    .tmpmp-dash-tabs {
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+        gap: 2px !important;
+        padding: 3px !important;
+        border-radius: 10px !important;
     }
-    .dash-tab-btn.is-active { background: #ede9fe; }
+    .tmpmp-dash-tabs::-webkit-scrollbar { display: none; }
+    .dash-tab-btn {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        border-radius: 7px !important;
+        flex-shrink: 0 !important;
+    }
+    .dash-tab-btn.is-active {
+        background: #ffffff !important;
+        color: #6366f1 !important;
+        box-shadow: 0 2px 8px rgba(99,102,241,.12), 0 0 0 1px rgba(99,102,241,.1) !important;
+    }
     .tmpmp-billing-active { padding: 14px !important; }
 }
 @media (max-width: 380px) {
     .tmpmp-dash-actions { flex-direction: column; }
     .tmpmp-dash-actions .tmpmp-pub-btn,
     .tmpmp-dash-actions .tmpmp-pub-badge { text-align: center; width: 100%; }
-    .dash-tab-btn { font-size: 11px; padding: 8px 5px; }
+    .dash-tab-btn { font-size: 11px !important; padding: 7px 8px !important; }
 }
 /* ── Password Generator ───────────────────────────────────────────── */
 .tmpmp-pass-input-wrap { position:relative; display:flex; align-items:center; }
@@ -331,7 +395,588 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
     background:#e2e8f0; transition:background .2s;
 }
 .tmpmp-pass-strength-label { font-size:12px; font-weight:700; }
+
+/* ── Danger Zone (Delete Account) ───────────────────────────────────────── */
+.tmpmp-danger-card {
+    border-color: #fecaca !important;
+    background: #fff5f5 !important;
+}
+.tmpmp-danger-card h3 { color: #dc2626 !important; }
+.tmpmp-pub-btn--danger {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+    width: 100%;
+    margin-top: 4px;
+    display: block;
+}
+.tmpmp-pub-btn--danger:hover { opacity:.88; transform:translateY(-1px); }
+
+/* ── Delete Account Modal ────────────────────────────────────────────────── */
+#tmpmp-delete-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999999;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+#tmpmp-delete-modal.open { display: flex; }
+#tmpmp-delete-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15,23,42,.6);
+    backdrop-filter: blur(4px);
+}
+#tmpmp-delete-box {
+    position: relative;
+    background: #fff;
+    border-radius: 18px;
+    box-shadow: 0 24px 64px rgba(0,0,0,.24), 0 4px 16px rgba(0,0,0,.1);
+    padding: 32px;
+    width: 100%;
+    max-width: 440px;
+    z-index: 1;
+    animation: tmpmpDelIn .22s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes tmpmpDelIn { from{opacity:0;transform:scale(.92) translateY(14px)} to{opacity:1;transform:none} }
+#tmpmp-delete-box .del-modal-icon {
+    font-size: 40px;
+    text-align: center;
+    margin-bottom: 12px;
+}
+#tmpmp-delete-box h4 {
+    margin: 0 0 8px;
+    font-size: 19px;
+    font-weight: 800;
+    color: #0f172a;
+    text-align: center;
+}
+#tmpmp-delete-box .del-modal-warn {
+    background: #fef2f2;
+    border: 1.5px solid #fecaca;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #991b1b;
+    line-height: 1.65;
+    margin-bottom: 20px;
+    text-align: center;
+}
+#tmpmp-delete-box label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    margin-bottom: 6px;
+}
+#tmpmp-delete-confirm-email {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 9px;
+    font-size: 14px;
+    color: #0f172a;
+    background: #f8fafc;
+    box-sizing: border-box;
+    outline: none;
+    font-family: inherit;
+    transition: border-color .18s;
+    margin-bottom: 6px;
+}
+#tmpmp-delete-confirm-email:focus { border-color: #ef4444; background: #fff; }
+#tmpmp-delete-confirm-email.invalid { border-color: #ef4444; }
+.del-modal-footer {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+}
+.del-modal-footer button { flex: 1; }
+#tmpmp-delete-cancel {
+    padding: 10px 16px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #64748b;
+    transition: all .15s;
+}
+#tmpmp-delete-cancel:hover { background: #e2e8f0; }
+#tmpmp-delete-confirm {
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all .2s;
+}
+#tmpmp-delete-confirm:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+#tmpmp-delete-confirm:not(:disabled):hover { opacity:.88; }
+#tmpmp-delete-modal-msg {
+    margin-top: 10px;
+    padding: 9px 13px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+    text-align: center;
+}
+#tmpmp-delete-modal-msg.err { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; display:block; }
+
+/* ── Custom Domains Tab ───────────────────────────────────────────────── */
+.tmpmp-ud-card {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+.tmpmp-ud-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.tmpmp-ud-domain-name {
+    font-size: 15px;
+    font-weight: 800;
+    color: #0f172a;
+    font-family: monospace;
+    flex: 1;
+    min-width: 0;
+    word-break: break-all;
+}
+.tmpmp-ud-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 11px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.tmpmp-ud-status-badge.pending  { background:#fef9c3; color:#92400e; }
+.tmpmp-ud-status-badge.verified { background:#dcfce7; color:#065f46; }
+.tmpmp-ud-status-badge.failed   { background:#fee2e2; color:#991b1b; }
+.tmpmp-ud-status-badge.checking { background:#dbeafe; color:#1d4ed8; }
+.tmpmp-ud-actions { display:flex; gap:8px; flex-shrink:0; }
+.tmpmp-ud-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all .15s;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+.tmpmp-ud-btn--verify { background:#ede9fe; color:#5b21b6; }
+.tmpmp-ud-btn--verify:hover { background:#ddd6fe; }
+.tmpmp-ud-btn--delete { background:#fee2e2; color:#991b1b; }
+.tmpmp-ud-btn--delete:hover { background:#fecaca; }
+.tmpmp-ud-btn:disabled { opacity:.5; cursor:not-allowed; }
+/* Accordion */
+.tmpmp-ud-accordion-toggle {
+    margin-top: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #4f46e5;
+    cursor: pointer;
+    background: #f5f3ff;
+    border: 1.5px solid #e0e7ff;
+    border-radius: 10px;
+    padding: 9px 14px 9px 17px;
+    width: 100%;
+    text-align: left;
+    transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+    line-height: 1.4;
+}
+/* Left accent stripe */
+.tmpmp-ud-accordion-toggle::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 4px;
+    background: linear-gradient(180deg, #818cf8, #6366f1);
+    border-radius: 10px 0 0 10px;
+}
+/* Arrow icon */
+.tmpmp-ud-accordion-toggle .tmpmp-ud-acc-arrow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-style: normal;
+    font-size: 10px;
+    color: #818cf8;
+    transition: transform 0.22s ease;
+    flex-shrink: 0;
+    margin-right: 2px;
+}
+.tmpmp-ud-accordion-toggle.open .tmpmp-ud-acc-arrow {
+    transform: rotate(90deg);
+}
+/* Verified count pushed to right */
+.tmpmp-ud-accordion-toggle .tmpmp-ud-acc-count {
+    margin-left: auto;
+    font-size: 11px;
+    font-weight: 700;
+    background: #ede9fe;
+    color: #6366f1;
+    border: 1px solid #c4b5fd;
+    border-radius: 20px;
+    padding: 1px 9px;
+    flex-shrink: 0;
+    white-space: nowrap;
+    transition: background 0.18s, color 0.18s;
+}
+/* Hover */
+.tmpmp-ud-accordion-toggle:hover {
+    background: #ede9fe;
+    border-color: #a5b4fc;
+    color: #3730a3;
+    box-shadow: 0 3px 14px rgba(99,102,241,0.13);
+}
+.tmpmp-ud-accordion-toggle:hover .tmpmp-ud-acc-count {
+    background: #c4b5fd;
+    color: #3730a3;
+}
+/* All verified state */
+.tmpmp-ud-accordion-toggle.all-verified {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+    color: #15803d;
+}
+.tmpmp-ud-accordion-toggle.all-verified::before {
+    background: linear-gradient(180deg, #4ade80, #16a34a);
+}
+.tmpmp-ud-accordion-toggle.all-verified .tmpmp-ud-acc-arrow { color: #4ade80; }
+.tmpmp-ud-accordion-toggle.all-verified .tmpmp-ud-acc-count {
+    background: #dcfce7; color: #15803d; border-color: #86efac;
+}
+.tmpmp-ud-accordion-toggle.all-verified:hover {
+    background: #dcfce7; border-color: #86efac; color: #14532d;
+    box-shadow: 0 3px 14px rgba(34,197,94,0.13);
+}
+/* Responsive */
+@media (max-width: 480px) {
+    .tmpmp-ud-accordion-toggle { font-size: 11.5px; padding: 8px 12px 8px 16px; }
+    .tmpmp-ud-accordion-toggle .tmpmp-ud-acc-count { display: none; }
+}
+.tmpmp-ud-accordion-body { display:none; margin-top:12px; }
+.tmpmp-ud-accordion-body.open { display:block; }
+
+/* DNS Records Table */
+.tmpmp-dns-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin-top: 8px;
+}
+.tmpmp-dns-table th {
+    text-align: left;
+    padding: 8px 10px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    border-bottom: 2px solid #e2e8f0;
+    white-space: nowrap;
+}
+.tmpmp-dns-table td {
+    padding: 10px 10px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+}
+.tmpmp-dns-table tr:last-child td { border-bottom: none; }
+.tmpmp-dns-record-value {
+    font-family: monospace;
+    font-size: 12px;
+    color: #334155;
+    word-break: break-all;
+    max-width: 280px;
+}
+.tmpmp-dns-copy {
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #475569;
+    transition: all .15s;
+    white-space: nowrap;
+}
+.tmpmp-dns-copy:hover { background:#6366f1; color:#fff; border-color:#6366f1; }
+.tmpmp-dns-rec-status { font-size: 16px; }
+.tmpmp-dns-rec-label { font-weight: 700; color: #0f172a; font-size: 13px; }
+.tmpmp-dns-rec-desc { font-size: 11.5px; color: #94a3b8; margin-top:2px; }
+.tmpmp-dns-priority { font-size:12px; color:#64748b; }
+/* Generate DKIM key button */
+.tmpmp-dns-gen-dkim {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #92400e;
+    transition: all .15s;
+    white-space: nowrap;
+}
+.tmpmp-dns-gen-dkim:hover { background:#f59e0b; color:#fff; border-color:#f59e0b; }
+.tmpmp-dns-gen-dkim:disabled { opacity:.55; cursor:not-allowed; }
+.tmpmp-dns-dkim-missing {
+    font-size: 11.5px;
+    color: #b45309;
+    font-style: italic;
+}
+
+/* Add domain form */
+.tmpmp-ud-add-form {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+.tmpmp-ud-add-form input {
+    flex: 1;
+    min-width: 200px;
+    padding: 10px 14px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 9px;
+    font-size: 14px;
+    color: #0f172a;
+    background: #f8fafc;
+    outline: none;
+    font-family: inherit;
+    transition: border-color .18s;
+}
+.tmpmp-ud-add-form input:focus { border-color:#6366f1; background:#fff; }
+.tmpmp-ud-add-btn {
+    padding: 10px 20px;
+    background: linear-gradient(135deg,#6366f1,#4f46e5);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+}
+.tmpmp-ud-add-btn:hover { opacity:.88; transform:translateY(-1px); }
+.tmpmp-ud-add-btn:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+.tmpmp-ud-msg {
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: none;
+}
+.tmpmp-ud-msg.ok  { background:#f0fdf4; color:#065f46; border:1px solid #bbf7d0; display:block; }
+.tmpmp-ud-msg.err { background:#fef2f2; color:#991b1b; border:1px solid #fecaca; display:block; }
+.tmpmp-ud-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #94a3b8;
+    font-size: 14px;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1.5px dashed #e2e8f0;
+}
+.tmpmp-ud-empty .tmpmp-ud-empty-icon { font-size: 40px; margin-bottom: 10px; }
+@media(max-width:640px){
+    .tmpmp-ud-actions { flex-wrap:wrap; }
+    .tmpmp-dns-table thead { display:none; }
+    .tmpmp-dns-table, .tmpmp-dns-table tbody,
+    .tmpmp-dns-table tr, .tmpmp-dns-table td { display:block; width:100%; }
+    .tmpmp-dns-table td { padding:8px 0; border-bottom:1px solid #f1f5f9; }
+    .tmpmp-dns-record-value { max-width:100%; }
+}
+
+/* ── My Inboxes: Search toolbar ───────────────────────────────────── */
+.tmpmp-inbox-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+.tmpmp-inbox-search-wrap {
+    position: relative !important;
+    display: flex;
+    align-items: center;
+    flex: 1 1 240px;
+    min-width: 0;
+    max-width: 440px;
+}
+.tmpmp-inbox-search-icon {
+    position: absolute !important;
+    left: 13px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    width: 16px !important;
+    height: 16px !important;
+    color: #94a3b8 !important;
+    pointer-events: none !important;
+    flex-shrink: 0;
+    z-index: 1;
+}
+.tmpmp-inbox-search-input {
+    width: 100% !important;
+    padding: 10px 36px 10px 42px !important;
+    border: 1.5px solid #e2e8f0 !important;
+    border-radius: 10px !important;
+    font-family: inherit !important;
+    font-size: 13.5px !important;
+    color: #0f172a !important;
+    background: #fff !important;
+    outline: none !important;
+    transition: border-color .18s, box-shadow .18s;
+    box-sizing: border-box !important;
+    height: auto !important;
+    margin: 0 !important;
+    display: block !important;
+}
+.tmpmp-inbox-search-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.1);
+}
+.tmpmp-inbox-search-input::placeholder { color: #94a3b8; }
+.tmpmp-inbox-search-clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 15px;
+    padding: 0;
+    line-height: 1;
+    display: none;
+    width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    transition: color .15s;
+}
+.tmpmp-inbox-search-clear:hover { color: #ef4444; }
+.tmpmp-inbox-meta {
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+/* Mobile: stack toolbar vertically */
+@media (max-width: 580px) {
+    .tmpmp-inbox-toolbar { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .tmpmp-inbox-search-wrap { max-width: 100%; width: 100%; flex: 1 1 100%; }
+    .tmpmp-inbox-search-input { font-size: 13px; }
+}
+
+/* No-results state */
+.tmpmp-inbox-no-results {
+    text-align: center;
+    padding: 48px 20px;
+    color: #94a3b8;
+}
+.tmpmp-inbox-no-results svg {
+    margin: 0 auto 12px;
+    display: block;
+    color: #cbd5e1;
+}
+.tmpmp-inbox-no-results p { font-size: 14px; margin: 0; }
+/* Pagination row */
+.tmpmp-inbox-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+}
+.tmpmp-inbox-page-btn {
+    padding: 7px 15px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 9px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all .15s;
+    white-space: nowrap;
+}
+.tmpmp-inbox-page-btn:hover:not(:disabled) { border-color:#6366f1; color:#6366f1; background:#f5f3ff; }
+.tmpmp-inbox-page-btn:disabled { opacity:.4; cursor:not-allowed; }
+.tmpmp-inbox-page-numbers { display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center; }
+.tmpmp-inbox-page-num {
+    min-width: 34px;
+    height: 34px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    transition: all .15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+}
+.tmpmp-inbox-page-num:hover:not(.is-active) { border-color:#6366f1; color:#6366f1; background:#f5f3ff; }
+.tmpmp-inbox-page-num.is-active {
+    background: #6366f1;
+    border-color: #6366f1;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(99,102,241,.28);
+}
+.tmpmp-inbox-page-ellipsis { font-size:13px; color:#94a3b8; padding:0 2px; line-height:34px; }
+@media (max-width: 580px) {
+    .tmpmp-inbox-page-btn { padding:6px 10px; font-size:12px; }
+    .tmpmp-inbox-page-num { min-width:30px; height:30px; font-size:12px; }
+}
 </style>
+
 <div class="tmpmp-page-section tmpmp-dashboard-wrap">
 
     <!-- Header -->
@@ -379,8 +1024,11 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
         <?php foreach ( ['inboxes' => '&#9993; '.__('My Inboxes','tempmail-pro'), 'billing' => '&#128179; '.__('Billing','tempmail-pro'), 'api' => '&#128273; '.__('API Keys','tempmail-pro'), 'account' => '&#128100; '.__('Account','tempmail-pro')] as $tab => $label ) : ?>
         <button class="dash-tab-btn" data-tab="<?php echo esc_attr($tab); ?>"><?php echo $label; ?></button>
         <?php endforeach; ?>
-        <button class="dash-tab-btn<?php echo $is_premium ? '' : ' tmpmp-tab-locked'; ?>" data-tab="history" title="<?php echo $is_premium ? '' : esc_attr__('Premium feature','tempmail-pro'); ?>">
-            &#128196; <?php esc_html_e('History','tempmail-pro'); ?><?php if (!$is_premium): ?> &#128274;<?php endif; ?>
+        <?php
+        $has_custom_domain_feat = TempMail_Subscription::user_has_feature( $user->ID, 'has_custom_domain' );
+        ?>
+        <button class="dash-tab-btn<?php echo $has_custom_domain_feat ? '' : ' tmpmp-tab-locked'; ?>" data-tab="domains" title="<?php echo $has_custom_domain_feat ? '' : esc_attr__('Requires a plan with Custom Domains enabled','tempmail-pro'); ?>">
+            &#127758; <?php esc_html_e('My Domains','tempmail-pro'); ?><?php if (!$has_custom_domain_feat): ?> &#128274;<?php endif; ?>
         </button>
     </div>
 
@@ -392,7 +1040,23 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
             <p><?php esc_html_e('No inboxes yet. Use the TempMail app to generate your first inbox.','tempmail-pro'); ?></p>
         </div>
         <?php else : ?>
-        <div class="tmpmp-pub-table-wrap">
+
+        <!-- Search toolbar -->
+        <div class="tmpmp-inbox-toolbar">
+            <div class="tmpmp-inbox-search-wrap">
+                <svg class="tmpmp-inbox-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input type="text" id="tmpmp-inbox-search" class="tmpmp-inbox-search-input"
+                       placeholder="<?php esc_attr_e('Search temporary email address&hellip;','tempmail-pro'); ?>"
+                       autocomplete="off" spellcheck="false">
+                <button type="button" id="tmpmp-inbox-search-clear" class="tmpmp-inbox-search-clear" aria-label="<?php esc_attr_e('Clear search','tempmail-pro'); ?>">&#10005;</button>
+            </div>
+            <div class="tmpmp-inbox-meta" id="tmpmp-inbox-meta">
+                <?php printf( esc_html( _n('%d address','%d addresses', count($my_addresses),'tempmail-pro') ), count($my_addresses) ); ?>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="tmpmp-pub-table-wrap" id="tmpmp-inbox-table-wrap">
             <table class="tmpmp-pub-table">
                 <thead>
                     <tr>
@@ -403,14 +1067,14 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
                         <th><?php esc_html_e('Expires','tempmail-pro'); ?></th>
                     </tr>
                 </thead>
-                <tbody>
+                <tbody id="tmpmp-inbox-tbody">
                 <?php foreach ( $my_addresses as $addr ) :
                     $expired = strtotime( $addr->expires_at . ' UTC' ) < time();
                 ?>
-                <tr>
+                <tr data-address="<?php echo esc_attr( strtolower( $addr->address ) ); ?>">
                     <td data-label="<?php esc_attr_e('Address','tempmail-pro'); ?>" style="font-family:monospace;font-weight:600;color:#6366f1;word-break:break-all;"><?php echo esc_html($addr->address); ?></td>
                     <td data-label="<?php esc_attr_e('Emails','tempmail-pro'); ?>"><?php echo intval($addr->email_count); ?></td>
-                    <td data-label="<?php esc_attr_e('Plan','tempmail-pro'); ?>"><span class="tmpmp-pub-badge tmpmp-pub-badge--indigo"><?php echo esc_html(ucfirst($addr->plan)); ?></span></td>
+                    <td data-label="<?php esc_attr_e('Plan','tempmail-pro'); ?>"><span class="tmpmp-pub-badge <?php echo $sub ? 'tmpmp-pub-badge--green' : 'tmpmp-pub-badge--indigo'; ?>"><?php echo esc_html(ucfirst($current_plan_slug)); ?></span></td>
                     <td data-label="<?php esc_attr_e('Created','tempmail-pro'); ?>" style="color:#64748b;"><?php echo esc_html(date_i18n(get_option('date_format'), strtotime($addr->created_at))); ?></td>
                     <td data-label="<?php esc_attr_e('Expires','tempmail-pro'); ?>">
                         <span class="tmpmp-pub-badge <?php echo $expired ? 'tmpmp-pub-badge--red' : 'tmpmp-pub-badge--green'; ?>">
@@ -422,8 +1086,27 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
                 </tbody>
             </table>
         </div>
+
+        <!-- No-search-results state -->
+        <div id="tmpmp-inbox-no-results" class="tmpmp-inbox-no-results" style="display:none">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <p><?php esc_html_e('No addresses match your search.','tempmail-pro'); ?></p>
+        </div>
+
+        <!-- Pagination -->
+        <div class="tmpmp-inbox-pagination" id="tmpmp-inbox-pagination" style="display:none">
+            <button type="button" id="tmpmp-inbox-prev" class="tmpmp-inbox-page-btn">
+                &#8592; <?php esc_html_e('Prev','tempmail-pro'); ?>
+            </button>
+            <div class="tmpmp-inbox-page-numbers" id="tmpmp-inbox-page-numbers"></div>
+            <button type="button" id="tmpmp-inbox-next" class="tmpmp-inbox-page-btn">
+                <?php esc_html_e('Next','tempmail-pro'); ?> &#8594;
+            </button>
+        </div>
+
         <?php endif; ?>
     </div>
+
 
     <!-- ── Billing Tab ────────────────────────────────────────────────── -->
     <div class="dash-tab-panel" id="dash-tab-billing">
@@ -648,47 +1331,197 @@ $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
                     <div id="tmpmp-reset-msg" class="tmpmp-account-msg"></div>
                 </div>
 
+                <!-- ☠ Danger Zone: Delete Account -->
+                <?php
+                $settings = get_option('tmpmp_settings', []);
+                if ( ! empty( $settings['allow_account_deletion'] ?? 1 ) ) :
+                ?>
+                <div class="tmpmp-account-card tmpmp-danger-card" id="tmpmp-delete-account-card">
+                    <h3>🗑️ <?php esc_html_e('Delete My Account','tempmail-pro'); ?></h3>
+                    <p class="tmpmp-reset-info">
+                        <?php esc_html_e('This will permanently delete your account and all associated data — temp email addresses, inbox history, subscriptions, payments and API keys.','tempmail-pro'); ?>
+                        <strong><?php esc_html_e('This action cannot be undone.','tempmail-pro'); ?></strong>
+                    </p>
+                    <button id="tmpmp-open-delete-modal" class="tmpmp-pub-btn--danger">
+                        🗑️ <?php esc_html_e('Delete My Account','tempmail-pro'); ?>
+                    </button>
+                </div>
+                <?php endif; ?>
+
             </div><!-- /security column -->
         </div><!-- /account-grid -->
     </div><!-- /#dash-tab-account -->
 
-    <!-- ── History Tab ──────────────────────────────────────────────────── -->
-    <div class="dash-tab-panel" id="dash-tab-history">
-        <?php if ( ! $is_premium ) : ?>
-        <div class="tmpmp-upgrade-notice" style="text-align:center;padding:48px 24px;">
-            <div style="font-size:48px;margin-bottom:12px;">📂</div>
-            <h3 style="margin:0 0 8px;font-size:18px;color:#0f172a;"><?php esc_html_e('Address History — Premium Feature','tempmail-pro'); ?></h3>
-            <p style="color:#64748b;margin:0 0 20px;"><?php esc_html_e('Upgrade to any paid plan to keep a full history of all your temporary email addresses for 90 days.','tempmail-pro'); ?></p>
-            <a href="<?php echo esc_url( home_url('/tempmail-pricing/') ); ?>" class="tmpmp-pub-btn tmpmp-pub-btn--primary">&#11014; <?php esc_html_e('Upgrade Now','tempmail-pro'); ?></a>
-        </div>
-        <?php else : ?>
-
-        <!-- History list view -->
-        <div id="tmpmp-hist-list-view">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
-                <h3 style="margin:0;font-size:16px;color:#0f172a;">&#128196; <?php esc_html_e('Temporary Address History','tempmail-pro'); ?></h3>
-                <span style="font-size:12px;color:#64748b;"><?php esc_html_e('Addresses are kept for 90 days. Click a row to view its inbox.','tempmail-pro'); ?></span>
+    <!-- ── Delete Account Confirmation Modal ────────────────────────────────── -->
+    <?php if ( ! empty( $settings['allow_account_deletion'] ?? 1 ) ) : ?>
+    <div id="tmpmp-delete-modal" role="dialog" aria-modal="true" aria-labelledby="tmpmp-delete-modal-title">
+        <div id="tmpmp-delete-backdrop"></div>
+        <div id="tmpmp-delete-box">
+            <div class="del-modal-icon">⚠️</div>
+            <h4 id="tmpmp-delete-modal-title"><?php esc_html_e('Delete Your Account?','tempmail-pro'); ?></h4>
+            <div class="del-modal-warn">
+                <?php printf(
+                    esc_html__('You are about to permanently delete the account for %s. All your data will be erased and you will be logged out immediately.','tempmail-pro'),
+                    '<strong>' . esc_html($user->user_email) . '</strong>'
+                ); ?>
             </div>
-            <div id="tmpmp-hist-table-wrap">
-                <div class="tmpmp-hist-loading">&#9203; <?php esc_html_e('Loading history…','tempmail-pro'); ?></div>
-            </div>
-            <div class="tmpmp-hist-pagination" id="tmpmp-hist-pagination" style="display:none;"></div>
-        </div>
-
-        <!-- Inbox drill-down view (hidden by default) -->
-        <div id="tmpmp-hist-inbox-view" style="display:none;">
-            <div class="tmpmp-history-inbox-header">
-                <button class="tmpmp-hist-back" id="tmpmp-hist-back-btn">&#8592; <?php esc_html_e('Back to History','tempmail-pro'); ?></button>
-                <h4 id="tmpmp-hist-inbox-title"></h4>
-                <span id="tmpmp-hist-inbox-status" class="tmpmp-hist-badge"></span>
-            </div>
-            <div id="tmpmp-hist-inbox-body">
-                <div class="tmpmp-hist-loading">&#9203; <?php esc_html_e('Loading inbox…','tempmail-pro'); ?></div>
+            <label for="tmpmp-delete-confirm-email">
+                <?php esc_html_e('Type your email address to confirm:','tempmail-pro'); ?>
+            </label>
+            <input type="email" id="tmpmp-delete-confirm-email"
+                placeholder="<?php echo esc_attr($user->user_email); ?>"
+                autocomplete="off">
+            <div id="tmpmp-delete-modal-msg"></div>
+            <div class="del-modal-footer">
+                <button id="tmpmp-delete-cancel"><?php esc_html_e('Cancel','tempmail-pro'); ?></button>
+                <button id="tmpmp-delete-confirm" disabled>
+                    🗑️ <?php esc_html_e('Delete My Account','tempmail-pro'); ?>
+                </button>
             </div>
         </div>
+    </div>
+    <?php endif; ?>
 
+
+    <!-- ── My Domains Tab ───────────────────────────────────────────────── -->
+    <div class="dash-tab-panel" id="dash-tab-domains">
+        <?php
+        $settings_cd       = get_option('tmpmp_settings', []);
+        // After a successful form POST add, use the already-fetched fresh list
+        $my_custom_domains = $my_custom_domains_fresh ?? TempMail_UserDomains::get_for_user( $user->ID );
+        ?>
+
+        <!-- Add domain form (server-side POST + AJAX enhancement) -->
+        <?php if ( $_tmpmp_domain_msg ) : ?>
+        <div class="tmpmp-ud-msg <?php echo esc_attr( $_tmpmp_domain_type ); ?>" id="tmpmp-ud-server-msg">
+            <?php echo esc_html( $_tmpmp_domain_msg ); ?>
+        </div>
         <?php endif; ?>
-    </div><!-- /#dash-tab-history -->
+        <?php if ( ! empty( $_tmpmp_domain_debug ) ) : ?>
+        <div style="background:#1e1b4b;color:#a5b4fc;font-family:monospace;font-size:12px;padding:12px 16px;border-radius:8px;margin-bottom:12px;border:1px solid #4f46e5;">
+            <strong style="color:#818cf8;">🔍 Debug Info:</strong><br>
+            <?php foreach ( $_tmpmp_domain_debug as $d ) : ?>
+            &nbsp;→ <?php echo esc_html( $d ); ?><br>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <div id="tmpmp-ud-add-msg" class="tmpmp-ud-msg"></div>
+        <form id="tmpmp-ud-add-form" class="tmpmp-ud-add-form" method="POST"
+              action="<?php echo esc_url( get_permalink() ?: home_url( '/' ) ); ?>">
+            <?php wp_nonce_field( 'tmpmp_add_domain_' . $user->ID, 'tmpmp_add_domain_nonce' ); ?>
+            <input type="hidden" name="tmpmp_add_domain_submit" value="1">
+            <input type="text" id="tmpmp-ud-domain-input" name="tmpmp_domain"
+                placeholder="<?php esc_attr_e('e.g. mail.mycompany.com','tempmail-pro'); ?>"
+                autocomplete="off" spellcheck="false"
+                value="<?php echo esc_attr( $_POST['tmpmp_domain'] ?? '' ); ?>">
+            <button id="tmpmp-ud-add-btn" type="submit" class="tmpmp-ud-add-btn">
+                &#127760; <?php esc_html_e('Add Domain','tempmail-pro'); ?>
+            </button>
+        </form>
+
+        <!-- Domain list -->
+        <div id="tmpmp-ud-list">
+        <?php if ( empty($my_custom_domains) ) : ?>
+            <div class="tmpmp-ud-empty" id="tmpmp-ud-empty-state">
+                <div class="tmpmp-ud-empty-icon">&#127760;</div>
+                <p><strong><?php esc_html_e('No custom domains yet','tempmail-pro'); ?></strong></p>
+                <p><?php esc_html_e('Add your own domain above to receive emails on your personal or business address.','tempmail-pro'); ?></p>
+            </div>
+        <?php else : ?>
+            <div id="tmpmp-ud-empty-state" style="display:none;"></div>
+        <?php endif; ?>
+
+        <?php foreach ( $my_custom_domains as $ud_row ) :
+            $ud_records = TempMail_UserDomains::get_required_records( $ud_row );
+            $ud_status  = $ud_row->status;
+            $ud_icons   = [ 'pending'=>'🟡', 'verified'=>'🟢', 'failed'=>'🔴' ];
+            $ud_labels  = [
+                'pending'  => __('Pending','tempmail-pro'),
+                'verified' => __('Verified','tempmail-pro'),
+                'failed'   => __('Failed','tempmail-pro'),
+            ];
+        ?>
+        <div class="tmpmp-ud-card" id="tmpmp-ud-card-<?php echo (int)$ud_row->id; ?>" data-domain-id="<?php echo (int)$ud_row->id; ?>">
+            <div class="tmpmp-ud-card-header">
+                <span class="tmpmp-ud-domain-name">&#127760; <?php echo esc_html($ud_row->domain); ?></span>
+                <span class="tmpmp-ud-status-badge <?php echo esc_attr($ud_status); ?>" id="tmpmp-ud-badge-<?php echo (int)$ud_row->id; ?>">
+                    <?php echo esc_html( ($ud_icons[$ud_status]??'🟡') . ' ' . ($ud_labels[$ud_status]??ucfirst($ud_status)) ); ?>
+                </span>
+                <div class="tmpmp-ud-actions">
+                    <button class="tmpmp-ud-btn tmpmp-ud-btn--verify" data-id="<?php echo (int)$ud_row->id; ?>">
+                        🔄 <?php esc_html_e('Verify Now','tempmail-pro'); ?>
+                    </button>
+                    <button class="tmpmp-ud-btn tmpmp-ud-btn--delete" data-id="<?php echo (int)$ud_row->id; ?>">
+                        🗑️ <?php esc_html_e('Remove','tempmail-pro'); ?>
+                    </button>
+                </div>
+            </div>
+
+            <!-- DNS Accordion -->
+            <?php
+            $ud_verified_count = array_sum( array_column( $ud_records, 'verified' ) );
+            $ud_total_count    = count( $ud_records );
+            $ud_all_verified   = $ud_verified_count === $ud_total_count && $ud_total_count > 0;
+            ?>
+            <button class="tmpmp-ud-accordion-toggle<?php echo $ud_all_verified ? ' all-verified' : ''; ?>"
+                    data-target="tmpmp-ud-acc-<?php echo (int)$ud_row->id; ?>">
+                <span class="tmpmp-ud-acc-arrow">►</span>
+                <?php esc_html_e('DNS Records Required','tempmail-pro'); ?>
+                <span class="tmpmp-ud-acc-count"><?php echo $ud_verified_count; ?>/<?php echo $ud_total_count; ?> <?php esc_html_e('verified','tempmail-pro'); ?></span>
+            </button>
+            <div class="tmpmp-ud-accordion-body" id="tmpmp-ud-acc-<?php echo (int)$ud_row->id; ?>">
+                <table class="tmpmp-dns-table">
+                    <thead>
+                        <tr>
+                            <th><?php esc_html_e('Status','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Record','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Type','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Host','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Value','tempmail-pro'); ?></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tmpmp-ud-dns-<?php echo (int)$ud_row->id; ?>">
+                    <?php foreach ($ud_records as $rec) : ?>
+                        <tr id="tmpmp-ud-rec-<?php echo (int)$ud_row->id; ?>-<?php echo esc_attr($rec['id']); ?>">
+                            <td><span class="tmpmp-dns-rec-status"><?php echo $rec['verified'] ? '✅' : '⏳'; ?></span></td>
+                            <td>
+                                <div class="tmpmp-dns-rec-label"><?php echo esc_html($rec['label']); ?></div>
+                                <div class="tmpmp-dns-rec-desc"><?php echo esc_html($rec['description']); ?></div>
+                            </td>
+                            <td><code><?php echo esc_html($rec['type']); ?></code><?php if($rec['priority']): ?><br><span class="tmpmp-dns-priority"><?php printf(esc_html__('Priority: %s','tempmail-pro'), esc_html($rec['priority'])); ?></span><?php endif; ?></td>
+                            <td><span class="tmpmp-dns-record-value"><?php echo esc_html($rec['host']); ?></span></td>
+                            <td>
+                                <?php if ( ! empty( $rec['dkim_key_missing'] ) ) : ?>
+                                <span class="tmpmp-dns-dkim-missing"><?php esc_html_e( '— key not yet generated —', 'tempmail-pro' ); ?></span>
+                                <?php else : ?>
+                                <span class="tmpmp-dns-record-value"><?php echo esc_html( $rec['value'] ); ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ( ! empty( $rec['dkim_key_missing'] ) ) : ?>
+                                <button class="tmpmp-dns-gen-dkim"
+                                        data-domain-id="<?php echo (int) $rec['domain_id']; ?>"
+                                        title="<?php esc_attr_e( 'Generate your DKIM key so you can add it to your DNS records.', 'tempmail-pro' ); ?>">
+                                    🔑 <?php esc_html_e( 'Generate Key', 'tempmail-pro' ); ?>
+                                </button>
+                                <?php else : ?>
+                                <button class="tmpmp-dns-copy" data-copy="<?php echo esc_attr( $rec['value'] ); ?>">📋 <?php esc_html_e( 'Copy', 'tempmail-pro' ); ?></button>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+                <?php if ($ud_row->last_checked): ?>
+                <p style="font-size:11.5px;color:#94a3b8;margin-top:8px;">&#128336; <?php printf(esc_html__('Last checked: %s','tempmail-pro'), esc_html(get_date_from_gmt($ud_row->last_checked, get_option('date_format').' '.get_option('time_format')))); ?></p>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endforeach; ?>
+        </div><!-- /#tmpmp-ud-list -->
+    </div><!-- /#dash-tab-domains -->
 
 </div><!-- .tmpmp-dashboard-wrap -->
 
@@ -704,176 +1537,9 @@ jQuery(function($){
         $('.dash-tab-panel').removeClass('is-active');
         $('.dash-tab-btn[data-tab="'+tab+'"]').addClass('is-active');
         $('#dash-tab-'+tab).addClass('is-active');
-        if (tab === 'history') histLoadPage(histState.page);
     }
     $('.dash-tab-btn').on('click', function(){ activateTab($(this).data('tab')); });
     activateTab('inboxes');
-
-    // ── Address History ───────────────────────────────────────────────────────
-    var histState = { page: 1, total: 0, perPage: 20, loaded: false };
-    var histCurrentAddr = null; // { id, address, status_label, plan }
-
-    function histFmt(dt){
-        if (!dt) return '—';
-        var d = new Date(dt.replace(' ','T')+'Z');
-        return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'})
-             + ' ' + d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});
-    }
-    function histPlanBadge(plan){
-        var cls = plan === 'vip' ? 'vip' : plan === 'free' ? 'free' : 'premium';
-        return '<span class="tmpmp-hist-badge tmpmp-hist-badge--'+cls+'">'+(plan||'free').toUpperCase()+'</span>';
-    }
-    function histStatusBadge(status){
-        var active = status === 'active';
-        return '<span class="tmpmp-hist-badge tmpmp-hist-badge--'+(active?'active':'expired')+'">'
-             + (active ? '● Active' : '✕ Expired') + '</span>';
-    }
-
-    function histLoadPage(page){
-        if (!$('#tmpmp-hist-table-wrap').length) return;
-        histState.page = page;
-        $('#tmpmp-hist-table-wrap').html('<div class="tmpmp-hist-loading">⏳ <?php esc_html_e('Loading…','tempmail-pro'); ?></div>');
-        $('#tmpmp-hist-pagination').hide();
-        $.post(url,{action:'tmpmp_get_address_history',nonce,page,per_page:histState.perPage},function(r){
-            if (!r.success){ $('#tmpmp-hist-table-wrap').html('<div class="tmpmp-hist-empty">'+escHtml(r.data?.message||'Error')+'</div>'); return; }
-            var d = r.data;
-            histState.total   = d.total;
-            histState.perPage = d.per_page;
-            if (!d.rows || !d.rows.length){
-                $('#tmpmp-hist-table-wrap').html('<div class="tmpmp-hist-empty">📭 <?php esc_html_e('No address history yet. Generate a temp email while logged in to start building history.','tempmail-pro'); ?></div>');
-                return;
-            }
-            var html = '<div class="tmpmp-pub-table-wrap"><table class="tmpmp-history-table">'
-                     + '<thead><tr>'
-                     + '<th><?php esc_html_e('Address','tempmail-pro'); ?></th>'
-                     + '<th><?php esc_html_e('Plan','tempmail-pro'); ?></th>'
-                     + '<th><?php esc_html_e('Emails','tempmail-pro'); ?></th>'
-                     + '<th><?php esc_html_e('Created','tempmail-pro'); ?></th>'
-                     + '<th><?php esc_html_e('Expired','tempmail-pro'); ?></th>'
-                     + '<th><?php esc_html_e('Status','tempmail-pro'); ?></th>'
-                     + '<th></th>'
-                     + '</tr></thead><tbody>';
-            $.each(d.rows, function(_,row){
-                html += '<tr class="tmpmp-hist-row" data-id="'+row.id+'" data-address="'+escAttr(row.address)+'" data-status="'+escAttr(row.status_label)+'" data-plan="'+escAttr(row.plan||'free')+'">'
-                      + '<td class="tmpmp-hist-addr">'+escHtml(row.address)+'</td>'
-                      + '<td>'+histPlanBadge(row.plan)+'</td>'
-                      + '<td>'+parseInt(row.email_count||0)+'</td>'
-                      + '<td style="font-size:12px;color:#64748b;">'+histFmt(row.created_at)+'</td>'
-                      + '<td style="font-size:12px;color:#64748b;">'+histFmt(row.expires_at)+'</td>'
-                      + '<td>'+histStatusBadge(row.status_label)+'</td>'
-                      + '<td><div class="tmpmp-hist-actions"><button class="tmpmp-hist-del-btn" data-id="'+row.id+'">🗑</button></div></td>'
-                      + '</tr>';
-            });
-            html += '</tbody></table></div>';
-            $('#tmpmp-hist-table-wrap').html(html);
-
-            // Pagination
-            var totalPages = Math.ceil(histState.total / histState.perPage);
-            if (totalPages > 1){
-                var pg = '<button class="tmpmp-hist-page-btn" id="tmpmp-hist-prev" '+(page<=1?'disabled':'')+'>◀ <?php esc_html_e('Prev','tempmail-pro'); ?></button>'
-                       + '<span class="tmpmp-hist-page-info"><?php esc_html_e('Page','tempmail-pro'); ?> '+page+' / '+totalPages+'</span>'
-                       + '<button class="tmpmp-hist-page-btn" id="tmpmp-hist-next" '+(page>=totalPages?'disabled':'')+'>><?php esc_html_e('Next','tempmail-pro'); ?> ▶</button>';
-                $('#tmpmp-hist-pagination').html(pg).show();
-            } else {
-                $('#tmpmp-hist-pagination').hide();
-            }
-        });
-    }
-
-    // Row click → open inbox
-    $(document).on('click', '.tmpmp-hist-row', function(e){
-        if ($(e.target).closest('.tmpmp-hist-del-btn').length) return;
-        var $r = $(this);
-        histCurrentAddr = { id:$r.data('id'), address:$r.data('address'), status:$r.data('status'), plan:$r.data('plan') };
-        histOpenInbox(histCurrentAddr);
-    });
-
-    // Delete button
-    $(document).on('click', '.tmpmp-hist-del-btn', function(e){
-        e.stopPropagation();
-        var id = $(this).data('id');
-        if (!confirm('<?php esc_html_e('Delete this address from history? This cannot be undone.','tempmail-pro'); ?>')) return;
-        var $btn = $(this).prop('disabled',true);
-        $.post(url,{action:'tmpmp_delete_history_address',nonce,address_id:id},function(r){
-            if (r.success) histLoadPage(histState.page);
-            else { alert(r.data?.message||'<?php esc_html_e('Delete failed.','tempmail-pro'); ?>'); $btn.prop('disabled',false); }
-        });
-    });
-
-    // Pagination
-    $(document).on('click','#tmpmp-hist-prev',function(){ if(histState.page>1) histLoadPage(histState.page-1); });
-    $(document).on('click','#tmpmp-hist-next',function(){
-        var tp = Math.ceil(histState.total/histState.perPage);
-        if(histState.page<tp) histLoadPage(histState.page+1);
-    });
-
-    // Back button
-    $(document).on('click','#tmpmp-hist-back-btn',function(){
-        $('#tmpmp-hist-inbox-view').hide();
-        $('#tmpmp-hist-list-view').show();
-        histCurrentAddr = null;
-    });
-
-    // Open inbox drill-down
-    function histOpenInbox(addr){
-        $('#tmpmp-hist-list-view').hide();
-        $('#tmpmp-hist-inbox-title').text(addr.address);
-        var $st = $('#tmpmp-hist-inbox-status');
-        $st.attr('class','tmpmp-hist-badge tmpmp-hist-badge--'+(addr.status==='active'?'active':'expired'))
-           .text(addr.status==='active'?'● Active':'✕ Expired');
-        $('#tmpmp-hist-inbox-body').html('<div class="tmpmp-hist-loading">⏳ <?php esc_html_e('Loading inbox…','tempmail-pro'); ?></div>');
-        $('#tmpmp-hist-inbox-view').show();
-
-        $.post(url,{action:'tmpmp_get_history_emails',nonce,address_id:addr.id},function(r){
-            if (!r.success){ $('#tmpmp-hist-inbox-body').html('<div class="tmpmp-hist-empty">'+escHtml(r.data?.message||'Error')+'</div>'); return; }
-            var emails = r.data.emails;
-            if (!emails || !emails.length){
-                $('#tmpmp-hist-inbox-body').html('<div class="tmpmp-hist-empty">📭 <?php esc_html_e('No emails found for this address. Emails are purged when the inbox expires.','tempmail-pro'); ?></div>');
-                return;
-            }
-            var html = '<div class="tmpmp-hist-email-list">';
-            $.each(emails,function(_,em){
-                var sender = em.sender_name ? escHtml(em.sender_name) : escHtml(em.sender);
-                html += '<div class="tmpmp-hist-email-row'+(em.is_read?'':' unread')+'" data-email-id="'+em.id+'" data-addr-id="'+addr.id+'">'
-                      + '<div class="tmpmp-hist-email-sender">'+sender+'</div>'
-                      + '<div class="tmpmp-hist-email-subject">'+escHtml(em.subject||'(no subject)')+'</div>'
-                      + '<div class="tmpmp-hist-email-date">'+histFmt(em.received_at)+'</div>'
-                      + '</div>';
-            });
-            html += '</div>';
-            $('#tmpmp-hist-inbox-body').html(html);
-        });
-    }
-
-    // Email row click → read email body
-    $(document).on('click','.tmpmp-hist-email-row',function(){
-        var emailId = $(this).data('email-id'), addrId = $(this).data('addr-id');
-        var $row = $(this);
-        $row.addClass('is-read').removeClass('unread');
-        // Remove any previously shown body
-        $('.tmpmp-hist-email-body').remove();
-        var $loading = $('<div class="tmpmp-hist-email-body"><div class="tmpmp-hist-loading">⏳ <?php esc_html_e('Loading…','tempmail-pro'); ?></div></div>');
-        $row.after($loading);
-
-        $.post(url,{action:'tmpmp_get_history_email_body',nonce,email_id:emailId,address_id:addrId},function(r){
-            if (!r.success){ $loading.html('<div class="tmpmp-hist-email-body"><p style="color:#ef4444;padding:16px;">'+escHtml(r.data?.message||'Error')+'</p></div>'); return; }
-            var em = r.data;
-            var bodyHtml = em.body_html
-                ? '<iframe srcdoc="'+escAttr(em.body_html)+'" style="width:100%;min-height:300px;border:none;" sandbox="allow-same-origin"></iframe>'
-                : '<pre style="white-space:pre-wrap;font-size:13px;color:#475569;">'+escHtml(em.body_text||'<?php esc_html_e('(empty)','tempmail-pro'); ?>')+'</pre>';
-            $loading.replaceWith(
-                '<div class="tmpmp-hist-email-body">'
-              + '<div class="tmpmp-hist-email-body-header">'
-              + '<h5>'+escHtml(em.subject||'(no subject)')+'</h5>'
-              + '<small><?php esc_html_e('From:','tempmail-pro'); ?> '+escHtml(em.sender_name?em.sender_name+' <'+em.sender+'>':em.sender)
-              + ' &nbsp;·&nbsp; '+histFmt(em.received_at)+'</small>'
-              + '</div>'
-              + bodyHtml
-              + '</div>'
-            );
-        });
-    });
-
 
     // Cancel subscription
     $('#tmpmp-cancel-sub').on('click', function(){
@@ -1163,5 +1829,589 @@ jQuery(function($){
         if (!inp.id) return;
         updateStrength(inp.id);
     });
+
+    /* ── Delete Account Modal ────────────────────────────────────── */
+    (function() {
+        const modal       = document.getElementById('tmpmp-delete-modal');
+        if (!modal) return; // feature disabled via settings
+
+        const backdrop    = document.getElementById('tmpmp-delete-backdrop');
+        const openBtn     = document.getElementById('tmpmp-open-delete-modal');
+        const cancelBtn   = document.getElementById('tmpmp-delete-cancel');
+        const confirmBtn  = document.getElementById('tmpmp-delete-confirm');
+        const emailInput  = document.getElementById('tmpmp-delete-confirm-email');
+        const msgEl       = document.getElementById('tmpmp-delete-modal-msg');
+        const userEmail   = <?php echo json_encode( strtolower( $user->user_email ) ); ?>;
+
+        function openModal() {
+            modal.classList.add('open');
+            emailInput.value = '';
+            confirmBtn.disabled = true;
+            emailInput.classList.remove('invalid');
+            msgEl.className = '';
+            msgEl.textContent = '';
+            document.body.style.overflow = 'hidden';
+            setTimeout(() => emailInput.focus(), 80);
+        }
+
+        function closeModal() {
+            modal.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        if (openBtn) openBtn.addEventListener('click', openModal);
+        cancelBtn.addEventListener('click', closeModal);
+        backdrop.addEventListener('click', closeModal);
+
+        // Escape key closes modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+        });
+
+        // Enable confirm button only when typed email matches
+        emailInput.addEventListener('input', function() {
+            const matches = emailInput.value.trim().toLowerCase() === userEmail;
+            confirmBtn.disabled = !matches;
+            emailInput.classList.toggle('invalid', emailInput.value.length > 0 && !matches);
+        });
+
+        // AJAX delete
+        confirmBtn.addEventListener('click', function() {
+            confirmBtn.disabled = true;
+            const origText = confirmBtn.textContent;
+            confirmBtn.textContent = '<?php esc_html_e('Deleting…','tempmail-pro'); ?>';
+            msgEl.className = '';
+            msgEl.textContent = '';
+
+            const body = new URLSearchParams({
+                action:        'tmpmp_delete_account',
+                nonce:         nonce,
+                confirm_email: emailInput.value.trim(),
+            });
+
+            fetch(url, {method:'POST', body, credentials:'same-origin'})
+                .then(r => r.json())
+                .then(r => {
+                    if (r.success) {
+                        confirmBtn.textContent = '<?php esc_html_e('Deleted! Redirecting…','tempmail-pro'); ?>';
+                        setTimeout(() => {
+                            window.location.href = r.data?.redirect_url || '<?php echo esc_js(home_url('/')); ?>';
+                        }, 1200);
+                    } else {
+                        msgEl.textContent = r.data?.message || '<?php esc_html_e('An error occurred. Please try again.','tempmail-pro'); ?>';
+                        msgEl.className   = 'err';
+                        confirmBtn.disabled = false;
+                        confirmBtn.textContent = origText;
+                    }
+                })
+                .catch(() => {
+                    msgEl.textContent = '<?php esc_html_e('Connection error. Please try again.','tempmail-pro'); ?>';
+                    msgEl.className   = 'err';
+                    confirmBtn.disabled = false;
+                    confirmBtn.textContent = origText;
+                });
+        });
+    })();
+
+    /* ── My Domains Tab ────────────────────────────────────────────────── */
+    (function() {
+        const STATUS_ICONS  = { pending:'🟡', verified:'🟢', failed:'🔴', checking:'🔵' };
+        const STATUS_LABELS = {
+            pending:  '<?php esc_html_e('Pending','tempmail-pro'); ?>',
+            verified: '<?php esc_html_e('Verified','tempmail-pro'); ?>',
+            failed:   '<?php esc_html_e('Failed','tempmail-pro'); ?>',
+            checking: '<?php esc_html_e('Checking…','tempmail-pro'); ?>',
+        };
+
+        // ── Accordion toggle ────────────────────────────────────────────
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.tmpmp-ud-accordion-toggle');
+            if (!btn) return;
+            const targetId = btn.getAttribute('data-target');
+            const body = document.getElementById(targetId);
+            if (!body) return;
+            const isOpen = body.classList.toggle('open');
+            const arrow  = btn.querySelector('.tmpmp-ud-acc-arrow');
+            if (arrow) arrow.textContent = isOpen ? '▼' : '►';
+        });
+
+        // ── Copy to clipboard ───────────────────────────────────────────
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.tmpmp-dns-copy');
+            if (!btn) return;
+            e.preventDefault();
+
+            const text = btn.getAttribute('data-copy') || '';
+            if (!text) return;
+
+            const origHTML = btn.innerHTML;
+            function flash() {
+                btn.textContent = '✅ <?php esc_html_e('Copied!','tempmail-pro'); ?>';
+                setTimeout(function() { btn.innerHTML = origHTML; }, 1800);
+            }
+            function execFallback() {
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.setAttribute('readonly', '');
+                    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+                    document.body.appendChild(ta);
+                    ta.focus(); ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                } catch(ex) { /* silent */ }
+                flash();
+            }
+
+            // navigator.clipboard only available in secure contexts (HTTPS)
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(flash).catch(execFallback);
+            } else {
+                execFallback();
+            }
+        });
+
+        // ── Generate DKIM Key ────────────────────────────────────────────
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.tmpmp-dns-gen-dkim');
+            if (!btn) return;
+            e.preventDefault();
+
+            const domainId = btn.getAttribute('data-domain-id');
+            if (!domainId) return;
+
+            // Access TempMailPro lazily — always defined by the time user can click
+            var nonce = (typeof TempMailPro !== 'undefined') ? TempMailPro.nonce    : '';
+            var url   = (typeof TempMailPro !== 'undefined') ? TempMailPro.ajax_url : '';
+            if (!url || !nonce) {
+                alert('<?php esc_html_e('Session expired — please reload the page and try again.','tempmail-pro'); ?>');
+                return;
+            }
+
+            const origHTML = btn.innerHTML;
+            btn.disabled = true;
+            btn.textContent = '⏳ <?php esc_html_e('Generating…','tempmail-pro'); ?>';
+
+            const controller = new AbortController();
+            const abort = setTimeout(function() { controller.abort(); }, 110000);
+
+            fetch(url, {
+                method: 'POST',
+                credentials: 'same-origin',
+                signal: controller.signal,
+                body: new URLSearchParams({ action: 'tmpmp_generate_dkim_key', nonce: nonce, domain_id: domainId }),
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(r) {
+                clearTimeout(abort);
+                if (!r.success) {
+                    const msg = (r.data && r.data.message) ? r.data.message
+                        : '<?php esc_html_e('Key generation failed.','tempmail-pro'); ?>';
+                    const row = btn.closest('tr');
+                    if (row) {
+                        const valueTd = row.querySelectorAll('td')[4];
+                        if (valueTd) valueTd.innerHTML =
+                            '<span style="color:#dc2626;font-size:11px;">' + msg + '</span>';
+                    }
+                    btn.disabled = false;
+                    btn.innerHTML = origHTML;
+                    return;
+                }
+                const dkimValue = r.data.dkim_value;
+                // Update the Value cell
+                const row = btn.closest('tr');
+                if (row) {
+                    const valueTd = row.querySelectorAll('td')[4];
+                    if (valueTd) {
+                        valueTd.innerHTML = '<span class="tmpmp-dns-record-value" style="word-break:break-all;">' +
+                            dkimValue.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</span>';
+                    }
+                }
+                // Replace Generate button with Copy button
+                btn.outerHTML = '<button class="tmpmp-dns-copy" data-copy="' +
+                    dkimValue.replace(/"/g,'&quot;') +
+                    '">📋 <?php esc_html_e('Copy','tempmail-pro'); ?></button>';
+            })
+            .catch(function(err) {
+                clearTimeout(abort);
+                btn.disabled = false;
+                btn.innerHTML = origHTML;
+                const isTimeout = err && err.name === 'AbortError';
+                const msg = isTimeout
+                    ? '<?php esc_html_e('Timed out — please try again.','tempmail-pro'); ?>'
+                    : '<?php esc_html_e('Network error — please try again.','tempmail-pro'); ?>';
+                const row = btn.closest('tr');
+                if (row) {
+                    const valueTd = row.querySelectorAll('td')[4];
+                    if (valueTd) valueTd.innerHTML =
+                        '<span style="color:#dc2626;font-size:11px;">' + msg + '</span>';
+                }
+            });
+        });
+
+
+
+        function setMsg(msg, type) {
+            const el = document.getElementById('tmpmp-ud-add-msg');
+            if (!el) return;
+            el.textContent = msg;
+            el.className = 'tmpmp-ud-msg ' + (type || '');
+        }
+
+        function setBadge(domainId, status) {
+            const badge = document.getElementById('tmpmp-ud-badge-' + domainId);
+            if (!badge) return;
+            badge.className = 'tmpmp-ud-status-badge ' + status;
+            badge.textContent = (STATUS_ICONS[status] || '🟡') + ' ' + (STATUS_LABELS[status] || status);
+        }
+
+        function updateRecordIcons(domainId, checks) {
+            const ids = ['txt','mx','spf','dkim','dmarc'];
+            ids.forEach(id => {
+                const row = document.getElementById('tmpmp-ud-rec-' + domainId + '-' + id);
+                if (!row) return;
+                const icon = row.querySelector('.tmpmp-dns-rec-status');
+                if (!icon) return;
+                icon.textContent = checks[id] ? '✅' : '❌';
+            });
+        }
+
+        function buildDomainCard(d, records) {
+            const statusLabel = (STATUS_ICONS[d.status]||'🟡') + ' ' + (STATUS_LABELS[d.status]||d.status);
+            const recRows = records.map(rec => `
+                <tr id="tmpmp-ud-rec-${d.id}-${rec.id}">
+                    <td><span class="tmpmp-dns-rec-status">${rec.verified ? '✅' : '⏳'}</span></td>
+                    <td>
+                        <div class="tmpmp-dns-rec-label">${rec.label}</div>
+                        <div class="tmpmp-dns-rec-desc">${rec.description}</div>
+                    </td>
+                    <td><code>${rec.type}</code>${rec.priority ? `<br><span class="tmpmp-dns-priority"><?php esc_html_e('Priority:','tempmail-pro'); ?> ${rec.priority}</span>` : ''}</td>
+                    <td><span class="tmpmp-dns-record-value">${rec.host}</span></td>
+                    <td><span class="tmpmp-dns-record-value">${rec.value}</span></td>
+                    <td><button class="tmpmp-dns-copy" data-copy="${rec.value.replace(/"/g,'&quot;')}">📋 <?php esc_html_e('Copy','tempmail-pro'); ?></button></td>
+                </tr>`).join('');
+            const card = document.createElement('div');
+            card.className = 'tmpmp-ud-card';
+            card.id = 'tmpmp-ud-card-' + d.id;
+            card.dataset.domainId = d.id;
+            card.innerHTML = `
+                <div class="tmpmp-ud-card-header">
+                    <span class="tmpmp-ud-domain-name">🌐 ${d.domain}</span>
+                    <span class="tmpmp-ud-status-badge ${d.status}" id="tmpmp-ud-badge-${d.id}">${statusLabel}</span>
+                    <div class="tmpmp-ud-actions">
+                        <button class="tmpmp-ud-btn tmpmp-ud-btn--verify" data-id="${d.id}">🔄 <?php esc_html_e('Verify Now','tempmail-pro'); ?></button>
+                        <button class="tmpmp-ud-btn tmpmp-ud-btn--delete" data-id="${d.id}">🗑️ <?php esc_html_e('Remove','tempmail-pro'); ?></button>
+                    </div>
+                </div>
+                <button class="tmpmp-ud-accordion-toggle" data-target="tmpmp-ud-acc-${d.id}">
+                    <span class="tmpmp-ud-acc-arrow">►</span>
+                    <?php esc_html_e('DNS Records Required','tempmail-pro'); ?>
+                    <span class="tmpmp-ud-acc-count">0/${records.length} <?php esc_html_e('verified','tempmail-pro'); ?></span>
+                </button>
+                <div class="tmpmp-ud-accordion-body open" id="tmpmp-ud-acc-${d.id}">
+                    <table class="tmpmp-dns-table">
+                        <thead><tr>
+                            <th><?php esc_html_e('Status','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Record','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Type','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Host','tempmail-pro'); ?></th>
+                            <th><?php esc_html_e('Value','tempmail-pro'); ?></th>
+                            <th></th>
+                        </tr></thead>
+                        <tbody id="tmpmp-ud-dns-${d.id}">${recRows}</tbody>
+                    </table>
+                </div>`;
+            return card;
+        }
+
+        // ── Add domain — native form POST (no AJAX, no hang) ────────────
+        const addForm  = document.getElementById('tmpmp-ud-add-form');
+        const addBtn   = document.getElementById('tmpmp-ud-add-btn');
+        const addInput = document.getElementById('tmpmp-ud-domain-input');
+        if (addForm && addBtn && addInput) {
+            addForm.addEventListener('submit', function(e) {
+                const domain = addInput.value.trim();
+                if (!domain) {
+                    e.preventDefault();
+                    setMsg('<?php esc_html_e('Please enter a domain name.','tempmail-pro'); ?>', 'err');
+                    return;
+                }
+                addBtn.disabled = true;
+                addBtn.textContent = '<?php esc_html_e('Adding…','tempmail-pro'); ?>';
+            });
+        }
+
+        // ── Verify domain ───────────────────────────────────────────────
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('.tmpmp-ud-btn--verify');
+            if (!btn) return;
+            const id = btn.dataset.id;
+
+            var nonce = (typeof TempMailPro !== 'undefined') ? TempMailPro.nonce    : '';
+            var url   = (typeof TempMailPro !== 'undefined') ? TempMailPro.ajax_url : '';
+            if (!url || !nonce) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '🔵 <?php esc_html_e('Checking…','tempmail-pro'); ?>';
+            setBadge(id, 'checking');
+
+            function resetBtn() {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 <?php esc_html_e('Verify Now','tempmail-pro'); ?>';
+            }
+            function showTimeoutNote() {
+                const tog = document.querySelector('[data-target="tmpmp-ud-acc-' + id + '"]');
+                if (!tog) return;
+                const note = document.createElement('small');
+                note.style.cssText = 'color:#b45309;font-size:11px;display:block;margin-top:4px;';
+                note.textContent = '<?php esc_html_e('DNS check timed out — please try Verify Now again.','tempmail-pro'); ?>';
+                tog.parentNode.insertBefore(note, tog.nextSibling);
+                setTimeout(function() { if (note.parentNode) note.remove(); }, 6000);
+            }
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            xhr.timeout = 20000;
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+
+            xhr.onload = function() {
+                resetBtn();
+                var r;
+                try { r = JSON.parse(xhr.responseText); } catch(err) {
+                    setBadge(id, 'failed'); return;
+                }
+                if (r && r.success) {
+                    var d = r.data;
+                    setBadge(id, d.status);
+                    updateRecordIcons(id, d.checks);
+                    var passed = Object.values(d.checks).filter(Boolean).length;
+                    var total  = Object.values(d.checks).length;
+                    var tog = document.querySelector('[data-target="tmpmp-ud-acc-' + id + '"]');
+                    if (tog) {
+                        var chip = tog.querySelector('.tmpmp-ud-acc-count');
+                        if (chip) chip.textContent = passed + '/' + total + ' <?php esc_html_e('verified','tempmail-pro'); ?>';
+                        tog.classList.toggle('all-verified', passed === total && total > 0);
+                    }
+                } else {
+                    setBadge(id, 'failed');
+                }
+            };
+            xhr.onerror   = function() { resetBtn(); setBadge(id, 'failed'); };
+            xhr.ontimeout = function() { resetBtn(); setBadge(id, 'pending'); showTimeoutNote(); };
+
+            xhr.send('action=tmpmp_verify_custom_domain&nonce=' + encodeURIComponent(nonce) + '&domain_id=' + encodeURIComponent(id));
+        });
+
+
+        // ── Delete domain (optimistic UI) ───────────────────────────────
+        // The card is removed immediately when the user confirms.
+        // The AJAX runs in the background. If the server rejects it,
+        // the card is restored and an error alert is shown.
+        document.addEventListener('click', function(e) {
+            var btn = e.target.closest('.tmpmp-ud-btn--delete');
+            if (!btn) return;
+            if (!confirm('<?php esc_html_e('Remove this custom domain? This cannot be undone.','tempmail-pro'); ?>')) return;
+
+            var id    = btn.dataset.id;
+            var nonce = (typeof TempMailPro !== 'undefined') ? TempMailPro.nonce    : '';
+            var url   = (typeof TempMailPro !== 'undefined') ? TempMailPro.ajax_url : '';
+
+            if (!url || !nonce) {
+                alert('<?php esc_html_e('Session expired — please reload the page and try again.','tempmail-pro'); ?>');
+                return;
+            }
+
+            // Snapshot the card so we can restore it on server error
+            var card       = document.getElementById('tmpmp-ud-card-' + id);
+            var cardHTML   = card ? card.outerHTML : '';
+            var cardParent = card ? card.parentNode : null;
+            var cardNext   = card ? card.nextSibling : null;
+
+            // Optimistically fade + remove the card right now
+            if (card) {
+                card.style.transition = 'opacity .25s';
+                card.style.opacity    = '0';
+                setTimeout(function() { if (card.parentNode) card.remove(); }, 260);
+            }
+
+            // Show empty-state if this was the last card
+            var remaining = document.querySelectorAll('#tmpmp-ud-list .tmpmp-ud-card').length - 1;
+            if (remaining <= 0) {
+                var empty = document.getElementById('tmpmp-ud-empty-state');
+                if (empty) {
+                    empty.className = 'tmpmp-ud-empty';
+                    empty.innerHTML = '<div class="tmpmp-ud-empty-icon">&#127760;</div><p><strong><?php esc_html_e('No custom domains yet','tempmail-pro'); ?></strong></p>';
+                    empty.style.display = '';
+                }
+            }
+
+            // Restore card helper (called only on confirmed server-side failure)
+            function restoreCard(errMsg) {
+                if (cardParent && cardHTML) {
+                    var tmp = document.createElement('div');
+                    tmp.innerHTML = cardHTML;
+                    var restored = tmp.firstChild;
+                    if (restored) {
+                        restored.style.opacity = '1';
+                        if (cardNext) { cardParent.insertBefore(restored, cardNext); }
+                        else          { cardParent.appendChild(restored); }
+                    }
+                }
+                var e2 = document.getElementById('tmpmp-ud-empty-state');
+                if (e2) e2.style.display = 'none';
+                alert(errMsg || '<?php esc_html_e('Could not remove domain — please try again.','tempmail-pro'); ?>');
+            }
+
+            // Fire AJAX in the background
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', url, true);
+            xhr.timeout = 15000;
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.onload = function() {
+                var r;
+                try { r = JSON.parse(xhr.responseText); } catch(ex) { return; }
+                if (r && r.success === false) {
+                    restoreCard((r.data && r.data.message) ? r.data.message : '');
+                }
+                // success === true → card is already gone, nothing to do
+            };
+            xhr.onerror   = function() { /* network error — leave card removed, it was probably deleted */ };
+            xhr.ontimeout = function() { /* timed out — server likely succeeded, leave card removed */ };
+            xhr.send('action=tmpmp_delete_custom_domain&nonce=' + encodeURIComponent(nonce) + '&domain_id=' + encodeURIComponent(id));
+        });
+
+    })();
+
 })();
+
+// ── My Inboxes: client-side search + pagination ─────────────────────
+(function () {
+    var tbody = document.getElementById('tmpmp-inbox-tbody');
+    if (!tbody) return; // no addresses — empty state shown
+
+    var searchInput  = document.getElementById('tmpmp-inbox-search');
+    var clearBtn     = document.getElementById('tmpmp-inbox-search-clear');
+    var metaEl       = document.getElementById('tmpmp-inbox-meta');
+    var prevBtn      = document.getElementById('tmpmp-inbox-prev');
+    var nextBtn      = document.getElementById('tmpmp-inbox-next');
+    var pageNumsEl   = document.getElementById('tmpmp-inbox-page-numbers');
+    var noResultsEl  = document.getElementById('tmpmp-inbox-no-results');
+    var tableWrapEl  = document.getElementById('tmpmp-inbox-table-wrap');
+    var paginationEl = document.getElementById('tmpmp-inbox-pagination');
+
+    var PER_PAGE    = 10;
+    var currentPage = 1;
+    var allRows     = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var filtered    = allRows.slice();
+
+    /* ── filter by query ── */
+    function applyFilter(q) {
+        q = q.trim().toLowerCase();
+        filtered = q
+            ? allRows.filter(function (r) {
+                  return (r.getAttribute('data-address') || '').indexOf(q) !== -1;
+              })
+            : allRows.slice();
+        currentPage = 1;
+        render();
+    }
+
+    /* ── main render ── */
+    function render() {
+        var total      = filtered.length;
+        var totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+        if (currentPage > totalPages) currentPage = totalPages;
+
+        var start = (currentPage - 1) * PER_PAGE;
+        var end   = start + PER_PAGE;
+
+        /* show/hide rows */
+        allRows.forEach(function (r) { r.style.display = 'none'; });
+        filtered.forEach(function (r, i) {
+            r.style.display = (i >= start && i < end) ? '' : 'none';
+        });
+
+        /* empty-search state */
+        if (total === 0) {
+            tableWrapEl.style.display  = 'none';
+            noResultsEl.style.display  = '';
+            paginationEl.style.display = 'none';
+        } else {
+            tableWrapEl.style.display  = '';
+            noResultsEl.style.display  = 'none';
+            paginationEl.style.display = totalPages > 1 ? 'flex' : 'none';
+        }
+
+        /* meta text */
+        var pageInfo = totalPages > 1 ? ' \u00b7 Page ' + currentPage + ' of ' + totalPages : '';
+        metaEl.textContent = total + (total === 1 ? ' address' : ' addresses') + pageInfo;
+
+        /* prev / next */
+        prevBtn.disabled = (currentPage <= 1);
+        nextBtn.disabled = (currentPage >= totalPages);
+
+        /* numbered pages */
+        buildPageNumbers(totalPages);
+    }
+
+    /* ── build smart numbered page buttons ── */
+    function buildPageNumbers(totalPages) {
+        pageNumsEl.innerHTML = '';
+        if (totalPages <= 1) return;
+
+        var pages = [];
+        for (var i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages ||
+                (i >= currentPage - 1 && i <= currentPage + 1)) {
+                pages.push(i);
+            }
+        }
+
+        var prev = null;
+        pages.forEach(function (p) {
+            if (prev !== null && p - prev > 1) {
+                var ell = document.createElement('span');
+                ell.className   = 'tmpmp-inbox-page-ellipsis';
+                ell.textContent = '\u2026';
+                pageNumsEl.appendChild(ell);
+            }
+            var btn = document.createElement('button');
+            btn.type        = 'button';
+            btn.className   = 'tmpmp-inbox-page-num' + (p === currentPage ? ' is-active' : '');
+            btn.textContent = p;
+            btn.setAttribute('data-p', p);
+            btn.addEventListener('click', function () {
+                currentPage = parseInt(this.getAttribute('data-p'), 10);
+                render();
+                var panel = document.getElementById('dash-tab-inboxes');
+                if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+            pageNumsEl.appendChild(btn);
+            prev = p;
+        });
+    }
+
+    /* ── events ── */
+    searchInput.addEventListener('input', function () {
+        clearBtn.style.display = this.value ? 'flex' : 'none';
+        applyFilter(this.value);
+    });
+    clearBtn.addEventListener('click', function () {
+        searchInput.value      = '';
+        clearBtn.style.display = 'none';
+        searchInput.focus();
+        applyFilter('');
+    });
+    prevBtn.addEventListener('click', function () {
+        if (currentPage > 1) { currentPage--; render(); }
+    });
+    nextBtn.addEventListener('click', function () {
+        var tp = Math.ceil(filtered.length / PER_PAGE);
+        if (currentPage < tp) { currentPage++; render(); }
+    });
+
+    /* ── initial render ── */
+    render();
+}());
 </script>
+
