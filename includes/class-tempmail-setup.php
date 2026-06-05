@@ -139,4 +139,61 @@ class TempMail_Setup {
         }
         delete_option( 'tmpmp_pages' );
     }
+
+    /**
+     * Run DB migrations for existing installs.
+     * Safe to call on every plugins_loaded — each migration checks before altering.
+     */
+    public static function maybe_run_migrations() : void {
+        global $wpdb;
+
+        // ── Addresses table: add is_permanent column ──────────────────────────
+        $col = $wpdb->get_results( $wpdb->prepare(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = %s
+                AND TABLE_NAME   = %s
+                AND COLUMN_NAME  = 'is_permanent'",
+            DB_NAME,
+            $wpdb->prefix . 'tmpmp_addresses'
+        ) );
+        if ( empty( $col ) ) {
+            $wpdb->query(
+                "ALTER TABLE {$wpdb->prefix}tmpmp_addresses
+                   ADD COLUMN is_permanent TINYINT(1) NOT NULL DEFAULT 0 AFTER is_private,
+                   ADD KEY is_permanent (is_permanent)"
+            );
+        }
+
+        // ── Plans table: add has_permanent_inbox + max_permanent_inboxes ─────
+        $col2 = $wpdb->get_results( $wpdb->prepare(
+            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = %s
+                AND TABLE_NAME   = %s
+                AND COLUMN_NAME  = 'has_permanent_inbox'",
+            DB_NAME,
+            $wpdb->prefix . 'tmpmp_plans'
+        ) );
+        if ( empty( $col2 ) ) {
+            $wpdb->query(
+                "ALTER TABLE {$wpdb->prefix}tmpmp_plans
+                   ADD COLUMN has_permanent_inbox   TINYINT(1) NOT NULL DEFAULT 0,
+                   ADD COLUMN max_permanent_inboxes INT        NOT NULL DEFAULT 0"
+            );
+
+            // Set defaults for existing plan rows
+            $plan_limits = [
+                'free'     => [ 'has_permanent_inbox' => 0, 'max_permanent_inboxes' => 0 ],
+                'starter'  => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => 1 ],
+                'pro'      => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => 5 ],
+                'business' => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => -1 ],
+            ];
+            foreach ( $plan_limits as $slug => $vals ) {
+                $wpdb->update(
+                    $wpdb->prefix . 'tmpmp_plans',
+                    $vals,
+                    [ 'slug' => $slug ]
+                );
+            }
+        }
+    }
 }

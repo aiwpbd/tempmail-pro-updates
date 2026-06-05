@@ -292,6 +292,55 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 }
 .dash-tab-btn { flex-shrink: 0; white-space: nowrap; }
 
+/* ── Permanent Inbox tab styles ─────────────────────────────────────────── */
+.tmpmp-perm-header      { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
+.tmpmp-perm-header-left { display:flex; align-items:center; gap:10px; }
+.tmpmp-perm-count-badge { background:#6366f1; color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; }
+.tmpmp-perm-cards       { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+.tmpmp-perm-card        { background:#fff; border:1.5px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:8px; transition:box-shadow .15s; }
+.tmpmp-perm-card:hover  { box-shadow:0 4px 20px rgba(99,102,241,.12); border-color:#c7d2fe; }
+.tmpmp-perm-card-addr   { font-family:monospace; font-weight:700; color:#4f46e5; font-size:13px; word-break:break-all; }
+.tmpmp-perm-badge       { display:inline-flex; align-items:center; gap:4px; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; border-radius:20px; font-size:11px; font-weight:700; padding:2px 9px; }
+.tmpmp-perm-meta        { font-size:12px; color:#64748b; }
+.tmpmp-perm-actions     { display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+.tmpmp-perm-btn         { font-size:12px; font-weight:600; padding:5px 12px; border-radius:8px; border:1.5px solid; cursor:pointer; transition:all .15s; background:transparent; }
+.tmpmp-perm-btn--view   { border-color:#6366f1; color:#6366f1; }
+.tmpmp-perm-btn--view:hover   { background:#6366f1; color:#fff; }
+.tmpmp-perm-btn--del    { border-color:#ef4444; color:#ef4444; }
+.tmpmp-perm-btn--del:hover    { background:#ef4444; color:#fff; }
+.tmpmp-perm-btn--exp    { border-color:#0ea5e9; color:#0ea5e9; }
+.tmpmp-perm-btn--exp:hover    { background:#0ea5e9; color:#fff; }
+/* Export dropdown */
+.tmpmp-exp-wrap         { position:relative; }
+.tmpmp-exp-menu         { display:none; position:absolute; top:calc(100% + 4px); right:0; background:#fff; border:1.5px solid #e2e8f0; border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.1); z-index:200; min-width:120px; overflow:hidden; }
+.tmpmp-exp-menu.open    { display:block; }
+.tmpmp-exp-menu button  { display:block; width:100%; padding:9px 16px; font-size:13px; font-weight:600; text-align:left; background:transparent; border:none; cursor:pointer; color:#1e293b; }
+.tmpmp-exp-menu button:hover { background:#f1f5f9; }
+/* Email drawer */
+.tmpmp-perm-drawer      { display:none; margin-top:10px; border-top:1.5px solid #e2e8f0; padding-top:12px; }
+.tmpmp-perm-drawer.open { display:block; }
+.tmpmp-perm-drawer-email{ padding:9px 12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:6px; cursor:pointer; transition:background .12s; }
+.tmpmp-perm-drawer-email:hover { background:#f8fafc; }
+.tmpmp-perm-drawer-subj { font-weight:600; font-size:13px; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tmpmp-perm-drawer-meta { font-size:11px; color:#64748b; margin-top:2px; }
+.tmpmp-perm-drawer-none { text-align:center; color:#94a3b8; font-size:13px; padding:16px 0; }
+/* Create modal */
+.tmpmp-perm-modal-bg    { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center; }
+.tmpmp-perm-modal-bg.open { display:flex; }
+.tmpmp-perm-modal       { background:#fff; border-radius:18px; padding:28px 28px 24px; width:min(480px,90vw); box-shadow:0 20px 60px rgba(0,0,0,.18); }
+.tmpmp-perm-modal h3    { margin:0 0 6px; font-size:17px; font-weight:700; color:#1e293b; }
+.tmpmp-perm-modal p     { margin:0 0 18px; font-size:13px; color:#64748b; }
+.tmpmp-perm-modal label { display:block; font-size:12px; font-weight:600; color:#374151; margin-bottom:5px; }
+.tmpmp-perm-modal select,
+.tmpmp-perm-modal input  { width:100%; padding:9px 12px; border:1.5px solid #e2e8f0; border-radius:9px; font-size:14px; margin-bottom:14px; box-sizing:border-box; }
+.tmpmp-perm-modal select:focus,
+.tmpmp-perm-modal input:focus { outline:none; border-color:#6366f1; }
+.tmpmp-perm-modal-footer{ display:flex; gap:10px; justify-content:flex-end; margin-top:4px; }
+.tmpmp-perm-btn--cancel { background:#f1f5f9; color:#374151; border:none; border-radius:9px; padding:9px 18px; font-weight:600; font-size:13px; cursor:pointer; }
+.tmpmp-perm-btn--create { background:#6366f1; color:#fff; border:none; border-radius:9px; padding:9px 18px; font-weight:700; font-size:13px; cursor:pointer; }
+.tmpmp-perm-btn--create:disabled { opacity:.6; cursor:not-allowed; }
+.tmpmp-perm-error       { color:#ef4444; font-size:13px; margin-bottom:10px; display:none; }
+
 /* ── Responsive card table ── */
 @media (max-width: 580px) {
     /* Hide the normal table header row */
@@ -1058,6 +1107,15 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
             <?php esc_html_e('Inbox App','tempmail-pro'); ?> &#128274;
         </button>
         <?php endif; ?>
+        <?php if ( $is_premium && isset($sub->has_permanent_inbox) && $sub->has_permanent_inbox ) : ?>
+        <button class="dash-tab-btn" data-tab="permanent">
+            &#9854; <?php esc_html_e('Permanent Inboxes','tempmail-pro'); ?>
+        </button>
+        <?php else : ?>
+        <button class="dash-tab-btn tmpmp-tab-locked" data-tab="permanent" title="<?php esc_attr_e('Requires a paid plan with Permanent Inbox feature','tempmail-pro'); ?>">
+            &#9854; <?php esc_html_e('Permanent Inboxes','tempmail-pro'); ?> &#128274;
+        </button>
+        <?php endif; ?>
     </div>
 
     <!-- ── Inboxes Tab ─────────────────────────────────────────────────── -->
@@ -1565,7 +1623,47 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
         </div>
     </div>
 
+    <!-- ── Permanent Inboxes Tab ────────────────────────────────────────── -->
+    <div class="dash-tab-panel" id="dash-tab-permanent">
+        <div class="tmpmp-perm-header">
+            <div class="tmpmp-perm-header-left">
+                <strong><?php esc_html_e('Permanent Inboxes','tempmail-pro'); ?></strong>
+                <span class="tmpmp-perm-count-badge" id="tmpmp-perm-count">0</span>
+            </div>
+            <button type="button" class="tmpmp-dash-btn" id="tmpmp-perm-create-btn">
+                + <?php esc_html_e('New Permanent Inbox','tempmail-pro'); ?>
+            </button>
+        </div>
+        <div id="tmpmp-perm-cards" class="tmpmp-perm-cards"></div>
+        <div id="tmpmp-perm-empty" style="display:none;text-align:center;padding:40px 0;color:#94a3b8;">
+            <div style="font-size:40px;margin-bottom:10px;">&#9854;</div>
+            <p style="font-weight:600;"><?php esc_html_e('No permanent inboxes yet.','tempmail-pro'); ?></p>
+            <p style="font-size:13px;"><?php esc_html_e('Create one to get a reusable, never-expiring email address.','tempmail-pro'); ?></p>
+        </div>
+    </div>
+
 </div><!-- .tmpmp-dashboard-wrap -->
+
+<!-- ── Permanent Inbox: Create Modal ───────────────────────────────────── -->
+<div class="tmpmp-perm-modal-bg" id="tmpmp-perm-modal-bg">
+    <div class="tmpmp-perm-modal">
+        <h3>&#9854; <?php esc_html_e('Create Permanent Inbox','tempmail-pro'); ?></h3>
+        <p><?php esc_html_e('This inbox will never expire and stays linked to your account permanently.','tempmail-pro'); ?></p>
+        <div id="tmpmp-perm-modal-err" class="tmpmp-perm-error"></div>
+        <label for="tmpmp-perm-domain"><?php esc_html_e('Domain','tempmail-pro'); ?></label>
+        <select id="tmpmp-perm-domain">
+            <?php foreach ( TempMail_Database::get_all_domains() as $d ) : ?>
+            <option value="<?php echo esc_attr($d->domain); ?>"><?php echo esc_html('@'.$d->domain); ?></option>
+            <?php endforeach; ?>
+        </select>
+        <label for="tmpmp-perm-username"><?php esc_html_e('Username (leave blank to auto-generate)','tempmail-pro'); ?></label>
+        <input type="text" id="tmpmp-perm-username" placeholder="e.g. myname" autocomplete="off" maxlength="64">
+        <div class="tmpmp-perm-modal-footer">
+            <button type="button" class="tmpmp-perm-btn--cancel" id="tmpmp-perm-modal-cancel"><?php esc_html_e('Cancel','tempmail-pro'); ?></button>
+            <button type="button" class="tmpmp-perm-btn--create" id="tmpmp-perm-modal-submit"><?php esc_html_e('Create','tempmail-pro'); ?></button>
+        </div>
+    </div>
+</div>
 
 <script>
 jQuery(function($){
@@ -1573,6 +1671,7 @@ jQuery(function($){
 
     // ── Tabs ───────────────────────────────────────────────────────────────
     var inboxAppLoaded = false;
+    var permInboxLoaded = false;
 
     function activateTab(tab){
         // Block locked tabs
@@ -1585,6 +1684,10 @@ jQuery(function($){
         // Lazy-load Inbox App via AJAX on first activation
         if (tab === 'inbox-app' && !inboxAppLoaded) {
             loadInboxApp();
+        }
+        // Lazy-load Permanent Inboxes on first activation
+        if (tab === 'permanent' && !permInboxLoaded) {
+            loadPermanentInboxes();
         }
     }
     $('.dash-tab-btn').on('click', function(){ activateTab($(this).data('tab')); });
@@ -1820,7 +1923,223 @@ jQuery(function($){
             })
             .finally(() => { btn.disabled = false; });
     });
+
+    // ══════════════════════════════════════════════════════════════
+    // PERMANENT INBOXES
+    // ══════════════════════════════════════════════════════════════
+
+    var permInboxData = [];
+
+    function loadPermanentInboxes() {
+        permInboxLoaded = true;
+        $.post(url, { action: 'tmpmp_get_permanent_inboxes', nonce: nonce })
+        .done(function(res) {
+            if (res.success) {
+                permInboxData = res.data.inboxes || [];
+                renderInboxCards(permInboxData, res.data.can_create);
+                $('#tmpmp-perm-count').text(permInboxData.length);
+                // show/hide create button based on plan limit
+                if (!res.data.can_create) {
+                    $('#tmpmp-perm-create-btn').prop('disabled', true)
+                        .attr('title', '<?php esc_js( esc_html_e('Plan limit reached','tempmail-pro') ); ?>');
+                }
+            }
+        });
+    }
+
+    function renderInboxCards(inboxes, canCreate) {
+        var $cards = $('#tmpmp-perm-cards');
+        $cards.empty();
+        if (!inboxes.length) { $('#tmpmp-perm-empty').show(); return; }
+        $('#tmpmp-perm-empty').hide();
+        inboxes.forEach(function(inbox) {
+            var date = inbox.created_at ? inbox.created_at.substring(0,10) : '';
+            var html = '<div class="tmpmp-perm-card" data-id="'+inbox.id+'">' +
+                '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">' +
+                    '<div class="tmpmp-perm-card-addr">'+escHtml(inbox.address)+'</div>' +
+                    '<span class="tmpmp-perm-badge">&#9854; <?php esc_html_e('Permanent','tempmail-pro'); ?></span>' +
+                '</div>' +
+                '<div class="tmpmp-perm-meta">' +
+                    '<?php esc_html_e('Created','tempmail-pro'); ?>: '+escHtml(date)+
+                    ' &nbsp;|&nbsp; '+
+                    '<strong>'+inbox.email_count+'</strong> <?php esc_html_e('emails','tempmail-pro'); ?>' +
+                '</div>' +
+                '<div class="tmpmp-perm-actions">' +
+                    '<button type="button" class="tmpmp-perm-btn tmpmp-perm-btn--view" data-view="'+inbox.id+'">'+
+                        '&#128231; <?php esc_html_e('View Emails','tempmail-pro'); ?></button>' +
+                    '<div class="tmpmp-exp-wrap">' +
+                        '<button type="button" class="tmpmp-perm-btn tmpmp-perm-btn--exp" data-exp-toggle="'+inbox.id+'">'+
+                            '&#128190; <?php esc_html_e('Export','tempmail-pro'); ?> &#9660;</button>' +
+                        '<div class="tmpmp-exp-menu" id="tmpmp-exp-menu-'+inbox.id+'">' +
+                            '<button type="button" data-export="'+inbox.id+'" data-fmt="json">&#123;&#125; JSON</button>' +
+                            '<button type="button" data-export="'+inbox.id+'" data-fmt="csv">&#128196; CSV</button>' +
+                        '</div>' +
+                    '</div>' +
+                    '<button type="button" class="tmpmp-perm-btn tmpmp-perm-btn--del" data-delete="'+inbox.id+'">'+
+                        '&#128465; <?php esc_html_e('Delete','tempmail-pro'); ?></button>' +
+                '</div>' +
+                '<div class="tmpmp-perm-drawer" id="tmpmp-drawer-'+inbox.id+'"></div>' +
+            '</div>';
+            $cards.append(html);
+        });
+    }
+
+    // View emails drawer
+    $(document).on('click', '[data-view]', function() {
+        var id      = $(this).data('view');
+        var $drawer = $('#tmpmp-drawer-'+id);
+        if ($drawer.hasClass('open')) { $drawer.removeClass('open'); return; }
+        $drawer.html('<p style="color:#6366f1;font-size:13px;">&#8987; <?php esc_html_e('Loading…','tempmail-pro'); ?></p>').addClass('open');
+
+        $.post(url, { action: 'tmpmp_get_history_emails', nonce: nonce, address_id: id })
+        .done(function(r) {
+            if (r.success && r.data && r.data.emails && r.data.emails.length) {
+                var html = '';
+                r.data.emails.forEach(function(e) {
+                    html += '<div class="tmpmp-perm-drawer-email">' +
+                        '<div class="tmpmp-perm-drawer-subj">'+escHtml(e.subject || '<?php esc_html_e('(no subject)','tempmail-pro'); ?>')+'</div>' +
+                        '<div class="tmpmp-perm-drawer-meta">'+escHtml(e.sender)+' &mdash; '+escHtml((e.received_at||'').substring(0,16))+'</div>' +
+                    '</div>';
+                });
+                $drawer.html(html);
+            } else {
+                $drawer.html('<div class="tmpmp-perm-drawer-none">&#128231; <?php esc_html_e('No emails yet.','tempmail-pro'); ?></div>');
+            }
+        })
+        .fail(function() {
+            $drawer.html('<div class="tmpmp-perm-drawer-none" style="color:#ef4444;"><?php esc_html_e('Failed to load emails.','tempmail-pro'); ?></div>');
+        });
+    });
+
+
+    // Export dropdown toggle
+    $(document).on('click', '[data-exp-toggle]', function(e) {
+        e.stopPropagation();
+        var id  = $(this).data('exp-toggle');
+        var $m  = $('#tmpmp-exp-menu-'+id);
+        var wasOpen = $m.hasClass('open');
+        $('.tmpmp-exp-menu').removeClass('open');
+        if (!wasOpen) $m.addClass('open');
+    });
+    $(document).on('click', function() { $('.tmpmp-exp-menu').removeClass('open'); });
+
+    // Export action
+    $(document).on('click', '[data-export]', function() {
+        var id  = $(this).data('export');
+        var fmt = $(this).data('fmt');
+        $('.tmpmp-exp-menu').removeClass('open');
+        var $btn = $(this);
+        $btn.text('⏳ <?php esc_html_e('Exporting…','tempmail-pro'); ?>');
+
+        $.post(url, { action: 'tmpmp_export_inbox', nonce: nonce, address_id: id, format: fmt })
+        .done(function(res) {
+            if (!res.success) { alert(res.data?.message || '<?php esc_html_e('Export failed.','tempmail-pro'); ?>'); return; }
+            var content, mime, filename;
+            if (fmt === 'json') {
+                content  = JSON.stringify({ address: res.data.address, emails: res.data.emails }, null, 2);
+                mime     = 'application/json';
+                filename = 'inbox-' + res.data.address.replace('@','_at_') + '-' + today() + '.json';
+            } else {
+                content  = res.data.content;
+                mime     = 'text/csv';
+                filename = res.data.filename;
+            }
+            var blob = new Blob([content], { type: mime });
+            var a    = document.createElement('a');
+            a.href   = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+        })
+        .fail(function() { alert('<?php esc_html_e('Export failed. Please try again.','tempmail-pro'); ?>'); })
+        .always(function() { $btn.text(fmt === 'json' ? '{}  JSON' : '📄 CSV'); });
+    });
+
+    // Delete permanent inbox
+    $(document).on('click', '[data-delete]', function() {
+        var id = $(this).data('delete');
+        var addr = $(this).closest('.tmpmp-perm-card').find('.tmpmp-perm-card-addr').text();
+        if (!confirm('<?php esc_html_e('Delete permanent inbox','tempmail-pro'); ?> ' + addr + '?\n<?php esc_html_e('All stored emails will be permanently removed.','tempmail-pro'); ?>')) return;
+        var $card = $(this).closest('.tmpmp-perm-card');
+        $card.css('opacity', '.5');
+        $.post(url, { action: 'tmpmp_delete_permanent_inbox', nonce: nonce, address_id: id })
+        .done(function(res) {
+            if (res.success) {
+                $card.slideUp(250, function() { $(this).remove(); });
+                permInboxData = permInboxData.filter(function(x) { return x.id != id; });
+                $('#tmpmp-perm-count').text(permInboxData.length);
+                if (!permInboxData.length) $('#tmpmp-perm-empty').show();
+                $('#tmpmp-perm-create-btn').prop('disabled', false).removeAttr('title');
+            } else {
+                $card.css('opacity','1');
+                alert(res.data?.message || '<?php esc_html_e('Delete failed.','tempmail-pro'); ?>');
+            }
+        })
+        .fail(function() { $card.css('opacity','1'); });
+    });
+
+    // ── Create modal ────────────────────────────────────────────────────────
+    $('#tmpmp-perm-create-btn').on('click', function() {
+        $('#tmpmp-perm-modal-err').hide().text('');
+        $('#tmpmp-perm-username').val('');
+        $('#tmpmp-perm-modal-bg').addClass('open');
+    });
+    $('#tmpmp-perm-modal-cancel, #tmpmp-perm-modal-bg').on('click', function(e) {
+        if (e.target === this) $('#tmpmp-perm-modal-bg').removeClass('open');
+    });
+    $('#tmpmp-perm-modal-bg .tmpmp-perm-modal').on('click', function(e) { e.stopPropagation(); });
+
+    $('#tmpmp-perm-modal-submit').on('click', function() {
+        var domain   = $('#tmpmp-perm-domain').val();
+        var username = $.trim($('#tmpmp-perm-username').val());
+        var $err     = $('#tmpmp-perm-modal-err');
+        var $btn     = $(this);
+        $err.hide().text('');
+        $btn.prop('disabled', true).text('<?php esc_html_e('Creating…','tempmail-pro'); ?>');
+
+        $.post(url, {
+            action  : 'tmpmp_create_permanent_inbox',
+            nonce   : nonce,
+            domain  : domain,
+            username: username
+        })
+        .done(function(res) {
+            if (res.success) {
+                $('#tmpmp-perm-modal-bg').removeClass('open');
+                var newInbox = {
+                    id          : res.data.id,
+                    address     : res.data.address,
+                    created_at  : res.data.created_at,
+                    email_count : 0,
+                };
+                permInboxData.unshift(newInbox);
+                $('#tmpmp-perm-count').text(permInboxData.length);
+                renderInboxCards(permInboxData, true);
+                // Flash the new card
+                var $newCard = $('#tmpmp-perm-cards .tmpmp-perm-card:first-child');
+                $newCard.css({ background:'#eef2ff', borderColor:'#6366f1' });
+                setTimeout(function() { $newCard.css({ background:'', borderColor:'' }); }, 1500);
+            } else {
+                $err.text(res.data?.message || '<?php esc_html_e('Error creating inbox.','tempmail-pro'); ?>').show();
+            }
+        })
+        .fail(function() { $err.text('<?php esc_html_e('Connection error.','tempmail-pro'); ?>').show(); })
+        .always(function() { $btn.prop('disabled', false).text('<?php esc_html_e('Create','tempmail-pro'); ?>'); });
+    });
+
+    // Helper: today's date YYYY-MM-DD
+    function today() {
+        return new Date().toISOString().substring(0,10);
+    }
+    // Helper: escape HTML for safe insertion
+    function escHtml(str) {
+        return $('<div>').text(str||'').html();
+    }
+
 });
+
 
 // ── Password Generator ──────────────────────────────────────────────────
 (function() {

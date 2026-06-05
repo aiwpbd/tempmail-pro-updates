@@ -38,10 +38,16 @@ class TempMail_AJAX {
             'tmpmp_save_spam_rules',
             'tmpmp_get_spam_rules',
             'tmpmp_dash_inbox_app',
+            // Permanent inbox actions
+            'tmpmp_create_permanent_inbox',
+            'tmpmp_get_permanent_inboxes',
+            'tmpmp_delete_permanent_inbox',
+            'tmpmp_export_inbox',
         ];
         foreach ( $auth_actions as $action ) {
             add_action( "wp_ajax_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
         }
+
     }
 
     // ── Nonce check helper ────────────────────────────────────────────────────
@@ -348,6 +354,178 @@ class TempMail_AJAX {
         wp_reset_postdata();
 
         wp_send_json_success( ['html' => $html] );
+    }
+
+    // ── Permanent Inbox handlers ───────────────────────────────────────────────
+
+    /** Create a new permanent inbox (premium-gated, plan-limit enforced) */
+    public function handle_create_permanent_inbox() : void {
+        $this->nonce();
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) wp_send_json_error( ['message' => __('Login required.','tempmail-pro')], 401 );
+        if ( ! TempMail_Subscription::is_premium_user( $user_id ) )
+            wp_send_json_error( ['message' => __('Requires an active paid subscription.','tempmail-pro')], 403 );
+
+        // Check plan limit
+        $sub = TempMail_Database::get_user_subscription( $user_id );
+        $max = isset( $sub->max_permanent_inboxes ) ? (int) $sub->max_permanent_inboxes : 0;
+        if ( ! isset( $sub->has_permanent_inbox ) || ! $sub->has_permanent_inbox )
+            wp_send_json_error( ['message' => __('Your plan does not include Permanent Inboxes.','tempmail-pro')], 403 );
+
+        $current = TempMail_Database::count_permanent_inboxes_for_user( $user_id );
+        if ( $max !== -1 && $current >= $max )
+            wp_send_json_error( [
+                'message' => sprintf(
+                    __('You have reached your plan limit of %d permanent inbox(es).','tempmail-pro'),
+                    $max
+                ),
+            ], 403 );
+
+        $domain   = sanitize_text_field( $_POST['domain']   ?? '' );
+        $username = sanitize_text_field( $_POST['username'] ?? '' );
+
+        if ( ! $domain ) wp_send_json_error( ['message' => __('Domain is required.','tempmail-pro')] );
+
+        // Validate domain exists in DB
+        $domains = TempMail_Database::get_all_domains();
+        $valid   = array_filter( $domains, fn($d) => $d->domain === $domain );
+        if ( empty($valid) ) wp_send_json_error( ['message' => __('Invalid domain.','tempmail-pro')] );
+
+        // Generate username if not provided
+        if ( ! $username ) {
+            $username = strtolower( wp_generate_password(8, false) );
+        }
+        $username = preg_replace('/[^a-z0-9._+-]/i', '', strtolower($username));
+        if ( strlen($username) < 3 ) wp_send_json_error( ['message' => __('Username must be at least 3 characters.','tempmail-pro')] );
+
+        $address = $username . '@' . $domain;
+
+        // Check address not already taken
+        if ( TempMail_Database::get_address( $address ) )
+            wp_send_json_error( ['message' => __('This address is already taken. Try a different username.','tempmail-pro')] );
+
+        $now = gmdate('Y-m-d H:i:s');
+        $id  = TempMail_Database::insert_address( [
+            'address'      => $address,
+            'session_id'   => '',
+            'ip_address'   => '',
+            'user_id'      => $user_id,
+            'plan'         => TempMail_Subscription::get_user_plan( $user_id ),
+            'is_private'   => 1,
+            'is_permanent' => 1,
+            'created_at'   => $now,
+            'expires_at'   => '9999-12-31 23:59:59', // sentinel — never expires
+        ] );
+
+        if ( ! $id ) wp_send_json_error( ['message' => __('Could not create inbox. Please try again.','tempmail-pro')] );
+
+        wp_send_json_success( [
+            'id'         => $id,
+            'address'    => $address,
+            'created_at' => $now,
+            'email_count'=> 0,
+        ] );
+    }
+
+    /** List the current user's permanent inboxes */
+    public function handle_get_permanent_inboxes() : void {
+        $this->nonce();
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) wp_send_json_error( ['message' => __('Login required.','tempmail-pro')], 401 );
+        if ( ! TempMail_Subscription::is_premium_user( $user_id ) )
+            wp_send_json_error( ['message' => __('Requires an active paid subscription.','tempmail-pro')], 403 );
+
+        $inboxes = TempMail_Database::get_permanent_inboxes_for_user( $user_id );
+        $sub     = TempMail_Database::get_user_subscription( $user_id );
+        $max     = isset( $sub->max_permanent_inboxes ) ? (int) $sub->max_permanent_inboxes : 0;
+
+        wp_send_json_success( [
+            'inboxes' => $inboxes,
+            'count'   => count($inboxes),
+            'max'     => $max,
+            'can_create' => ( $max === -1 || count($inboxes) < $max ),
+        ] );
+    }
+
+    /** Delete a permanent inbox (user must own it) */
+    public function handle_delete_permanent_inbox() : void {
+        $this->nonce();
+        $user_id    = get_current_user_id();
+        $address_id = (int) ( $_POST['address_id'] ?? 0 );
+        if ( ! $user_id )      wp_send_json_error( ['message' => __('Login required.','tempmail-pro')], 401 );
+        if ( ! $address_id )   wp_send_json_error( ['message' => __('Invalid inbox.','tempmail-pro')] );
+
+        global $wpdb;
+        $row = $wpdb->get_row( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}tmpmp_addresses WHERE id = %d AND user_id = %d AND is_permanent = 1",
+            $address_id, $user_id
+        ) );
+        if ( ! $row ) wp_send_json_error( ['message' => __('Inbox not found.','tempmail-pro')], 404 );
+
+        TempMail_Database::delete_address( $address_id );
+        wp_send_json_success( ['deleted' => $address_id] );
+    }
+
+    /** Export all emails for a permanent inbox as JSON or CSV */
+    public function handle_export_inbox() : void {
+        $this->nonce();
+        $user_id    = get_current_user_id();
+        $address_id = (int) ( $_POST['address_id'] ?? 0 );
+        $format     = in_array( $_POST['format'] ?? '', ['json','csv'], true ) ? $_POST['format'] : 'json';
+
+        if ( ! $user_id )    wp_send_json_error( ['message' => __('Login required.','tempmail-pro')], 401 );
+        if ( ! $address_id ) wp_send_json_error( ['message' => __('Invalid inbox.','tempmail-pro')] );
+
+        $data = TempMail_Database::get_emails_for_permanent_export( $address_id, $user_id );
+        if ( ! $data ) wp_send_json_error( ['message' => __('Inbox not found.','tempmail-pro')], 404 );
+
+        $address = $data['address']->address;
+        $emails  = $data['emails'];
+
+        if ( $format === 'json' ) {
+            $out = [];
+            foreach ( $emails as $e ) {
+                $out[] = [
+                    'id'          => (int) $e->id,
+                    'from'        => $e->sender,
+                    'from_name'   => $e->sender_name,
+                    'subject'     => $e->subject,
+                    'body_text'   => $e->body_text,
+                    'body_html'   => $e->body_html,
+                    'received_at' => $e->received_at,
+                    'is_read'     => (bool) $e->is_read,
+                    'size_bytes'  => (int) $e->size_bytes,
+                ];
+            }
+            wp_send_json_success( [
+                'format'   => 'json',
+                'address'  => $address,
+                'count'    => count($out),
+                'emails'   => $out,
+            ] );
+        }
+
+        // CSV — send raw and signal client to download
+        $lines   = [];
+        $lines[] = implode(',', ['id','from','from_name','subject','received_at','is_read','size_bytes']);
+        foreach ( $emails as $e ) {
+            $lines[] = implode(',', [
+                (int) $e->id,
+                '"' . str_replace('"','""', $e->sender)      . '"',
+                '"' . str_replace('"','""', $e->sender_name) . '"',
+                '"' . str_replace('"','""', $e->subject)     . '"',
+                '"' . $e->received_at . '"',
+                $e->is_read ? '1' : '0',
+                (int) $e->size_bytes,
+            ]);
+        }
+        wp_send_json_success( [
+            'format'   => 'csv',
+            'address'  => $address,
+            'count'    => count($emails),
+            'content'  => implode("\n", $lines),
+            'filename' => 'inbox-' . sanitize_file_name($address) . '-' . gmdate('Y-m-d') . '.csv',
+        ] );
     }
 }
 

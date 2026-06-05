@@ -21,13 +21,15 @@ class TempMail_Database {
             user_id      BIGINT UNSIGNED NOT NULL DEFAULT 0,
             plan         VARCHAR(32) NOT NULL DEFAULT 'free',
             is_private   TINYINT(1)  NOT NULL DEFAULT 0,
+            is_permanent TINYINT(1)  NOT NULL DEFAULT 0,
             created_at   DATETIME    NOT NULL,
             expires_at   DATETIME    NOT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY   address (address),
             KEY          session_id (session_id),
             KEY          expires_at (expires_at),
-            KEY          user_id (user_id)
+            KEY          user_id (user_id),
+            KEY          is_permanent (is_permanent)
         ) $charset;" );
 
         // Emails in each inbox
@@ -92,6 +94,8 @@ class TempMail_Database {
             has_alias_management         TINYINT(1) NOT NULL DEFAULT 0,
             has_advanced_spam            TINYINT(1) NOT NULL DEFAULT 0,
             has_custom_domain            TINYINT(1) NOT NULL DEFAULT 0,
+            has_permanent_inbox          TINYINT(1) NOT NULL DEFAULT 0,
+            max_permanent_inboxes        INT NOT NULL DEFAULT 0,
             PRIMARY KEY (id),
             UNIQUE KEY slug (slug)
         ) $charset;" );
@@ -365,8 +369,10 @@ class TempMail_Database {
 
     public static function get_active_address( string $address ) : ?object {
         global $wpdb;
+        // Permanent inboxes (is_permanent=1) are always active regardless of expires_at
         return $wpdb->get_row( $wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}tmpmp_addresses WHERE address = %s AND expires_at > UTC_TIMESTAMP()",
+            "SELECT * FROM {$wpdb->prefix}tmpmp_addresses
+              WHERE address = %s AND (is_permanent = 1 OR expires_at > UTC_TIMESTAMP())",
             $address
         ) ) ?: null;
     }
@@ -438,24 +444,23 @@ class TempMail_Database {
         $p = $wpdb->prefix;
 
         // ── 1. Anonymous/guest addresses — keep address row for 3 days post-expiry
-        //       so the IMAP poll (3-day window) can still match and deliver emails
-        //       that arrived at the temp address after it expired.
-        //       Purge their emails on expiry (storage savings), hard-delete row after 3 days.
+        //       Permanent inboxes (is_permanent=1) are NEVER purged.
         $anon_expired_ids = $wpdb->get_col(
             "SELECT id FROM {$p}tmpmp_addresses
               WHERE expires_at <= UTC_TIMESTAMP()
-                AND user_id = 0"
+                AND user_id = 0
+                AND is_permanent = 0"
         );
         if ( ! empty( $anon_expired_ids ) ) {
             $in = implode( ',', array_map('intval', $anon_expired_ids) );
-            // Purge the stored emails immediately (free storage), but keep address row
             $wpdb->query( "DELETE FROM {$p}tmpmp_emails WHERE address_id IN ($in)" );
         }
 
-        // Hard-delete anonymous address rows older than 3 days (IMAP poll window elapsed)
+        // Hard-delete anonymous address rows older than 3 days
         $anon_old_ids = $wpdb->get_col(
             "SELECT id FROM {$p}tmpmp_addresses
               WHERE user_id = 0
+                AND is_permanent = 0
                 AND expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)"
         );
         if ( ! empty( $anon_old_ids ) ) {
@@ -463,24 +468,24 @@ class TempMail_Database {
             $wpdb->query( "DELETE FROM {$p}tmpmp_addresses WHERE id IN ($in)" );
         }
 
-
-        // ── 2. Premium user addresses — purge emails but keep address row
-        //       for history. Hard-delete after 90 days.
+        // ── 2. Premium user addresses — purge emails but keep address row.
+        //       SKIP permanent inboxes — they keep their emails forever.
         $user_expired_ids = $wpdb->get_col(
             "SELECT id FROM {$p}tmpmp_addresses
               WHERE expires_at <= UTC_TIMESTAMP()
-                AND user_id != 0"
+                AND user_id != 0
+                AND is_permanent = 0"
         );
         if ( ! empty( $user_expired_ids ) ) {
             $in = implode( ',', array_map('intval', $user_expired_ids) );
-            // Purge emails from expired premium inboxes to save storage
             $wpdb->query( "DELETE FROM {$p}tmpmp_emails WHERE address_id IN ($in)" );
         }
 
-        // ── 3. Hard-delete premium address records older than 90 days ──────────
+        // ── 3. Hard-delete premium address records older than 90 days (not permanent)
         $old_ids = $wpdb->get_col(
             "SELECT id FROM {$p}tmpmp_addresses
               WHERE user_id != 0
+                AND is_permanent = 0
                 AND expires_at <= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 DAY)"
         );
         if ( ! empty( $old_ids ) ) {
@@ -488,7 +493,7 @@ class TempMail_Database {
             $wpdb->query( "DELETE FROM {$p}tmpmp_addresses WHERE id IN ($in)" );
         }
 
-        // ── 4. Purge old ratelimit records (> 24 h) ───────────────────────────
+        // ── 4. Purge old ratelimit records (> 24 h)
         $wpdb->query( "DELETE FROM {$p}tmpmp_ratelimit WHERE created_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 24 HOUR)" );
 
         return count( $anon_old_ids ) + count( $old_ids );
@@ -657,5 +662,55 @@ class TempMail_Database {
               ORDER BY domain ASC",
             $user_id
         ) ) ?: [];
+    }
+
+    // ── Permanent Inbox helpers ───────────────────────────────────────────────
+
+    /**
+     * Get all permanent inboxes for a user (with email counts).
+     */
+    public static function get_permanent_inboxes_for_user( int $user_id ) : array {
+        global $wpdb;
+        return $wpdb->get_results( $wpdb->prepare(
+            "SELECT a.*,
+                    ( SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails e WHERE e.address_id = a.id ) AS email_count
+             FROM {$wpdb->prefix}tmpmp_addresses a
+             WHERE a.user_id = %d AND a.is_permanent = 1
+             ORDER BY a.created_at DESC",
+            $user_id
+        ) ) ?: [];
+    }
+
+    /**
+     * Count permanent inboxes owned by a user.
+     */
+    public static function count_permanent_inboxes_for_user( int $user_id ) : int {
+        global $wpdb;
+        return (int) $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_addresses WHERE user_id = %d AND is_permanent = 1",
+            $user_id
+        ) );
+    }
+
+    /**
+     * Get all emails for a permanent inbox (for export). Verifies ownership.
+     * Returns null if address not found or not owned by user.
+     */
+    public static function get_emails_for_permanent_export( int $address_id, int $user_id ) : ?array {
+        global $wpdb;
+        $addr = $wpdb->get_row( $wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}tmpmp_addresses WHERE id = %d AND user_id = %d AND is_permanent = 1",
+            $address_id, $user_id
+        ) );
+        if ( ! $addr ) return null;
+        $emails = $wpdb->get_results( $wpdb->prepare(
+            "SELECT id, sender, sender_name, subject, body_text, body_html,
+                    has_attach, received_at, is_read, size_bytes
+             FROM {$wpdb->prefix}tmpmp_emails
+             WHERE address_id = %d
+             ORDER BY received_at DESC",
+            $address_id
+        ) ) ?: [];
+        return [ 'address' => $addr, 'emails' => $emails ];
     }
 }

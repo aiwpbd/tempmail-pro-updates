@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Plugin Name: TempMail Pro
  * Plugin URI:  https://wa.me/+8801516514216
@@ -117,6 +117,9 @@ function tmpmp_init() {
     // Run DB/plan migrations on EVERY request type (front-end, AJAX, admin).
     // maybe_migrate() is a fast no-op after the first run (version-gated).
     TempMail_Admin_Plans::maybe_migrate();
+    // Permanent inbox column + plan feature flag migration (safe no-op once applied)
+    TempMail_Setup::maybe_run_migrations();
+
 
     // Admin systems
     if ( is_admin() ) {
