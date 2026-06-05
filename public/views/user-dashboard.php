@@ -263,7 +263,17 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-tab-locked { opacity:.55; cursor:not-allowed; }
 .tmpmp-tab-locked:hover { background:transparent !important; color:inherit !important; }
 
-
+/* Inbox App tab skeleton shimmer */
+.tmpmp-skel {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+    background-size: 200% 100%;
+    animation: tmpmp-skel-shine 1.4s infinite;
+    display: block;
+}
+@keyframes tmpmp-skel-shine {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
 
 /* Ensure pill tabs scroll horizontally on any screen that can’t fit all 6 tabs */
 .tmpmp-dash-tabs {
@@ -1030,6 +1040,17 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
         <button class="dash-tab-btn<?php echo $has_custom_domain_feat ? '' : ' tmpmp-tab-locked'; ?>" data-tab="domains" title="<?php echo $has_custom_domain_feat ? '' : esc_attr__('Requires a plan with Custom Domains enabled','tempmail-pro'); ?>">
             &#127758; <?php esc_html_e('My Domains','tempmail-pro'); ?><?php if (!$has_custom_domain_feat): ?> &#128274;<?php endif; ?>
         </button>
+        <?php if ( $is_premium ) : ?>
+        <button class="dash-tab-btn" data-tab="inbox-app">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 9h20"/><path d="M8 4v5M16 4v5"/></svg>
+            <?php esc_html_e('Inbox App','tempmail-pro'); ?>
+        </button>
+        <?php else : ?>
+        <button class="dash-tab-btn tmpmp-tab-locked" data-tab="inbox-app" title="<?php esc_attr_e('Requires an active paid subscription','tempmail-pro'); ?>">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 9h20"/></svg>
+            <?php esc_html_e('Inbox App','tempmail-pro'); ?> &#128274;
+        </button>
+        <?php endif; ?>
     </div>
 
     <!-- ── Inboxes Tab ─────────────────────────────────────────────────── -->
@@ -1523,23 +1544,92 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
         </div><!-- /#tmpmp-ud-list -->
     </div><!-- /#dash-tab-domains -->
 
+    <!-- ── Inbox App Tab ───────────────────────────────────────────────── -->
+    <div class="dash-tab-panel" id="dash-tab-inbox-app">
+        <div id="tmpmp-dash-inbox-wrap" style="min-height:320px;">
+            <!-- skeleton shown while AJAX loads -->
+            <div id="tmpmp-dash-inbox-skeleton" style="padding:24px 0;">
+                <div style="display:flex;gap:10px;margin-bottom:16px;">
+                    <div class="tmpmp-skel" style="height:38px;width:60%;border-radius:10px;"></div>
+                    <div class="tmpmp-skel" style="height:38px;flex:1;border-radius:10px;"></div>
+                </div>
+                <div class="tmpmp-skel" style="height:220px;border-radius:14px;"></div>
+            </div>
+        </div>
+    </div>
+
 </div><!-- .tmpmp-dashboard-wrap -->
 
 <script>
 jQuery(function($){
     const nonce = TempMailPro.nonce, url = TempMailPro.ajax_url;
 
-    // Tabs
+    // ── Tabs ───────────────────────────────────────────────────────────────
+    var inboxAppLoaded = false;
+
     function activateTab(tab){
-        // Block locked tabs (non-premium History)
+        // Block locked tabs
         if ($('.dash-tab-btn[data-tab="'+tab+'"]').hasClass('tmpmp-tab-locked')) return;
         $('.dash-tab-btn').removeClass('is-active');
         $('.dash-tab-panel').removeClass('is-active');
         $('.dash-tab-btn[data-tab="'+tab+'"]').addClass('is-active');
         $('#dash-tab-'+tab).addClass('is-active');
+
+        // Lazy-load Inbox App via AJAX on first activation
+        if (tab === 'inbox-app' && !inboxAppLoaded) {
+            loadInboxApp();
+        }
     }
     $('.dash-tab-btn').on('click', function(){ activateTab($(this).data('tab')); });
     activateTab('inboxes');
+
+    // ── AJAX: load Inbox App tab content ───────────────────────────────────
+    function loadInboxApp(){
+        var $wrap  = $('#tmpmp-dash-inbox-wrap');
+        var $skel  = $('#tmpmp-dash-inbox-skeleton');
+
+        $skel.show();
+
+        $.post(url, {
+            action : 'tmpmp_dash_inbox_app',
+            nonce  : nonce
+        })
+        .done(function(res){
+            if (res.success && res.data && res.data.html) {
+                inboxAppLoaded = true;
+                $wrap.html(res.data.html);
+
+                // Re-execute any inline <script> blocks inside the returned HTML
+                $wrap.find('script').each(function(){
+                    var s = document.createElement('script');
+                    if (this.src) {
+                        s.src = this.src;
+                    } else {
+                        s.textContent = this.textContent;
+                    }
+                    document.head.appendChild(s);
+                    document.head.removeChild(s);
+                });
+            } else {
+                var msg = (res.data && res.data.message)
+                    ? res.data.message
+                    : '<?php echo esc_js(__('Could not load Inbox App. Please refresh the page.','tempmail-pro')); ?>';
+                $wrap.html(
+                    '<div style="padding:32px;text-align:center;color:#ef4444;">' +
+                    '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:10px;opacity:.6"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' +
+                    '<p style="margin:0;font-size:14px;font-weight:600;">' + $('<div>').text(msg).html() + '</p>' +
+                    '</div>'
+                );
+            }
+        })
+        .fail(function(){
+            $wrap.html(
+                '<div style="padding:32px;text-align:center;color:#ef4444;">' +
+                '<p style="margin:0;font-size:14px;font-weight:600;"><?php echo esc_js(__('Network error — could not load Inbox App.','tempmail-pro')); ?></p>' +
+                '</div>'
+            );
+        });
+    }
 
     // Cancel subscription
     $('#tmpmp-cancel-sub').on('click', function(){

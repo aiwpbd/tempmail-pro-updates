@@ -37,6 +37,7 @@ class TempMail_AJAX {
             'tmpmp_get_forwarding_email',
             'tmpmp_save_spam_rules',
             'tmpmp_get_spam_rules',
+            'tmpmp_dash_inbox_app',
         ];
         foreach ( $auth_actions as $action ) {
             add_action( "wp_ajax_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
@@ -316,4 +317,37 @@ class TempMail_AJAX {
         $keywords = get_user_meta( $user_id, 'tmpmp_spam_keywords', true ) ?: '';
         wp_send_json_success( ['spam_keywords' => $keywords] );
     }
+
+    // ── Dashboard Inbox App tab (premium-only, renders shortcode via AJAX) ────
+    public function handle_dash_inbox_app() : void {
+        $this->nonce();
+
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) {
+            wp_send_json_error( ['message' => __('Login required.','tempmail-pro')], 401 );
+        }
+
+        if ( ! TempMail_Subscription::is_premium_user( $user_id ) ) {
+            wp_send_json_error( ['message' => __('This feature requires a paid subscription.','tempmail-pro')], 403 );
+        }
+
+        // Render the inbox shortcode in a sandboxed context
+        // Set up the global $post so shortcode helpers work correctly
+        global $post;
+        $inbox_page = get_page_by_path('tempmail-app') ?: get_page_by_path('tempmail');
+        if ( $inbox_page ) {
+            $post = $inbox_page; // phpcs:ignore WordPress.WP.GlobalVariablesOverride
+            setup_postdata( $post );
+        }
+
+        // Capture the rendered shortcode HTML
+        ob_start();
+        echo do_shortcode( '[tempmail_app]' );
+        $html = ob_get_clean();
+
+        wp_reset_postdata();
+
+        wp_send_json_success( ['html' => $html] );
+    }
 }
+
