@@ -748,8 +748,16 @@
     var $domainPicker, $domainTriggerText, $domainTriggerCat, $domainPanel;
 
     function initDomainPicker() {
-        var $wrap      = $domainSel.parent();
-        var currentVal = $domainSel.val();
+        // Live-query so this works both at page load AND after AJAX HTML injection
+        var $sel = $('#tmpmp-domain-select');
+        if (!$sel.length) return;
+
+        // Remove any previously built picker to avoid duplicates on re-calls
+        $('#tmpmp-domain-picker').remove();
+        $(document).off('click.domainPicker keydown.domainPicker');
+
+        var $wrap      = $sel.parent();
+        var currentVal = $sel.val();
 
         // ─ Trigger button
         var $trigger = $(
@@ -764,7 +772,7 @@
         var $inner = $('<div class="tmpmp-domain-panel-inner" role="listbox">');
         var $panel = $('<div class="tmpmp-domain-panel" id="tmpmp-domain-panel">');
 
-        $domainSel.find('optgroup').each(function () {
+        $sel.find('optgroup').each(function () {
             var groupLabel = $(this).attr('label') || '';
             var $opts      = $(this).find('option');
             var groupCat   = $opts.first().data('cat') || 'free';
@@ -797,9 +805,9 @@
         });
 
         // Fallback: flat options with no optgroups
-        if (!$domainSel.find('optgroup').length) {
+        if (!$sel.find('optgroup').length) {
             var $group = $('<div class="tmpmp-domain-group">');
-            $domainSel.find('option').each(function () {
+            $sel.find('option').each(function () {
                 var val    = $(this).val();
                 var cat    = $(this).data('cat')    || 'free';
                 var locked = $(this).data('locked') == 1;
@@ -844,7 +852,7 @@
             $(this).addClass('selected');
             _syncTrigger(val);
             _closePicker();
-            $domainSel.val(val).trigger('change');
+            $sel.val(val).trigger('change');
         });
 
         // ─ Click locked option → show upgrade modal
@@ -862,7 +870,7 @@
         });
 
         // ─ Keep visual picker in sync when hidden select is changed externally
-        $domainSel.on('change.picker', function () {
+        $sel.off('change.picker').on('change.picker', function () {
             var v = $(this).val();
             _syncTrigger(v);
             $panel.find('.tmpmp-domain-opt').removeClass('selected');
