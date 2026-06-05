@@ -355,11 +355,15 @@
 @media (max-width: 960px) {
     .tmpmp-admin-wrap { padding-right: 0; }
     .tmpmp-card { padding: 16px 18px; }
+    .tmpmp-hdr-btn { padding: 8px 15px; font-size: 12.5px; }
 }
 
 @media (max-width: 782px) {
     .tmpmp-stats-grid { grid-template-columns: 1fr 1fr; }
     .tmpmp-data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tmpmp-dash-header { align-items: flex-start; }
+    .tmpmp-hdr-btn { padding: 8px 13px; font-size: 12px; gap: 6px; }
+    .tmpmp-hdr-btn svg { width: 13px; height: 13px; }
 }
 
 /* Mobile */
@@ -369,11 +373,32 @@
     .tmpmp-stat-value { font-size: 22px; }
     .tmpmp-card       { padding: 14px 14px; }
     .tmpmp-card-title { font-size: 14px !important; }
+    /* Header stacks: title on top, buttons as a full-width row below */
+    .tmpmp-dash-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+    .tmpmp-dash-header-links {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        width: 100%;
+    }
+    .tmpmp-hdr-btn {
+        justify-content: center;
+        padding: 10px 12px;
+        font-size: 12.5px;
+        border-radius: 9px;
+    }
 }
 
 @media (max-width: 480px) {
     .tmpmp-stats-grid { grid-template-columns: 1fr; }
     .tmpmp-admin-title { font-size: 18px !important; }
+    /* Single-column button stack on very small screens */
+    .tmpmp-dash-header-links { grid-template-columns: 1fr; }
+    .tmpmp-hdr-btn { font-size: 12px; padding: 9px 10px; }
 }
 
 /* ═══════════════════════════════════════════
