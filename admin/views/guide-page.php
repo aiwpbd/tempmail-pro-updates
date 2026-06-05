@@ -578,13 +578,18 @@ Webhook Secret   : (leave blank or set in Mailgun → Webhooks → Signing key)<
         <p><?php esc_html_e('The plugin auto-creates the three frontend pages. Verify they exist and are published.','tempmail-pro'); ?></p>
         <?php
         $page_slugs = [
-            'tempmail-app'      => __('Inbox App','tempmail-pro'),
-            'tempmail-pricing'  => __('Pricing','tempmail-pro'),
-            'tempmail-dashboard'=> __('User Dashboard','tempmail-pro'),
-            'tempmail-login'    => __('Login','tempmail-pro'),
+            'tempmail-app'      => ['label' => __('Inbox App','tempmail-pro'),      'fallback' => 'tempmail'],
+            'tempmail-pricing'  => ['label' => __('Pricing','tempmail-pro'),         'fallback' => ''],
+            'tempmail-dashboard'=> ['label' => __('User Dashboard','tempmail-pro'), 'fallback' => ''],
+            'tempmail-login'    => ['label' => __('Login','tempmail-pro'),           'fallback' => ''],
         ];
-        foreach($page_slugs as $slug => $label):
+        foreach($page_slugs as $slug => $info):
             $pg = get_page_by_path($slug);
+            // Fall back to legacy slug (e.g. 'tempmail' for the inbox page)
+            if (!$pg && !empty($info['fallback'])) {
+                $pg = get_page_by_path($info['fallback']);
+            }
+            $label = $info['label'];
         ?>
         <div class="tmpmp-sub-check">
             <div class="dot <?php echo $pg ? 'dot-ok' : 'dot-no'; ?>"><?php echo $pg ? '&#10003;' : '&#215;'; ?></div>

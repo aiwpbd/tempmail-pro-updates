@@ -20,7 +20,7 @@ class TempMail_Setup {
     private static array $pages = [
         'inbox' => [
             'title'        => 'TempMail',
-            'slug'         => 'tempmail',
+            'slug'         => 'tempmail-app',
             'shortcode'    => '[tempmail_app]',
             'settings_key' => '',                  // main page – no dedicated settings key
         ],
