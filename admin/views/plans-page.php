@@ -538,8 +538,23 @@
                     <span class="tmpmp-toggle-track"></span>
                     <span class="tmpmp-toggle-label"><?php esc_html_e('Custom Domain (DNS Wizard)','tempmail-pro'); ?></span>
                 </label>
+                <label class="tmpmp-toggle-item">
+                    <input type="checkbox" name="has_permanent_inbox" value="1" id="pf-has-permanent-inbox">
+                    <span class="tmpmp-toggle-track"></span>
+                    <span class="tmpmp-toggle-label"><?php esc_html_e('Permanent Inbox','tempmail-pro'); ?></span>
+                </label>
+            </div>
+
+            <!-- Permanent Inbox limit (shown when toggle is on) -->
+            <div id="pf-permanent-inbox-limit-wrap" style="margin-top:14px;padding-top:14px;border-top:1px solid #f1f5f9;display:none;">
+                <label class="tmpmp-modal-label" style="max-width:280px;">
+                    &#9854; <?php esc_html_e('Max Permanent Inboxes (-1 = Unlimited)','tempmail-pro'); ?>
+                    <input type="number" name="max_permanent_inboxes" id="pf-max-permanent-inboxes" value="1" min="-1" step="1" placeholder="e.g. 5 or -1 for unlimited">
+                    <span style="font-size:11px;color:#94a3b8;font-weight:400;text-transform:none;letter-spacing:0;margin-top:3px;display:block;"><?php esc_html_e('Set to -1 for unlimited. Starter=1, Pro=5, Business=-1.','tempmail-pro'); ?></span>
+                </label>
             </div>
         </div>
+    </div>
 
     </form>
     </div><!-- /.tmpmp-modal-body -->
@@ -687,6 +702,11 @@ jQuery(function($){
         $modal.find('[name="has_alias_management"]').prop('checked',       !!+p.has_alias_management);
         $modal.find('[name="has_advanced_spam"]').prop('checked',          !!+p.has_advanced_spam);
         $modal.find('[name="has_custom_domain"]').prop('checked',          !!+p.has_custom_domain);
+        // Permanent inbox
+        var hasPerm = !!+p.has_permanent_inbox;
+        $modal.find('[name="has_permanent_inbox"]').prop('checked', hasPerm);
+        $modal.find('[name="max_permanent_inboxes"]').val( parseInt(p.max_permanent_inboxes) || 1 );
+        $('#pf-permanent-inbox-limit-wrap').toggle(hasPerm);
         // Title & badges
         $modal.find('#tmpmp-plan-modal-title').text('<?php esc_html_e('Edit Plan','tempmail-pro'); ?>: ' + p.name);
         $modal.find('.tmpmp-modal-subtitle').text('<?php esc_html_e('Configure pricing, limits and capabilities','tempmail-pro'); ?>');
@@ -699,6 +719,11 @@ jQuery(function($){
             .append('<span class="tmpmp-modal-badge ' + statusCls + '">' + statusTxt + '</span>');
         $modal.find('.tmpmp-modal-subtitle').after(badges);
         openModal();
+    });
+
+    // Show/hide the Permanent Inbox limit field based on toggle state
+    $(document).on('change', '#pf-has-permanent-inbox', function(){
+        $('#pf-permanent-inbox-limit-wrap').toggle(this.checked);
     });
 });
 </script>

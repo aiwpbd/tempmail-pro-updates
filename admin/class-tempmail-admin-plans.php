@@ -22,8 +22,9 @@ class TempMail_Admin_Plans {
      * Runs once when the stored DB micro-version doesn't match the current one.
      */
     public static function maybe_migrate() : void {
-        $current_micro = '1.4'; // bump whenever you add new plan columns or data migrations
+        $current_micro = '1.5'; // bump whenever you add new plan columns or data migrations
         if ( get_option( 'tmpmp_plan_cols_ver' ) === $current_micro ) return;
+
 
         global $wpdb;
         $table = $wpdb->prefix . 'tmpmp_plans';
@@ -40,6 +41,8 @@ class TempMail_Admin_Plans {
             'has_alias_management'      => "TINYINT(1) NOT NULL DEFAULT 0",
             'has_advanced_spam'         => "TINYINT(1) NOT NULL DEFAULT 0",
             'has_custom_domain'         => "TINYINT(1) NOT NULL DEFAULT 0",
+            'has_permanent_inbox'       => "TINYINT(1) NOT NULL DEFAULT 0",
+            'max_permanent_inboxes'     => "INT NOT NULL DEFAULT 0",
         ];
 
         $existing = $wpdb->get_col( "DESC `{$table}`", 0 );
@@ -133,6 +136,8 @@ class TempMail_Admin_Plans {
             'has_alias_management'      => intval( $_POST['has_alias_management']      ?? 0 ),
             'has_advanced_spam'         => intval( $_POST['has_advanced_spam']         ?? 0 ),
             'has_custom_domain'         => intval( $_POST['has_custom_domain']         ?? 0 ),
+            'has_permanent_inbox'       => intval( $_POST['has_permanent_inbox']       ?? 0 ),
+            'max_permanent_inboxes'     => intval( $_POST['max_permanent_inboxes']     ?? 0 ),
         ];
 
         if ( ! $data['slug'] || ! $data['name'] ) {
