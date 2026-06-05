@@ -693,7 +693,6 @@ Webhook Secret   : (leave blank or set in Mailgun → Webhooks → Signing key)<
                 [$url_pages,            '&#128196;',__('Pages','tempmail-pro')],
                 [admin_url('admin.php?page=tmpmp-analytics'), '&#128200;', __('Analytics','tempmail-pro')],
                 [admin_url('admin.php?page=tmpmp-users'),     '&#128101;', __('Users','tempmail-pro')],
-                [admin_url('admin.php?page=tmpmp-changelog'), '&#128226;', __('Changelog','tempmail-pro')],
             ] as [$href,$icon,$lbl]): ?>
             <a href="<?php echo esc_url($href); ?>" class="tmpmp-guide-btn tmpmp-guide-btn--outline">
                 <?php echo $icon; ?> <?php echo esc_html($lbl); ?>

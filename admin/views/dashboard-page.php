@@ -17,8 +17,6 @@
         </div>
     </div>
 
-    <?php TempMail_Changelog::render_banner(); ?>
-
     <!-- Stats Grid -->
     <div class="tmpmp-stats-grid" style="margin-bottom:24px;">
         <div class="tmpmp-stat-card">
