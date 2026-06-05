@@ -2124,22 +2124,76 @@ jQuery(function($){
             return card;
         }
 
-        // ── Add domain — native form POST (no AJAX, no hang) ────────────
+        // ── Add domain — AJAX (no page reload) ──────────────────────────────
         const addForm  = document.getElementById('tmpmp-ud-add-form');
         const addBtn   = document.getElementById('tmpmp-ud-add-btn');
         const addInput = document.getElementById('tmpmp-ud-domain-input');
         if (addForm && addBtn && addInput) {
             addForm.addEventListener('submit', function(e) {
+                e.preventDefault(); // Always prevent full-page reload
+
                 const domain = addInput.value.trim();
                 if (!domain) {
-                    e.preventDefault();
                     setMsg('<?php esc_html_e('Please enter a domain name.','tempmail-pro'); ?>', 'err');
                     return;
                 }
-                addBtn.disabled = true;
+
+                var nonce = (typeof TempMailPro !== 'undefined') ? TempMailPro.nonce    : '';
+                var url   = (typeof TempMailPro !== 'undefined') ? TempMailPro.ajax_url : '';
+                if (!url || !nonce) {
+                    setMsg('<?php esc_html_e('Configuration error. Please refresh the page.','tempmail-pro'); ?>', 'err');
+                    return;
+                }
+
+                // Disable button and show loading state
+                addBtn.disabled    = true;
                 addBtn.textContent = '<?php esc_html_e('Adding…','tempmail-pro'); ?>';
+                setMsg('', '');
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', url, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState !== 4) return;
+
+                    // Restore button
+                    addBtn.disabled   = false;
+                    addBtn.innerHTML  = '&#127760; <?php esc_html_e('Add Domain','tempmail-pro'); ?>';
+
+                    try {
+                        var resp = JSON.parse(xhr.responseText);
+                        if (resp.success && resp.data) {
+                            setMsg(resp.data.message || '<?php esc_html_e('Domain added! Configure the DNS records below.','tempmail-pro'); ?>', 'ok');
+                            addInput.value = '';
+
+                            // Inject the new card into the list without reload
+                            var d       = resp.data.domain;
+                            var records = resp.data.records || [];
+                            if (d && typeof buildDomainCard === 'function') {
+                                var card  = buildDomainCard(d, records);
+                                var list  = document.getElementById('tmpmp-ud-list');
+                                var empty = document.getElementById('tmpmp-ud-empty-state');
+                                if (empty) { empty.style.display = 'none'; }
+                                if (list)  { list.insertBefore(card, list.firstChild); }
+                            }
+                        } else {
+                            var msg = (resp.data && resp.data.message)
+                                ? resp.data.message
+                                : '<?php esc_html_e('Could not add domain. Please try again.','tempmail-pro'); ?>';
+                            setMsg(msg, 'err');
+                        }
+                    } catch(ex) {
+                        setMsg('<?php esc_html_e('Unexpected error. Please refresh and try again.','tempmail-pro'); ?>', 'err');
+                    }
+                };
+                xhr.send(
+                    'action=tmpmp_add_custom_domain'
+                    + '&nonce='  + encodeURIComponent(nonce)
+                    + '&domain=' + encodeURIComponent(domain)
+                );
             });
         }
+
 
         // ── Verify domain ───────────────────────────────────────────────
         document.addEventListener('click', function(e) {
