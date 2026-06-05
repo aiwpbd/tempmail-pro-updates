@@ -275,6 +275,13 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
     100% { background-position: -200% 0; }
 }
 
+/* ── Inbox App tab: strip redundant elements that duplicate the dashboard ── */
+#dash-tab-inbox-app .tmpmp-account-bar          { display: none !important; }
+#dash-tab-inbox-app .tmpmp-wrap                 { padding-top: 0 !important; margin-top: 0 !important; }
+#dash-tab-inbox-app .tmpmp-faq                  { display: none !important; }
+#dash-tab-inbox-app [class*="tmpmp-ad-"]        { display: none !important; }
+#dash-tab-inbox-app .tmpmp-ad-slot              { display: none !important; }
+
 /* Ensure pill tabs scroll horizontally on any screen that can’t fit all 6 tabs */
 .tmpmp-dash-tabs {
     display: flex !important;
