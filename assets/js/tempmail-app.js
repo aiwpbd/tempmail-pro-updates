@@ -1379,4 +1379,7 @@
         }
     });
 
+    // Expose init helpers for AJAX-injected contexts (e.g. dashboard Inbox App tab)
+    window.tmpmpInitDomainPicker = initDomainPicker;
+
 }(jQuery));

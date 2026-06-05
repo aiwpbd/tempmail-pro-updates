@@ -1617,6 +1617,12 @@ jQuery(function($){
                     document.head.appendChild(s);
                     document.head.removeChild(s);
                 });
+
+                // Re-initialize the custom domain picker widget on the injected HTML
+                // (initDomainPicker ran on page load before this HTML existed)
+                if (typeof window.tmpmpInitDomainPicker === 'function') {
+                    window.tmpmpInitDomainPicker();
+                }
             } else {
                 var msg = (res.data && res.data.message)
                     ? res.data.message
