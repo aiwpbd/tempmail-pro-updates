@@ -1,9 +1,9 @@
-<?php
+﻿<?php
 /**
  * Plugin Name: TempMail Pro
  * Plugin URI:  https://wa.me/+8801516514216
- * Description: A full-featured temporary/disposable email SaaS platform for WordPress â€” with subscriptions, multi-domain, API, and monetization.
- * Version:     2.3.4
+ * Description: A full-featured temporary/disposable email SaaS platform for WordPress Ã¢â‚¬â€ with subscriptions, multi-domain, API, and monetization.
+ * Version:     2.3.5
  * Author:      TempMail Pro
  * Author URI:  https://wa.me/+8801516514216
  * License:     GPLv2 or later
@@ -16,14 +16,14 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-// â”€â”€ Constants â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-define( 'TMPMP_VERSION',     '2.3.4' );
+// Ã¢â€â‚¬Ã¢â€â‚¬ Constants Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+define( 'TMPMP_VERSION',     '2.3.5' );
 define( 'TMPMP_PLUGIN_FILE', __FILE__ );
 define( 'TMPMP_PLUGIN_DIR',  plugin_dir_path( __FILE__ ) );
 define( 'TMPMP_PLUGIN_URL',  plugin_dir_url( __FILE__ ) );
 define( 'TMPMP_PLUGIN_BASE', plugin_basename( __FILE__ ) );
 
-// â”€â”€ Autoloader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Autoloader Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 spl_autoload_register( function ( $class ) {
     $prefix = 'TempMail_';
     if ( strpos( $class, $prefix ) !== 0 ) return;
@@ -45,7 +45,6 @@ spl_autoload_register( function ( $class ) {
         'TempMail_Auth'             => 'includes/class-tempmail-auth.php',
         'TempMail_API_Keys'         => 'includes/class-tempmail-api-keys.php',
         'TempMail_Security'         => 'includes/class-tempmail-security.php',
-        'TempMail_Changelog'        => 'includes/class-tempmail-changelog.php',
         'TempMail_Admin'            => 'admin/class-tempmail-admin.php',
         'TempMail_Admin_Domains'    => 'admin/class-tempmail-admin-domains.php',
         'TempMail_Admin_Plans'      => 'admin/class-tempmail-admin-plans.php',
@@ -70,13 +69,13 @@ spl_autoload_register( function ( $class ) {
     }
 } );
 
-// â”€â”€ Activation / Deactivation / Uninstall â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Activation / Deactivation / Uninstall Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 register_activation_hook(   __FILE__, [ 'TempMail_Database', 'install' ] );
 register_activation_hook(   __FILE__, [ 'TempMail_Cron',     'schedule_events' ] );
 register_activation_hook(   __FILE__, [ 'TempMail_Setup',    'create_pages' ] );
 register_deactivation_hook( __FILE__, [ 'TempMail_Cron',     'clear_events' ] );
 
-// â”€â”€ Schema upgrade on version change (runs on every request type) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Schema upgrade on version change (runs on every request type) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 add_action( 'plugins_loaded', function () {
     if ( get_option( 'tmpmp_db_version' ) !== TMPMP_VERSION ) {
         TempMail_Database::install();
@@ -84,12 +83,12 @@ add_action( 'plugins_loaded', function () {
     }
 }, 1 ); // priority 1 = before tmpmp_init at priority 10
 
-// â”€â”€ Plugin Update Checkers (run early, before plugins_loaded) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Plugin Update Checkers (run early, before plugins_loaded) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 // Registered here so pre_set_site_transient_update_plugins fires at the right time.
 new TempMail_Updater( __FILE__ );        // JSON-based fallback updater
 new TempMail_GitHub_Updater( __FILE__ ); // GitHub Releases API + notifications.json
 
-// â”€â”€ Boot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Boot Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 add_action( 'plugins_loaded', 'tmpmp_init', 10 );
 
 function tmpmp_init() {
@@ -108,7 +107,6 @@ function tmpmp_init() {
     TempMail_REST_API::instance();
     TempMail_Shortcode::instance();
     TempMail_Cron::instance();
-    TempMail_Changelog::instance();
     TempMail_Design::instance();
     TempMail_FAQ::instance();
     TempMail_Gutenberg::instance();
@@ -134,7 +132,7 @@ function tmpmp_init() {
 }
 
 
-// â”€â”€ Frontend assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬Ã¢â€â‚¬ Frontend assets Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 add_action( 'wp_enqueue_scripts', 'tmpmp_enqueue_frontend' );
 function tmpmp_enqueue_frontend() {
     wp_enqueue_style(
@@ -156,7 +154,7 @@ function tmpmp_enqueue_frontend() {
         TMPMP_PLUGIN_URL . 'assets/js/tempmail-app.js',
         [ 'jquery', 'qrcodejs' ],
         // Use filemtime so every saved change to the JS file produces a fresh
-        // ?ver= query string — no CDN, browser, or caching-plugin can serve stale JS.
+        // ?ver= query string â€” no CDN, browser, or caching-plugin can serve stale JS.
         filemtime( TMPMP_PLUGIN_DIR . 'assets/js/tempmail-app.js' ),
         true
     );
@@ -164,7 +162,7 @@ function tmpmp_enqueue_frontend() {
     $settings = get_option( 'tmpmp_settings', [] );
     $is_prem  = TempMail_Subscription::is_premium_user();
 
-    // Tier-aware polling intervals — read from admin settings with sane defaults
+    // Tier-aware polling intervals â€” read from admin settings with sane defaults
     $free_poll_sec    = max( 10,  min( 300, intval( $settings['free_poll_interval']    ?? 45 ) ) );
     $prem_poll_sec    = max(  5,  min( 120, intval( $settings['premium_poll_interval'] ?? 15 ) ) );
     $sse_enabled      = ! empty( $settings['sse_enabled'] ) ? 1 : 0;
@@ -182,7 +180,7 @@ function tmpmp_enqueue_frontend() {
         'refresh_interval' => $refresh_ms,
         'mail_protocol'    => $settings['mail_protocol'] ?? 'webhook',
         'bg_poll_interval' => $bg_poll_ms,
-        // SSE — premium only, requires EventSource browser support AND admin toggle
+        // SSE â€” premium only, requires EventSource browser support AND admin toggle
         'use_sse'          => ( $is_prem && $sse_enabled ) ? 1 : 0,
         'sse_url'          => esc_url_raw( rest_url( 'tempmail-pro/v1/sse' ) ),
         'version'          => TMPMP_VERSION,
@@ -208,11 +206,11 @@ function tmpmp_enqueue_frontend() {
     ] );
 }
 
-// ── Theme-compatible layout fix ────────────────────────────────────────────
+// â”€â”€ Theme-compatible layout fix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // The plugin wrapper fills whatever container the theme provides.
-// Full Width layout → plugin fills full width.
-// Boxed layout → plugin stays in the box.
-// We do NOT override any theme containers — the theme controls the layout.
+// Full Width layout â†’ plugin fills full width.
+// Boxed layout â†’ plugin stays in the box.
+// We do NOT override any theme containers â€” the theme controls the layout.
 add_action( 'wp_head', 'tmpmp_layout_compat_css', 99 );
 function tmpmp_layout_compat_css() : void {
     if ( is_admin() ) return;
@@ -220,13 +218,13 @@ function tmpmp_layout_compat_css() : void {
     if ( ! isset( $post->post_content ) || ! has_shortcode( $post->post_content, 'tempmail_app' ) ) return;
     ?>
 <style id="tmpmp-layout-compat">
-/* TempMail Pro — Layout compatibility
+/* TempMail Pro â€” Layout compatibility
    The plugin wrapper fills 100% of whatever container the active theme provides.
-   Full Width page template → plugin fills the full content area.
-   Boxed layout → plugin stays within the box.
+   Full Width page template â†’ plugin fills the full content area.
+   Boxed layout â†’ plugin stays within the box.
    No theme styles are overridden. */
 
-/* Fill the parent container — works with any theme and any layout */
+/* Fill the parent container â€” works with any theme and any layout */
 .tmpmp-wrap {
     width: 100% !important;
     max-width: 100% !important;

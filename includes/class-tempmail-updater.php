@@ -67,11 +67,6 @@ class TempMail_Updater {
         add_action( 'in_plugin_update_message-' . $this->plugin_file,
                     [ $this, 'update_row_message' ], 10, 2 );
 
-        // ── Plugin row notice (works on every install, no remote server) ─────
-        add_action( 'after_plugin_row_' . $this->plugin_file,
-                    [ $this, 'show_plugin_row_notice' ], 10, 3 );
-        add_action( 'wp_ajax_tmpmp_dismiss_row_notice', [ $this, 'ajax_dismiss_row_notice' ] );
-        add_action( 'admin_head', [ $this, 'row_notice_styles' ] );
 
         // Allow force-clearing the cache from Plugins page (?tmpmp_clear_update_cache=1)
         if ( isset( $_GET['tmpmp_clear_update_cache'] ) && current_user_can( 'manage_options' ) ) {
@@ -186,7 +181,7 @@ class TempMail_Updater {
             'download_link'  => $remote->download_url ?? '',
             'sections'       => [
                 'description' => $remote->description ?? 'TempMail Pro — A full-featured disposable email SaaS platform for WordPress.',
-                'changelog'   => $remote->changelog   ?? '<p>See the full changelog inside the plugin admin panel.</p>',
+                'changelog'   => $remote->changelog   ?? '<p><a href="https://github.com/aiwpbd/tempmail-pro-updates/releases" target="_blank">View release notes on GitHub</a></p>',
             ],
             'banners' => [],
             'ratings' => [],
@@ -200,133 +195,4 @@ class TempMail_Updater {
         }
     }
 
-    /* ══════════════════════════════════════════════════════════════════════════
-     * PART 2 — Plugin row "What's New" notice (works on every install)
-     * ══════════════════════════════════════════════════════════════════════════ */
-
-    /** Output the notice row below the plugin entry in Plugins list */
-    public function show_plugin_row_notice( string $plugin_file, array $plugin_data, string $status ) : void {
-        // Only show on the plugins list page
-        $screen = get_current_screen();
-        if ( ! $screen || $screen->id !== 'plugins' ) return;
-
-        // Already dismissed for this version?
-        if ( get_option( self::ROW_NOTICE_OPT ) === TMPMP_VERSION ) return;
-
-        // Get the latest changelog entry
-        $log     = TempMail_Changelog::get_changelog();
-        $entry   = $log[ TMPMP_VERSION ] ?? null;
-        if ( ! $entry ) return;
-
-        $features = array_slice( $entry['features'] ?? [], 0, 3 );  // show top 3
-        $fixes    = array_slice( $entry['bugfixes'] ?? [], 0, 2 );  // show top 2
-        $subtitle = $entry['subtitle'] ?? strtoupper( $entry['label'] ?? '' );
-        $date     = $entry['date']     ?? '';
-
-        $changelog_url = admin_url( 'admin.php?page=tmpmp-changelog' );
-        $nonce         = wp_create_nonce( 'tmpmp_row_notice_nonce' );
-
-        // Count active columns in the plugins table (WP uses 3 or 4)
-        $cols = 4;
-        ?>
-        <tr class="plugin-update-tr active tmpmp-row-notice-tr" id="tmpmp-row-notice-<?php echo esc_attr( TMPMP_VERSION ); ?>">
-            <td colspan="<?php echo (int) $cols; ?>" class="plugin-update colspanchange">
-                <div class="update-message notice inline notice-warning notice-alt">
-                    <div class="tmpmp-rn-inner">
-                        <span class="tmpmp-rn-icon">🎉</span>
-                        <div class="tmpmp-rn-body">
-                            <p class="tmpmp-rn-title">
-                                <?php
-                                printf(
-                                    /* translators: %s = version number */
-                                    esc_html__( 'TempMail Pro v%s is installed — here\'s what\'s new:', 'tempmail-pro' ),
-                                    esc_html( TMPMP_VERSION )
-                                );
-                                ?>
-                                <span class="tmpmp-rn-badge"><?php echo esc_html( $subtitle ); ?></span>
-                                <?php if ( $date ) : ?>
-                                    <span class="tmpmp-rn-date"><?php echo esc_html( $date ); ?></span>
-                                <?php endif; ?>
-                            </p>
-                            <ul class="tmpmp-rn-list">
-                                <?php foreach ( $features as $f ) : ?>
-                                    <li class="tmpmp-rn-feature">
-                                        <span class="tmpmp-rn-dot tmpmp-rn-dot--feature">★ <?php esc_html_e('New','tempmail-pro'); ?></span>
-                                        <?php echo wp_kses( $f, [ 'code' => [], 'strong' => [], 'em' => [] ] ); ?>
-                                    </li>
-                                <?php endforeach; ?>
-                                <?php foreach ( $fixes as $f ) : ?>
-                                    <li class="tmpmp-rn-feature">
-                                        <span class="tmpmp-rn-dot tmpmp-rn-dot--fix">✓ <?php esc_html_e('Fix','tempmail-pro'); ?></span>
-                                        <?php echo wp_kses( $f, [ 'code' => [], 'strong' => [], 'em' => [] ] ); ?>
-                                    </li>
-                                <?php endforeach; ?>
-                            </ul>
-                            <p class="tmpmp-rn-actions">
-                                <a href="<?php echo esc_url( $changelog_url ); ?>" class="tmpmp-rn-btn">
-                                    📄 <?php esc_html_e( 'View Full Changelog', 'tempmail-pro' ); ?>
-                                </a>
-                                <button type="button" class="tmpmp-rn-dismiss button-link"
-                                    data-nonce="<?php echo esc_attr( $nonce ); ?>"
-                                    data-notice="tmpmp-row-notice-<?php echo esc_attr( TMPMP_VERSION ); ?>">
-                                    <?php esc_html_e( 'Dismiss', 'tempmail-pro' ); ?>
-                                </button>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </td>
-        </tr>
-        <script>
-        (function(){
-            var btn = document.querySelector('.tmpmp-rn-dismiss[data-notice="tmpmp-row-notice-<?php echo esc_js(TMPMP_VERSION); ?>"]');
-            if(!btn) return;
-            btn.addEventListener('click', function(){
-                var row = document.getElementById(this.dataset.notice);
-                if(row){ row.style.opacity='0'; row.style.transition='opacity .2s'; setTimeout(function(){ row.remove(); },220); }
-                fetch('<?php echo esc_url( admin_url('admin-ajax.php') ); ?>',{
-                    method:'POST',
-                    headers:{'Content-Type':'application/x-www-form-urlencoded'},
-                    body:'action=tmpmp_dismiss_row_notice&nonce='+encodeURIComponent(this.dataset.nonce)
-                });
-            });
-        })();
-        </script>
-        <?php
-    }
-
-    /** AJAX: mark the row notice as dismissed for the current version */
-    public function ajax_dismiss_row_notice() : void {
-        check_ajax_referer( 'tmpmp_row_notice_nonce', 'nonce' );
-        if ( ! current_user_can( 'activate_plugins' ) ) wp_send_json_error( [], 403 );
-        update_option( self::ROW_NOTICE_OPT, TMPMP_VERSION );
-        wp_send_json_success();
-    }
-
-    /** Inline styles for the row notice — only on plugins page */
-    public function row_notice_styles() : void {
-        $screen = get_current_screen();
-        if ( ! $screen || $screen->id !== 'plugins' ) return;
-        ?>
-        <style>
-        .tmpmp-row-notice-tr .notice { margin:0; border-radius:0; }
-        .tmpmp-rn-inner  { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; }
-        .tmpmp-rn-icon   { font-size:22px; line-height:1; flex-shrink:0; margin-top:2px; }
-        .tmpmp-rn-body   { flex:1; min-width:0; }
-        .tmpmp-rn-title  { font-size:13px; font-weight:700; color:#1e293b; margin:0 0 6px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
-        .tmpmp-rn-badge  { background:#ede9fe; color:#5b21b6; font-size:10px; font-weight:800; letter-spacing:.7px; padding:2px 8px; border-radius:4px; text-transform:uppercase; }
-        .tmpmp-rn-date   { font-size:11px; color:#94a3b8; font-weight:400; }
-        .tmpmp-rn-list   { margin:0 0 8px 0; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px; }
-        .tmpmp-rn-feature{ font-size:12px; color:#374151; display:flex; align-items:flex-start; gap:7px; line-height:1.5; }
-        .tmpmp-rn-dot    { flex-shrink:0; font-size:10px; font-weight:800; padding:1px 7px; border-radius:4px; text-transform:uppercase; margin-top:1px; letter-spacing:.4px; }
-        .tmpmp-rn-dot--feature { background:#dcfce7; color:#15803d; }
-        .tmpmp-rn-dot--fix     { background:#fee2e2; color:#b91c1c; }
-        .tmpmp-rn-actions{ margin:6px 0 0; display:flex; align-items:center; gap:14px; }
-        .tmpmp-rn-btn    { display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; color:#4f46e5; text-decoration:none; }
-        .tmpmp-rn-btn:hover { color:#3730a3; text-decoration:underline; }
-        .tmpmp-rn-dismiss{ font-size:12px; color:#94a3b8; cursor:pointer; background:none; border:none; text-decoration:underline; padding:0; }
-        .tmpmp-rn-dismiss:hover { color:#475569; }
-        </style>
-        <?php
-    }
 }

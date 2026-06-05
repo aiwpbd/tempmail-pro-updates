@@ -14,7 +14,6 @@ class TempMail_Admin {
         add_action( 'admin_head',             [ $this, 'menu_icon_color'  ] );
         add_action( 'admin_head',             [ $this, 'crypto_polyfill'  ], 1 );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets'   ] );
-        add_action( 'admin_notices',         [ 'TempMail_Changelog', 'render_banner' ] );
         add_action( 'wp_ajax_tmpmp_save_settings',          [ $this, 'ajax_save_settings'         ] );
         add_action( 'wp_ajax_tmpmp_inject_test_email',       [ $this, 'ajax_inject_test'           ] );
         add_action( 'wp_ajax_tmpmp_purge_now',               [ $this, 'ajax_purge_now'             ] );
@@ -55,7 +54,6 @@ class TempMail_Admin {
         add_submenu_page('tempmail-pro', __('User Domains','tempmail-pro'), __('🔐 User Domains','tempmail-pro'), 'manage_options', 'tmpmp-user-domains',      [$this,'render_user_domains']);
         add_submenu_page('tempmail-pro', __('Pages','tempmail-pro'),       __('📄 Pages','tempmail-pro'),       'manage_options', 'tmpmp-pages',             [$this,'render_pages']);
         add_submenu_page('tempmail-pro', __('Settings','tempmail-pro'),    __('⚙️ Settings','tempmail-pro'),    'manage_options', 'tmpmp-settings',          [$this,'render_settings']);
-        add_submenu_page('tempmail-pro', __('Changelog','tempmail-pro'),   __('🆕 Changelog','tempmail-pro'),   'manage_options', 'tmpmp-changelog',         [$this,'render_changelog']);
     }
 
     // ── Admin icon color CSS ──────────────────────────────────────────────────
@@ -179,10 +177,6 @@ class TempMail_Admin {
         wp_send_json_success( $result );
     }
 
-    public function render_changelog() : void {
-        $log = TempMail_Changelog::get_changelog();
-        include TMPMP_PLUGIN_DIR . 'admin/views/changelog-page.php';
-    }
 
     public function render_pages() : void {
         $pages = TempMail_Setup::get_page_info();
