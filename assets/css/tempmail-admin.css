@@ -31,6 +31,75 @@
     font-weight: 600;
 }
 
+/* ── Dashboard Header Layout ──────────────────────────────────────── */
+.tmpmp-dash-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-bottom: 24px;
+}
+.tmpmp-admin-title { margin-bottom: 4px !important; }
+.tmpmp-dash-header-links { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ── Header Buttons ───────────────────────────────────────────────── */
+.tmpmp-hdr-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none !important;
+    transition: background .2s, box-shadow .2s, transform .18s, border-color .2s, color .15s;
+    white-space: nowrap;
+    letter-spacing: .1px;
+    line-height: 1;
+    cursor: pointer;
+    font-family: inherit;
+    border: 1.5px solid transparent;
+    outline: none;
+}
+.tmpmp-hdr-btn svg {
+    flex-shrink: 0;
+    transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+}
+.tmpmp-hdr-btn:hover svg { transform: scale(1.18) rotate(-5deg); }
+
+/* Outline — Settings */
+.tmpmp-hdr-btn--outline {
+    background: #fff;
+    color: #5b5bd6 !important;
+    border-color: #c7d2fe;
+    box-shadow: 0 1px 4px rgba(99,102,241,.08), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.tmpmp-hdr-btn--outline:hover {
+    background: #eef2ff;
+    border-color: #6366f1;
+    color: #4338ca !important;
+    box-shadow: 0 4px 16px rgba(99,102,241,.18);
+    transform: translateY(-1px);
+}
+.tmpmp-hdr-btn--outline:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(99,102,241,.12); }
+
+/* Gradient — Analytics */
+.tmpmp-hdr-btn--primary {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    color: #fff !important;
+    border-color: transparent;
+    box-shadow: 0 2px 10px rgba(99,102,241,.35), inset 0 1px 0 rgba(255,255,255,.15);
+}
+.tmpmp-hdr-btn--primary:hover {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    box-shadow: 0 6px 22px rgba(99,102,241,.5);
+    transform: translateY(-2px);
+    color: #fff !important;
+}
+.tmpmp-hdr-btn--primary:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(99,102,241,.3); }
+
+
 /* ── Cards ────────────────────────────────────────────────────────── */
 .tmpmp-card {
     background: #fff;
