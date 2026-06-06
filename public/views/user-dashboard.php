@@ -21,6 +21,13 @@ $my_keys = $wpdb->get_results($wpdb->prepare(
 ));
 $is_premium = TempMail_Subscription::is_premium_user( $user->ID );
 
+// ── Pre-load permanent inboxes for instant render ─────────────────────────
+$perm_inboxes    = $is_premium ? TempMail_Database::get_permanent_inboxes_for_user( $user->ID ) : [];
+$perm_sub        = TempMail_Database::get_user_subscription( $user->ID );
+$perm_max        = isset( $perm_sub->max_permanent_inboxes ) ? (int) $perm_sub->max_permanent_inboxes : 0;
+$perm_can_create = $is_premium && ( $perm_max === -1 || count( $perm_inboxes ) < $perm_max );
+
+
 
 // ── Server-side domain add (form POST, no AJAX required) ──────────────────
 $_tmpmp_domain_msg   = '';
@@ -1748,6 +1755,12 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
             <div style="font-size:40px;margin-bottom:10px;">&#9854;</div>
             <p style="font-weight:600;"><?php esc_html_e('No permanent inboxes yet.','tempmail-pro'); ?></p>
             <p style="font-size:13px;"><?php esc_html_e('Create one to get a reusable, never-expiring email address.','tempmail-pro'); ?></p>
+        <!-- Inline pre-loaded data: rendered server-side so cards appear instantly -->
+        <script>
+        window.__tmpmpPermInboxes  = <?php echo wp_json_encode( array_values( $perm_inboxes ) ); ?>;
+        window.__tmpmpPermCanCreate = <?php echo $perm_can_create ? 'true' : 'false'; ?>;
+        </script>
+
         </div>
     </div>
 
@@ -1826,9 +1839,21 @@ jQuery(function($){
         if (tab === 'inbox-app' && !inboxAppLoaded) {
             loadInboxApp();
         }
-        // Lazy-load Permanent Inboxes on first activation
+        // Permanent Inboxes tab — render instantly from server-side pre-loaded data
         if (tab === 'permanent' && !permInboxLoaded) {
-            loadPermanentInboxes();
+            if (window.__tmpmpPermInboxes && window.__tmpmpPermInboxes.length >= 0) {
+                // Data already available — render with zero AJAX delay
+                permInboxLoaded = true;
+                permInboxData   = window.__tmpmpPermInboxes;
+                renderInboxCards(permInboxData, window.__tmpmpPermCanCreate);
+                $('#tmpmp-perm-count').text(permInboxData.length);
+                if (!window.__tmpmpPermCanCreate) {
+                    $('#tmpmp-perm-create-btn').prop('disabled', true);
+                }
+            } else {
+                // Fallback: fetch via AJAX
+                loadPermanentInboxes();
+            }
         }
     }
     $('.dash-tab-btn').on('click', function(){ activateTab($(this).data('tab')); });
