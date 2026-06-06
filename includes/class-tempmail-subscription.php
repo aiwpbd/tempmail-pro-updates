@@ -64,7 +64,11 @@ class TempMail_Subscription {
             'has_email_forwarding'    => 0,
             'has_alias_management'    => 0,
             'has_advanced_spam'       => 0,
+            'has_custom_domain'       => 0,
+            'has_permanent_inbox'     => 0,
+            'max_permanent_inboxes'   => 0,
         ];
+
     }
 
     /**
@@ -124,9 +128,12 @@ class TempMail_Subscription {
             'has_alias_management'      => ! empty( $plan->has_alias_management ),
             'has_advanced_spam'         => ! empty( $plan->has_advanced_spam ),
             'has_custom_domain'         => ! empty( $plan->has_custom_domain ),
+            'has_permanent_inbox'       => ! empty( $plan->has_permanent_inbox ),
+            'max_permanent_inboxes'     => intval( $plan->max_permanent_inboxes ?? 0 ),
             'allowed_domain_cats'       => self::get_allowed_domain_cats( $user_id ),
         ];
         return $features;
+
     }
 
     public static function can_create_inbox( int $user_id = 0, int $current_count = 0 ) : bool {

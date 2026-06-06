@@ -1107,7 +1107,7 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
             <?php esc_html_e('Inbox App','tempmail-pro'); ?> &#128274;
         </button>
         <?php endif; ?>
-        <?php if ( $is_premium && isset($sub->has_permanent_inbox) && $sub->has_permanent_inbox ) : ?>
+        <?php if ( $is_premium && ! empty( $plan->has_permanent_inbox ) ) : ?>
         <button class="dash-tab-btn" data-tab="permanent">
             &#9854; <?php esc_html_e('Permanent Inboxes','tempmail-pro'); ?>
         </button>
@@ -1116,6 +1116,7 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
             &#9854; <?php esc_html_e('Permanent Inboxes','tempmail-pro'); ?> &#128274;
         </button>
         <?php endif; ?>
+
     </div>
 
     <!-- ── Inboxes Tab ─────────────────────────────────────────────────── -->
