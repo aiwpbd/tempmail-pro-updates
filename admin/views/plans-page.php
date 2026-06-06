@@ -559,6 +559,7 @@
     </form>
     </div><!-- /.tmpmp-modal-body -->
 
+
     <!-- Modal Footer -->
     <div class="tmpmp-modal-footer">
         <button type="button" class="tmpmp-modal-save-btn" id="tmpmp-save-plan-btn">
@@ -725,5 +726,90 @@ jQuery(function($){
     $(document).on('change', '#pf-has-permanent-inbox', function(){
         $('#pf-permanent-inbox-limit-wrap').toggle(this.checked);
     });
+
+    // ── Save Plan ───────────────────────────────────────────────────────────
+    $modal.on('click', '#tmpmp-save-plan-btn', function(){
+        var $btn  = $(this);
+        var $form = $modal.find('#tmpmp-plan-form');
+        var id    = $modal.find('#tmpmp-plan-id').val();
+
+        // Collect all checkbox values manually (unchecked = 0)
+        var data = {
+            action  : 'tmpmp_save_plan',
+            nonce   : TempMailAdmin.nonce,
+            id      : id,
+            slug              : $form.find('[name="slug"]').val(),
+            name              : $form.find('[name="name"]').val(),
+            price_monthly     : $form.find('[name="price_monthly"]').val(),
+            price_yearly      : $form.find('[name="price_yearly"]').val(),
+            max_inboxes       : $form.find('[name="max_inboxes"]').val(),
+            inbox_lifetime    : $form.find('[name="inbox_lifetime"]').val(),
+            refresh_interval  : $form.find('[name="refresh_interval"]').val(),
+            max_storage_mb    : $form.find('[name="max_storage_mb"]').val(),
+            sort_order        : $form.find('[name="sort_order"]').val(),
+            domains_allowed   : $form.find('[name="domains_allowed"]').val(),
+            features          : $form.find('[name="features"]').val(),
+            has_custom_user           : $form.find('[name="has_custom_user"]').is(':checked') ? 1 : 0,
+            has_api_access            : $form.find('[name="has_api_access"]').is(':checked') ? 1 : 0,
+            has_attachments           : $form.find('[name="has_attachments"]').is(':checked') ? 1 : 0,
+            no_ads                    : $form.find('[name="no_ads"]').is(':checked') ? 1 : 0,
+            is_active                 : $form.find('[name="is_active"]').is(':checked') ? 1 : 0,
+            has_premium_domains       : $form.find('[name="has_premium_domains"]').is(':checked') ? 1 : 0,
+            has_premium_storage       : $form.find('[name="has_premium_storage"]').is(':checked') ? 1 : 0,
+            has_custom_branding       : $form.find('[name="has_custom_branding"]').is(':checked') ? 1 : 0,
+            has_inbox_retention       : $form.find('[name="has_inbox_retention"]').is(':checked') ? 1 : 0,
+            has_vip_domains           : $form.find('[name="has_vip_domains"]').is(':checked') ? 1 : 0,
+            has_unlimited_attachments : $form.find('[name="has_unlimited_attachments"]').is(':checked') ? 1 : 0,
+            has_email_forwarding      : $form.find('[name="has_email_forwarding"]').is(':checked') ? 1 : 0,
+            has_alias_management      : $form.find('[name="has_alias_management"]').is(':checked') ? 1 : 0,
+            has_advanced_spam         : $form.find('[name="has_advanced_spam"]').is(':checked') ? 1 : 0,
+            has_custom_domain         : $form.find('[name="has_custom_domain"]').is(':checked') ? 1 : 0,
+            has_permanent_inbox       : $form.find('[name="has_permanent_inbox"]').is(':checked') ? 1 : 0,
+            max_permanent_inboxes     : $form.find('[name="max_permanent_inboxes"]').val() || 0,
+        };
+
+        if ( ! data.slug || ! data.name ) {
+            alert('<?php esc_html_e('Slug and Name are required.','tempmail-pro'); ?>');
+            return;
+        }
+
+        $btn.prop('disabled', true).text('<?php esc_html_e('Saving…','tempmail-pro'); ?>');
+
+        $.post( TempMailAdmin.ajax_url, data )
+        .done(function(res){
+            if ( res.success ) {
+                var $row = $('#plan-row-' + res.data.id);
+                if ( $row.length ) {
+                    $row.find('.plan-name').text(data.name);
+                    $row.find('td[data-label="Status"] .tmpmp-badge')
+                        .removeClass('tmpmp-badge--green tmpmp-badge--red')
+                        .addClass(data.is_active ? 'tmpmp-badge--green' : 'tmpmp-badge--red')
+                        .text(data.is_active ? '<?php esc_html_e('Active','tempmail-pro'); ?>' : '<?php esc_html_e('Inactive','tempmail-pro'); ?>');
+                } else {
+                    // New plan — reload to show in table
+                    location.reload();
+                    return;
+                }
+                showToast('<?php esc_html_e('Plan saved successfully!','tempmail-pro'); ?>');
+                closeModal();
+            } else {
+                alert( res.data?.message || '<?php esc_html_e('Save failed. Please try again.','tempmail-pro'); ?>' );
+            }
+        })
+        .fail(function(){
+            alert('<?php esc_html_e('Connection error. Please try again.','tempmail-pro'); ?>');
+        })
+        .always(function(){
+            $btn.prop('disabled', false).html('&#128190; <?php esc_html_e('Save Plan','tempmail-pro'); ?>');
+        });
+    });
+
+    // ── Toast notification ──────────────────────────────────────────────────
+    function showToast(msg) {
+        var $t = $('<div style="position:fixed;bottom:24px;right:24px;background:#22c55e;color:#fff;font-weight:700;font-size:13px;padding:12px 20px;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.15);z-index:99999;transition:opacity .4s;">').text(msg);
+        $('body').append($t);
+        setTimeout(function(){ $t.css('opacity',0); setTimeout(function(){ $t.remove(); }, 400); }, 2800);
+    }
+
 });
 </script>

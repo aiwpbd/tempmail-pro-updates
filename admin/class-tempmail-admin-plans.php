@@ -23,11 +23,29 @@ class TempMail_Admin_Plans {
      */
     public static function maybe_migrate() : void {
         $current_micro = '1.5'; // bump whenever you add new plan columns or data migrations
-        if ( get_option( 'tmpmp_plan_cols_ver' ) === $current_micro ) return;
-
 
         global $wpdb;
         $table = $wpdb->prefix . 'tmpmp_plans';
+
+        // ── Seed permanent inbox limits (runs independently, once) ────────────
+        if ( ! get_option( 'tmpmp_perm_inbox_seeded' ) ) {
+            // Ensure columns exist before seeding (safe to call even if column already there)
+            $existing = $wpdb->get_col( "DESC `{$table}`", 0 );
+            if ( in_array( 'has_permanent_inbox', $existing, true ) ) {
+                $plan_limits = [
+                    'free'     => [ 'has_permanent_inbox' => 0, 'max_permanent_inboxes' => 0 ],
+                    'starter'  => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => 1 ],
+                    'pro'      => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => 5 ],
+                    'business' => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => -1 ],
+                ];
+                foreach ( $plan_limits as $slug => $vals ) {
+                    $wpdb->update( $table, $vals, [ 'slug' => $slug ] );
+                }
+                update_option( 'tmpmp_perm_inbox_seeded', '1' );
+            }
+        }
+
+        if ( get_option( 'tmpmp_plan_cols_ver' ) === $current_micro ) return;
 
         // ── 1. Ensure all feature columns exist ──────────────────────────────
         $new_cols = [
@@ -87,6 +105,22 @@ class TempMail_Admin_Plans {
         ) {$charset};" );
 
         update_option( 'tmpmp_plan_cols_ver', $current_micro );
+
+        // ── 4. Seed permanent inbox limits for existing plans ─────────────────
+        // Always runs if not already done, regardless of column-creation order
+        if ( ! get_option( 'tmpmp_perm_inbox_seeded' ) ) {
+            $plan_limits = [
+                'free'     => [ 'has_permanent_inbox' => 0, 'max_permanent_inboxes' => 0 ],
+                'starter'  => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => 1 ],
+                'pro'      => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => 5 ],
+                'business' => [ 'has_permanent_inbox' => 1, 'max_permanent_inboxes' => -1 ],
+            ];
+            foreach ( $plan_limits as $slug => $vals ) {
+                $wpdb->update( $table, $vals, [ 'slug' => $slug ] );
+            }
+            update_option( 'tmpmp_perm_inbox_seeded', '1' );
+        }
+
     }
 
     public static function render() : void {
