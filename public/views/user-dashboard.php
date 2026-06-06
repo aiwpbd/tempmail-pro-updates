@@ -388,7 +388,7 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-email-body-subj  { font-size:15px; font-weight:800; color:#0f172a; margin:0 0 10px; word-break:break-word; }
 .tmpmp-email-body-row   { display:flex; gap:6px; font-size:12px; color:#64748b; margin-top:5px; flex-wrap:wrap; }
 .tmpmp-email-body-row strong { color:#374151; min-width:36px; }
-.tmpmp-email-body-frame { border:none; width:100%; min-height:340px; display:block; }
+.tmpmp-email-body-frame { border:none; width:100%; min-height:340px; display:block; overflow-x:hidden; max-width:100%; box-sizing:border-box; }
 .tmpmp-email-body-plain { padding:20px 22px; font-size:13px; color:#374151; line-height:1.75;
                            white-space:pre-wrap; word-break:break-word; }
 /* Skeleton loader */
@@ -2186,9 +2186,20 @@ jQuery(function($){
                 var safe = bodyHtml
                     .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
                     .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                var iframeStyles = [
+                    'html,body{max-width:100% !important;overflow-x:hidden !important;word-break:break-word;}',
+                    'body{font-family:sans-serif;font-size:14px;padding:16px;margin:0;line-height:1.65;color:#1e293b;box-sizing:border-box;}',
+                    '*{box-sizing:border-box;}',
+                    'img,video,audio,embed,object{max-width:100% !important;height:auto !important;}',
+                    'table{max-width:100% !important;width:100% !important;table-layout:fixed !important;word-break:break-word;}',
+                    'td,th{max-width:100% !important;word-break:break-word;overflow-wrap:break-word;}',
+                    'pre{max-width:100%;overflow-x:auto;white-space:pre-wrap;}',
+                    'a{word-break:break-all;}'
+                ].join('');
+                var meta = '<meta name="viewport" content="width=device-width,initial-scale=1">';
                 bodyPart = '<iframe class="tmpmp-email-body-frame" sandbox="allow-same-origin"'
-                    + ' srcdoc="<!DOCTYPE html><html><head><meta charset=utf-8><style>body{font-family:sans-serif;font-size:14px;padding:16px;margin:0;word-break:break-word;line-height:1.65;color:#1e293b;}</style></head><body>' + safe + '</body></html>"'
-                    + ' onload="this.style.height=(this.contentDocument.body ? this.contentDocument.body.scrollHeight+32 : 400)+\'px\'"></iframe>';
+                    + ' srcdoc="<!DOCTYPE html><html><head>' + meta + '<style>' + iframeStyles + '</style></head><body>' + safe + '</body></html>"'
+                    + ' onload="var d=this.contentDocument,h=d.documentElement.scrollHeight||d.body.scrollHeight;this.style.height=(h+24)+\'px\'"></iframe>';
             } else {
                 bodyPart = '<div class="tmpmp-email-body-plain">' + escHtml(bodyText || '<?php esc_html_e('(empty)','tempmail-pro'); ?>') + '</div>';
             }
