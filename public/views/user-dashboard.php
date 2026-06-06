@@ -1684,9 +1684,26 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
         <div id="tmpmp-perm-modal-err" class="tmpmp-perm-error"></div>
         <label for="tmpmp-perm-domain"><?php esc_html_e('Domain','tempmail-pro'); ?></label>
         <select id="tmpmp-perm-domain">
-            <?php foreach ( TempMail_Database::get_all_domains() as $d ) : ?>
+            <?php
+            // Global / system domains
+            foreach ( TempMail_Database::get_all_domains() as $d ) :
+            ?>
             <option value="<?php echo esc_attr($d->domain); ?>"><?php echo esc_html('@'.$d->domain); ?></option>
             <?php endforeach; ?>
+            <?php
+            // User's verified custom domains
+            $user_custom_domains = TempMail_UserDomains::get_for_user( $user->ID );
+            $verified_custom     = array_filter( $user_custom_domains, function( $d ) {
+                return $d->txt_verified && $d->mx_verified && $d->spf_verified
+                    && $d->dkim_verified && $d->dmarc_verified;
+            });
+            if ( ! empty( $verified_custom ) ) :
+            ?>
+            <option disabled>── <?php esc_html_e('Your Custom Domains','tempmail-pro'); ?> ──</option>
+            <?php foreach ( $verified_custom as $cd ) : ?>
+            <option value="<?php echo esc_attr($cd->domain); ?>"><?php echo esc_html('@'.$cd->domain); ?> ✓</option>
+            <?php endforeach; ?>
+            <?php endif; ?>
         </select>
         <label for="tmpmp-perm-username"><?php esc_html_e('Username (leave blank to auto-generate)','tempmail-pro'); ?></label>
         <input type="text" id="tmpmp-perm-username" placeholder="e.g. myname" autocomplete="off" maxlength="64">

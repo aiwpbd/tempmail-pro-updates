@@ -386,10 +386,23 @@ class TempMail_AJAX {
 
         if ( ! $domain ) wp_send_json_error( ['message' => __('Domain is required.','tempmail-pro')] );
 
-        // Validate domain exists in DB
-        $domains = TempMail_Database::get_all_domains();
-        $valid   = array_filter( $domains, fn($d) => $d->domain === $domain );
-        if ( empty($valid) ) wp_send_json_error( ['message' => __('Invalid domain.','tempmail-pro')] );
+        // Validate domain: must be a global system domain OR the user's own verified custom domain
+        $global_domains = TempMail_Database::get_all_domains();
+        $valid_global   = array_filter( $global_domains, fn($d) => $d->domain === $domain );
+
+        if ( empty( $valid_global ) ) {
+            // Check user's verified custom domains
+            $user_custom   = TempMail_UserDomains::get_for_user( $user_id );
+            $valid_custom  = array_filter( $user_custom, function( $d ) use ( $domain ) {
+                return $d->domain === $domain
+                    && $d->txt_verified && $d->mx_verified && $d->spf_verified
+                    && $d->dkim_verified && $d->dmarc_verified;
+            });
+            if ( empty( $valid_custom ) ) {
+                wp_send_json_error( ['message' => __('Invalid domain. Your custom domain must be fully verified before use.','tempmail-pro')] );
+            }
+        }
+
 
         // Generate username if not provided
         if ( ! $username ) {
