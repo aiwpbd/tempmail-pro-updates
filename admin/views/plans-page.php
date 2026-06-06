@@ -554,10 +554,10 @@
                 </label>
             </div>
         </div>
-    </div>
 
     </form>
     </div><!-- /.tmpmp-modal-body -->
+
 
 
     <!-- Modal Footer -->
