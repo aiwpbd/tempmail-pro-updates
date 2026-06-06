@@ -2196,14 +2196,21 @@ jQuery(function($){
                     'pre{max-width:100%;overflow-x:auto;white-space:pre-wrap;}',
                     'a{word-break:break-all;}'
                 ].join('');
-                var meta = '<meta name="viewport" content="width=device-width,initial-scale=1">';
+                // IMPORTANT: use single-quoted HTML attributes in the srcdoc head so
+                // they never conflict with the outer srcdoc="..." double-quote delimiter.
+                var srcdocHead = "<!DOCTYPE html><html><head>"
+                    + "<meta charset='utf-8'>"
+                    + "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                    + "<style>" + iframeStyles + "</style>"
+                    + "</head><body>";
                 bodyPart = '<iframe class="tmpmp-email-body-frame" sandbox="allow-same-origin"'
-                    + ' srcdoc="<!DOCTYPE html><html><head>' + meta + '<style>' + iframeStyles + '</style></head><body>' + safe + '</body></html>"'
+                    + ' srcdoc="' + srcdocHead + safe + '</body></html>"'
                     + ' onload="var d=this.contentDocument,h=d.documentElement.scrollHeight||d.body.scrollHeight;this.style.height=(h+24)+\'px\'"></iframe>';
             } else {
                 bodyPart = '<div class="tmpmp-email-body-plain">' + escHtml(bodyText || '<?php esc_html_e('(empty)','tempmail-pro'); ?>') + '</div>';
             }
-            $viewBody.html(meta + bodyPart);
+            $viewBody.html(bodyPart);
+
         })
         .fail(function() {
             $viewBody.html('<div class="tmpmp-email-list-none"><span>&#9888;</span><p style="color:#ef4444;"><?php esc_html_e('Failed to load email.','tempmail-pro'); ?></p></div>');
