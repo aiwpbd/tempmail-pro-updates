@@ -2460,28 +2460,43 @@ jQuery(function($){
         .always(function() { $btn.text(fmt === 'json' ? '{}  JSON' : '📄 CSV'); });
     });
 
-    // Delete permanent inbox
+    // Delete permanent inbox — optimistic UI (remove instantly, restore on failure)
     $(document).on('click', '[data-delete]', function() {
-        var id = $(this).data('delete');
-        var addr = $(this).closest('.tmpmp-perm-card').find('.tmpmp-perm-card-addr').text();
+        var id    = $(this).data('delete');
+        var addr  = $(this).closest('.tmpmp-perm-card').find('.tmpmp-perm-card-addr').text();
         if (!confirm('<?php esc_html_e('Delete permanent inbox','tempmail-pro'); ?> ' + addr + '?\n<?php esc_html_e('All stored emails will be permanently removed.','tempmail-pro'); ?>')) return;
-        var $card = $(this).closest('.tmpmp-perm-card');
-        $card.css('opacity', '.5');
+
+        var $card     = $(this).closest('.tmpmp-perm-card');
+        var cardHtml  = $card[0].outerHTML; // snapshot for rollback
+
+        // ── Optimistic: remove immediately ──────────────────────────────────
+        $card.slideUp(200, function() { $(this).remove(); });
+        permInboxData = permInboxData.filter(function(x) { return x.id != id; });
+        $('#tmpmp-perm-count').text(permInboxData.length);
+        if (!permInboxData.length) $('#tmpmp-perm-empty').show();
+        $('#tmpmp-perm-create-btn').prop('disabled', false).removeAttr('title');
+
+        // ── Background AJAX ─────────────────────────────────────────────────
         $.post(url, { action: 'tmpmp_delete_permanent_inbox', nonce: nonce, address_id: id })
         .done(function(res) {
-            if (res.success) {
-                $card.slideUp(250, function() { $(this).remove(); });
-                permInboxData = permInboxData.filter(function(x) { return x.id != id; });
-                $('#tmpmp-perm-count').text(permInboxData.length);
-                if (!permInboxData.length) $('#tmpmp-perm-empty').show();
-                $('#tmpmp-perm-create-btn').prop('disabled', false).removeAttr('title');
-            } else {
-                $card.css('opacity','1');
-                alert(res.data?.message || '<?php esc_html_e('Delete failed.','tempmail-pro'); ?>');
+            if (!res.success) {
+                // Rollback: re-insert card and update data
+                $('#tmpmp-perm-empty').hide();
+                $('#tmpmp-perm-cards').prepend(cardHtml);
+                permInboxData = window.__tmpmpPermInboxes || permInboxData;
+                $('#tmpmp-perm-count').text($('#tmpmp-perm-cards .tmpmp-perm-card').length);
+                alert(res.data?.message || '<?php esc_html_e('Delete failed. Please try again.','tempmail-pro'); ?>');
             }
         })
-        .fail(function() { $card.css('opacity','1'); });
+        .fail(function() {
+            // Network error — rollback
+            $('#tmpmp-perm-empty').hide();
+            $('#tmpmp-perm-cards').prepend(cardHtml);
+            $('#tmpmp-perm-count').text($('#tmpmp-perm-cards .tmpmp-perm-card').length);
+            alert('<?php esc_html_e('Network error. The inbox may not have been deleted.','tempmail-pro'); ?>');
+        });
     });
+
 
     // ── Create modal ────────────────────────────────────────────────────────
     $('#tmpmp-perm-create-btn').on('click', function() {
