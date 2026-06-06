@@ -340,16 +340,72 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-exp-menu.open    { display:block; }
 .tmpmp-exp-menu button  { display:block; width:100%; padding:9px 16px; font-size:13px; font-weight:600; text-align:left; background:transparent; border:none; cursor:pointer; color:#1e293b; }
 .tmpmp-exp-menu button:hover { background:#f1f5f9; }
-/* Email drawer */
-.tmpmp-perm-drawer      { display:none; margin-top:10px; border-top:1.5px solid #e2e8f0; padding-top:12px; }
-.tmpmp-perm-drawer.open { display:block; }
-.tmpmp-perm-drawer-email{ padding:9px 12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:6px; cursor:pointer; transition:background .12s; }
-.tmpmp-perm-drawer-email:hover { background:#f8fafc; }
-.tmpmp-perm-drawer-subj { font-weight:600; font-size:13px; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.tmpmp-perm-drawer-meta { font-size:11px; color:#64748b; margin-top:2px; }
-.tmpmp-perm-drawer-none { text-align:center; color:#94a3b8; font-size:13px; padding:16px 0; }
+/* ── Email viewer modal ─────────────────────────────────────────────────── */
+.tmpmp-view-modal-bg    { display:none; position:fixed; inset:0; background:rgba(15,23,42,.55);
+                           backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+                           z-index:10000; align-items:center; justify-content:center; padding:16px; }
+.tmpmp-view-modal-bg.open { display:flex; animation:tmpmp-vm-fade .18s ease; }
+@keyframes tmpmp-vm-fade { from{opacity:0} to{opacity:1} }
+.tmpmp-view-modal       { background:#fff; border-radius:20px; width:min(700px,100%); max-height:88vh;
+                           display:flex; flex-direction:column; box-shadow:0 24px 80px rgba(0,0,0,.22);
+                           animation:tmpmp-vm-pop .2s cubic-bezier(.34,1.56,.64,1); overflow:hidden; }
+@keyframes tmpmp-vm-pop { from{opacity:0;transform:scale(.93) translateY(16px)} to{opacity:1;transform:none} }
+.tmpmp-view-modal-hdr   { display:flex; align-items:center; gap:10px; padding:18px 22px 16px;
+                           border-bottom:1px solid #e2e8f0; flex-shrink:0; }
+.tmpmp-view-modal-back  { display:none; background:none; border:none; cursor:pointer; padding:6px 9px;
+                           border-radius:8px; color:#6366f1; font-size:18px; line-height:1;
+                           transition:background .15s; flex-shrink:0; }
+.tmpmp-view-modal-back:hover  { background:#ede9fe; }
+.tmpmp-view-modal-back.visible{ display:inline-flex; align-items:center; }
+.tmpmp-view-modal-title { flex:1; min-width:0; }
+.tmpmp-view-modal-title h3 { margin:0; font-size:16px; font-weight:800; color:#0f172a;
+                              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tmpmp-view-modal-title p  { margin:2px 0 0; font-size:12px; color:#64748b; }
+.tmpmp-view-modal-close { background:none; border:none; cursor:pointer; font-size:20px; color:#94a3b8;
+                           padding:5px 8px; border-radius:8px; line-height:1; flex-shrink:0;
+                           transition:all .15s; }
+.tmpmp-view-modal-close:hover { background:#f1f5f9; color:#0f172a; }
+.tmpmp-view-modal-body  { flex:1; overflow-y:auto; }
+/* Email list */
+.tmpmp-email-list       { list-style:none; margin:0; padding:8px 0; }
+.tmpmp-email-list-item  { display:flex; flex-direction:column; gap:3px; padding:14px 44px 14px 22px;
+                           cursor:pointer; border-bottom:1px solid #f1f5f9; position:relative;
+                           transition:background .12s; }
+.tmpmp-email-list-item:last-child { border-bottom:none; }
+.tmpmp-email-list-item:hover { background:#f8fafc; }
+.tmpmp-email-list-item::after { content:'›'; position:absolute; right:18px; top:50%;
+                                  transform:translateY(-50%); color:#cbd5e1; font-size:22px; font-weight:300; }
+.tmpmp-email-list-subj  { font-weight:700; font-size:13.5px; color:#1e293b;
+                           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tmpmp-email-list-meta  { font-size:11.5px; color:#64748b; display:flex; gap:10px; flex-wrap:wrap; }
+.tmpmp-email-list-sender{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tmpmp-email-list-date  { flex-shrink:0; }
+.tmpmp-email-list-none  { text-align:center; padding:52px 24px; color:#94a3b8; }
+.tmpmp-email-list-none span { font-size:44px; display:block; margin-bottom:12px; line-height:1; }
+.tmpmp-email-list-none p    { font-size:14px; font-weight:600; margin:0 0 4px; }
+/* Email body */
+.tmpmp-email-body-meta  { padding:16px 22px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; }
+.tmpmp-email-body-subj  { font-size:15px; font-weight:800; color:#0f172a; margin:0 0 10px; word-break:break-word; }
+.tmpmp-email-body-row   { display:flex; gap:6px; font-size:12px; color:#64748b; margin-top:5px; flex-wrap:wrap; }
+.tmpmp-email-body-row strong { color:#374151; min-width:36px; }
+.tmpmp-email-body-frame { border:none; width:100%; min-height:340px; display:block; }
+.tmpmp-email-body-plain { padding:20px 22px; font-size:13px; color:#374151; line-height:1.75;
+                           white-space:pre-wrap; word-break:break-word; }
+/* Skeleton loader */
+.tmpmp-view-skel        { padding:14px 22px; border-bottom:1px solid #f1f5f9; }
+.tmpmp-view-skel-line   { height:13px; border-radius:6px; margin-bottom:8px;
+                           background:linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%);
+                           background-size:200% 100%; animation:tmpmp-skel-sh 1.3s infinite; }
+@keyframes tmpmp-skel-sh { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+@media (max-width:580px) {
+    .tmpmp-view-modal   { border-radius:14px; max-height:95vh; }
+    .tmpmp-email-list-item { padding:12px 38px 12px 16px; }
+    .tmpmp-view-modal-hdr  { padding:14px 16px 12px; }
+    .tmpmp-email-body-meta { padding:12px 16px 10px; }
+    .tmpmp-email-body-plain{ padding:14px 16px; }
+}
 /* Create modal */
-.tmpmp-perm-modal-bg    { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:1000; align-items:center; justify-content:center; }
+.tmpmp-perm-modal-bg    { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:10000; align-items:center; justify-content:center; }
 .tmpmp-perm-modal-bg.open { display:flex; }
 .tmpmp-perm-modal       { background:#fff; border-radius:18px; padding:28px 28px 24px; width:min(480px,90vw); box-shadow:0 20px 60px rgba(0,0,0,.18); }
 .tmpmp-perm-modal h3    { margin:0 0 6px; font-size:17px; font-weight:700; color:#1e293b; }
@@ -1676,6 +1732,21 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 
 </div><!-- .tmpmp-dashboard-wrap -->
 
+<!-- ── Permanent Inbox: Email Viewer Modal ──────────────────────────────── -->
+<div class="tmpmp-view-modal-bg" id="tmpmp-view-modal-bg" role="dialog" aria-modal="true" aria-labelledby="tmpmp-view-modal-title">
+    <div class="tmpmp-view-modal" id="tmpmp-view-modal">
+        <div class="tmpmp-view-modal-hdr">
+            <button class="tmpmp-view-modal-back" id="tmpmp-view-back" title="<?php esc_attr_e('Back to inbox list','tempmail-pro'); ?>">&#8592;</button>
+            <div class="tmpmp-view-modal-title">
+                <h3 id="tmpmp-view-modal-title"><?php esc_html_e('Inbox','tempmail-pro'); ?></h3>
+                <p id="tmpmp-view-modal-sub"></p>
+            </div>
+            <button class="tmpmp-view-modal-close" id="tmpmp-view-close" title="<?php esc_attr_e('Close','tempmail-pro'); ?>">&#10005;</button>
+        </div>
+        <div class="tmpmp-view-modal-body" id="tmpmp-view-modal-body"></div>
+    </div>
+</div>
+
 <!-- ── Permanent Inbox: Create Modal ───────────────────────────────────── -->
 <div class="tmpmp-perm-modal-bg" id="tmpmp-perm-modal-bg">
     <div class="tmpmp-perm-modal">
@@ -2031,11 +2102,141 @@ jQuery(function($){
                     '<button type="button" class="tmpmp-perm-btn tmpmp-perm-btn--del" data-delete="'+inbox.id+'">'+
                         '&#128465; <?php esc_html_e('Delete','tempmail-pro'); ?></button>' +
                 '</div>' +
-                '<div class="tmpmp-perm-drawer" id="tmpmp-drawer-'+inbox.id+'"></div>' +
             '</div>';
             $cards.append(html);
         });
     }
+
+    // ── Email Viewer Modal ────────────────────────────────────────────────
+    var $viewBg    = $('#tmpmp-view-modal-bg');
+    var $viewBody  = $('#tmpmp-view-modal-body');
+    var $viewTitle = $('#tmpmp-view-modal-title');
+    var $viewSub   = $('#tmpmp-view-modal-sub');
+    var $viewBack  = $('#tmpmp-view-back');
+    var activeViewId   = null;
+    var activeViewAddr = '';
+
+    function skelRows() {
+        var s = '';
+        for (var i = 0; i < 5; i++) {
+            s += '<div class="tmpmp-view-skel"><div class="tmpmp-view-skel-line" style="width:'+(52+i*8)+'%;"></div><div class="tmpmp-view-skel-line" style="width:34%;"></div></div>';
+        }
+        return s;
+    }
+
+    function showEmailList(addrId) {
+        $viewBack.removeClass('visible');
+        $viewBody.html(skelRows());
+        $.post(url, { action: 'tmpmp_get_history_emails', nonce: nonce, address_id: addrId })
+        .done(function(r) {
+            if (r.success && r.data && r.data.emails && r.data.emails.length) {
+                var emails = r.data.emails;
+                $viewSub.text(emails.length + ' <?php esc_html_e('emails','tempmail-pro'); ?>');
+                var html = '<ul class="tmpmp-email-list">';
+                emails.forEach(function(e) {
+                    var subj   = escHtml(e.subject || '<?php esc_html_e('(no subject)','tempmail-pro'); ?>');
+                    var sender = escHtml(e.sender || '');
+                    var date   = escHtml((e.received_at||'').substring(0,16).replace('T',' '));
+                    html += '<li class="tmpmp-email-list-item"'
+                        + ' data-email-id="' + escHtml(String(e.id)) + '"'
+                        + ' data-addr-id="'  + escHtml(String(addrId)) + '">' +
+                        '<div class="tmpmp-email-list-subj">' + subj + '</div>' +
+                        '<div class="tmpmp-email-list-meta">' +
+                            '<span class="tmpmp-email-list-sender">&#9993; ' + sender + '</span>' +
+                            '<span class="tmpmp-email-list-date">&#128336; ' + date + '</span>' +
+                        '</div></li>';
+                });
+                html += '</ul>';
+                $viewBody.html(html);
+            } else {
+                $viewSub.text('0 <?php esc_html_e('emails','tempmail-pro'); ?>');
+                $viewBody.html('<div class="tmpmp-email-list-none"><span>&#128231;</span><p><?php esc_html_e('No emails yet. Emails sent to this address will appear here.','tempmail-pro'); ?></p></div>');
+            }
+        })
+        .fail(function() {
+            $viewBody.html('<div class="tmpmp-email-list-none"><span>&#9888;</span><p style="color:#ef4444;"><?php esc_html_e('Failed to load emails. Please try again.','tempmail-pro'); ?></p></div>');
+        });
+    }
+
+    function showEmailBody(emailId, addrId) {
+        $viewBack.addClass('visible');
+        $viewBody.html(skelRows());
+        $.post(url, { action: 'tmpmp_get_history_email_body', nonce: nonce, email_id: emailId, address_id: addrId })
+        .done(function(r) {
+            if (!r.success || !r.data) {
+                $viewBody.html('<div class="tmpmp-email-list-none"><span>&#9888;</span><p style="color:#ef4444;"><?php esc_html_e('Could not load email.','tempmail-pro'); ?></p></div>');
+                return;
+            }
+            var e    = r.data;
+            var subj = e.subject || '<?php esc_html_e('(no subject)','tempmail-pro'); ?>';
+            $viewTitle.text(subj);
+            $viewSub.text(escHtml(e.sender || ''));
+            var meta =
+                '<div class="tmpmp-email-body-meta">' +
+                    '<p class="tmpmp-email-body-subj">' + escHtml(subj) + '</p>' +
+                    '<div class="tmpmp-email-body-row"><strong><?php esc_html_e('From','tempmail-pro'); ?>:</strong><span>' + escHtml(e.sender||'') + '</span></div>' +
+                    '<div class="tmpmp-email-body-row"><strong><?php esc_html_e('To','tempmail-pro'); ?>:</strong><span>' + escHtml(activeViewAddr) + '</span></div>' +
+                    '<div class="tmpmp-email-body-row"><strong><?php esc_html_e('Date','tempmail-pro'); ?>:</strong><span>' + escHtml((e.received_at||'').substring(0,16).replace('T',' ')) + '</span></div>' +
+                '</div>';
+            var bodyHtml = e.body_html || '';
+            var bodyText = e.body_text || '';
+            var bodyPart = '';
+            if (bodyHtml) {
+                // srcdoc iframe — sandboxed, no scripts
+                var safe = bodyHtml
+                    .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+                    .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                bodyPart = '<iframe class="tmpmp-email-body-frame" sandbox="allow-same-origin"'
+                    + ' srcdoc="<!DOCTYPE html><html><head><meta charset=utf-8><style>body{font-family:sans-serif;font-size:14px;padding:16px;margin:0;word-break:break-word;line-height:1.65;color:#1e293b;}</style></head><body>' + safe + '</body></html>"'
+                    + ' onload="this.style.height=(this.contentDocument.body ? this.contentDocument.body.scrollHeight+32 : 400)+\'px\'"></iframe>';
+            } else {
+                bodyPart = '<div class="tmpmp-email-body-plain">' + escHtml(bodyText || '<?php esc_html_e('(empty)','tempmail-pro'); ?>') + '</div>';
+            }
+            $viewBody.html(meta + bodyPart);
+        })
+        .fail(function() {
+            $viewBody.html('<div class="tmpmp-email-list-none"><span>&#9888;</span><p style="color:#ef4444;"><?php esc_html_e('Failed to load email.','tempmail-pro'); ?></p></div>');
+        });
+    }
+
+    function closeViewModal() {
+        $viewBg.removeClass('open');
+        $('body').css('overflow','');
+        activeViewId   = null;
+        activeViewAddr = '';
+    }
+
+    // Open via View Emails button
+    $(document).on('click', '[data-view]', function() {
+        var id    = $(this).data('view');
+        var $card = $(this).closest('.tmpmp-perm-card');
+        var addr  = $card.find('.tmpmp-perm-card-addr').text().trim();
+        var cnt   = $card.find('.tmpmp-perm-meta strong').first().text().trim();
+        activeViewId   = id;
+        activeViewAddr = addr;
+        $viewTitle.text(addr);
+        $viewSub.text(cnt + ' <?php esc_html_e('emails','tempmail-pro'); ?>');
+        $viewBg.addClass('open');
+        $('body').css('overflow','hidden');
+        showEmailList(id);
+    });
+
+    // Click email row → body view
+    $(document).on('click', '.tmpmp-email-list-item', function() {
+        showEmailBody($(this).data('email-id'), $(this).data('addr-id'));
+    });
+
+    // Back arrow → email list
+    $viewBack.on('click', function() {
+        $viewTitle.text(activeViewAddr);
+        $viewSub.text('');
+        showEmailList(activeViewId);
+    });
+
+    // Close
+    $('#tmpmp-view-close').on('click', closeViewModal);
+    $viewBg.on('click', function(e) { if (e.target === this) closeViewModal(); });
+    $(document).on('keydown', function(e) { if (e.key === 'Escape' && $viewBg.hasClass('open')) closeViewModal(); });
 
     // ── Copy address ──────────────────────────────────────────────────────
     $(document).on('click', '[data-copy-addr]', function() {
