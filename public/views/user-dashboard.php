@@ -325,7 +325,13 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-perm-copy-wrap.copied::after { content:'Copied! ✓'; background:#16a34a; opacity:1; }
 
 .tmpmp-perm-badge       { display:inline-flex; align-items:center; gap:4px; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; border-radius:20px; font-size:11px; font-weight:700; padding:2px 9px; }
-.tmpmp-perm-meta        { font-size:12px; color:#64748b; }
+.tmpmp-perm-meta        { font-size:12px; color:#64748b; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.tmpmp-perm-meta-count  { font-weight:700; color:#1e293b; }
+.tmpmp-perm-unread-dot  { display:inline-flex; align-items:center; gap:3px; background:#ef4444;
+                           color:#fff; font-size:10px; font-weight:800; padding:1px 7px;
+                           border-radius:20px; white-space:nowrap; animation:tmpmp-dot-pop .3s ease; }
+.tmpmp-perm-unread-dot[hidden] { display:none !important; }
+@keyframes tmpmp-dot-pop { from{transform:scale(.6);opacity:0} to{transform:scale(1);opacity:1} }
 .tmpmp-perm-actions     { display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
 .tmpmp-perm-btn         { font-size:12px; font-weight:600; padding:5px 12px; border-radius:8px; border:1.5px solid; cursor:pointer; transition:all .15s; background:transparent; }
 .tmpmp-perm-btn--view   { border-color:#6366f1; color:#6366f1; }
@@ -2099,10 +2105,14 @@ jQuery(function($){
                     '<span class="tmpmp-perm-badge">&#9854; <?php esc_html_e('Permanent','tempmail-pro'); ?></span>' +
                 '</div>' +
                 '<div class="tmpmp-perm-meta">' +
-                    '<?php esc_html_e('Created','tempmail-pro'); ?>: '+escHtml(date)+
-                    ' &nbsp;|&nbsp; '+
-                    '<strong>'+inbox.email_count+'</strong> <?php esc_html_e('emails','tempmail-pro'); ?>' +
+                    '&#128197; <?php esc_html_e('Created','tempmail-pro'); ?>: ' + escHtml(date) +
+                    ' &nbsp;|&nbsp; ' +
+                    '&#128231; <span class="tmpmp-perm-meta-count" id="tmpmp-ecount-' + inbox.id + '">' + parseInt(inbox.email_count || 0, 10) + '</span> <?php esc_html_e('emails','tempmail-pro'); ?>' +
+                    '<span class="tmpmp-perm-unread-dot" id="tmpmp-unread-' + inbox.id + '"' + (parseInt(inbox.unread_count || 0, 10) > 0 ? '' : ' hidden') + '>' +
+                        '&#128276; <span id="tmpmp-unread-num-' + inbox.id + '">' + parseInt(inbox.unread_count || 0, 10) + '</span> <?php esc_html_e('unread','tempmail-pro'); ?>' +
+                    '</span>' +
                 '</div>' +
+
                 '<div class="tmpmp-perm-actions">' +
                     '<button type="button" class="tmpmp-perm-btn tmpmp-perm-btn--view" data-view="'+inbox.id+'">'+
                         '&#128231; <?php esc_html_e('View Emails','tempmail-pro'); ?></button>' +
@@ -2243,6 +2253,22 @@ jQuery(function($){
     function closeViewModal() {
         $viewBg.removeClass('open');
         $('body').css('overflow','');
+
+        // Refresh the live email count + unread dot on the card
+        if (activeViewId) {
+            var refreshId = activeViewId;
+            $.post(url, { action: 'tmpmp_get_history_emails', nonce: nonce, address_id: refreshId })
+            .done(function(r) {
+                if (!r.success || !r.data) return;
+                var total   = r.data.emails ? r.data.emails.length : 0;
+                var unread  = r.data.emails ? r.data.emails.filter(function(e){ return !parseInt(e.is_read,10); }).length : 0;
+                $('#tmpmp-ecount-'     + refreshId).text(total);
+                $('#tmpmp-unread-num-' + refreshId).text(unread);
+                var $dot = $('#tmpmp-unread-' + refreshId);
+                if (unread > 0) { $dot.removeAttr('hidden'); } else { $dot.attr('hidden', ''); }
+            });
+        }
+
         activeViewId   = null;
         activeViewAddr = '';
     }

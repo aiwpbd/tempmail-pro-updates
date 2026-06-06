@@ -674,12 +674,14 @@ class TempMail_Database {
         global $wpdb;
         return $wpdb->get_results( $wpdb->prepare(
             "SELECT a.*,
-                    ( SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails e WHERE e.address_id = a.id ) AS email_count
+                    ( SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails e WHERE e.address_id = a.id ) AS email_count,
+                    ( SELECT COUNT(*) FROM {$wpdb->prefix}tmpmp_emails e WHERE e.address_id = a.id AND e.is_read = 0 ) AS unread_count
              FROM {$wpdb->prefix}tmpmp_addresses a
              WHERE a.user_id = %d AND a.is_permanent = 1
              ORDER BY a.created_at DESC",
             $user_id
         ) ) ?: [];
+
     }
 
     /**
