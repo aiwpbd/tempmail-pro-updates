@@ -554,7 +554,7 @@ class TempMail_Database {
     public static function get_user_subscription( int $user_id ) : ?object {
         global $wpdb;
         return $wpdb->get_row( $wpdb->prepare(
-            \"SELECT s.*, p.slug as plan_slug, p.name as plan_name, p.features,
+            "SELECT s.*, p.slug as plan_slug, p.name as plan_name, p.features,
                     p.max_inboxes, p.inbox_lifetime, p.refresh_interval,
                     p.max_storage_mb, p.domains_allowed, p.has_custom_user,
                     p.no_ads, p.has_api_access, p.has_attachments,
@@ -569,6 +569,7 @@ class TempMail_Database {
             $user_id
         ) ) ?: null;
     }
+
 
     // API Keys
     public static function get_api_key_record( string $key ) : ?object {
