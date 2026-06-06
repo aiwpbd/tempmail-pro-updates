@@ -293,8 +293,9 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .dash-tab-btn { flex-shrink: 0; white-space: nowrap; }
 
 /* ── Permanent Inbox tab styles ─────────────────────────────────────────── */
-.tmpmp-perm-header      { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
-.tmpmp-perm-header-left { display:flex; align-items:center; gap:10px; }
+.tmpmp-perm-header      { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+.tmpmp-perm-header-left { display:flex; align-items:center; gap:10px; font-size:16px; font-weight:800; color:#0f172a; }
+
 .tmpmp-perm-count-badge { background:#6366f1; color:#fff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px; }
 .tmpmp-perm-cards       { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
 .tmpmp-perm-card        { background:#fff; border:1.5px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:8px; transition:box-shadow .15s; }
@@ -425,6 +426,11 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
         box-shadow: 0 2px 8px rgba(99,102,241,.12), 0 0 0 1px rgba(99,102,241,.1) !important;
     }
     .tmpmp-billing-active { padding: 14px !important; }
+}
+@media (max-width: 540px) {
+    .tmpmp-perm-header { flex-direction:column; align-items:stretch; }
+    .tmpmp-perm-header-left { justify-content:center; }
+    #tmpmp-perm-create-btn { width:100%; justify-content:center; }
 }
 @media (max-width: 380px) {
     .tmpmp-dash-actions { flex-direction: column; }
@@ -1631,9 +1637,11 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
                 <strong><?php esc_html_e('Permanent Inboxes','tempmail-pro'); ?></strong>
                 <span class="tmpmp-perm-count-badge" id="tmpmp-perm-count">0</span>
             </div>
-            <button type="button" class="tmpmp-dash-btn" id="tmpmp-perm-create-btn">
-                + <?php esc_html_e('New Permanent Inbox','tempmail-pro'); ?>
+            <button type="button" class="tmpmp-pub-btn tmpmp-pub-btn--primary" id="tmpmp-perm-create-btn" style="font-size:13px;padding:9px 18px;gap:7px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <?php esc_html_e('New Permanent Inbox','tempmail-pro'); ?>
             </button>
+
         </div>
         <div id="tmpmp-perm-cards" class="tmpmp-perm-cards"></div>
         <div id="tmpmp-perm-empty" style="display:none;text-align:center;padding:40px 0;color:#94a3b8;">
