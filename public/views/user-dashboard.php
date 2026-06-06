@@ -376,7 +376,18 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-email-list-item::after { content:'›'; position:absolute; right:18px; top:50%;
                                   transform:translateY(-50%); color:#cbd5e1; font-size:22px; font-weight:300; }
 .tmpmp-email-list-subj  { font-weight:700; font-size:13.5px; color:#1e293b;
-                           white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+                           display:flex; align-items:center; gap:7px; overflow:hidden; }
+.tmpmp-email-list-subj-txt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
+.tmpmp-email-new-badge  { display:inline-flex; align-items:center; gap:3px; flex-shrink:0;
+                           background:linear-gradient(135deg,#22c55e,#16a34a);
+                           color:#fff; font-size:10px; font-weight:800; letter-spacing:.4px;
+                           padding:2px 7px; border-radius:20px; white-space:nowrap;
+                           box-shadow:0 0 0 0 rgba(34,197,94,.5);
+                           animation:tmpmp-new-pulse 2s ease-in-out infinite; }
+@keyframes tmpmp-new-pulse {
+    0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.45);}
+    50%{box-shadow:0 0 0 5px rgba(34,197,94,0);}
+}
 .tmpmp-email-list-meta  { font-size:11.5px; color:#64748b; display:flex; gap:10px; flex-wrap:wrap; }
 .tmpmp-email-list-sender{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .tmpmp-email-list-date  { flex-shrink:0; }
@@ -2132,15 +2143,22 @@ jQuery(function($){
             if (r.success && r.data && r.data.emails && r.data.emails.length) {
                 var emails = r.data.emails;
                 $viewSub.text(emails.length + ' <?php esc_html_e('emails','tempmail-pro'); ?>');
+                var now  = Date.now();
+                var NEW_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
                 var html = '<ul class="tmpmp-email-list">';
                 emails.forEach(function(e) {
-                    var subj   = escHtml(e.subject || '<?php esc_html_e('(no subject)','tempmail-pro'); ?>');
-                    var sender = escHtml(e.sender || '');
-                    var date   = escHtml((e.received_at||'').substring(0,16).replace('T',' '));
+                    var subj     = escHtml(e.subject || '<?php esc_html_e('(no subject)','tempmail-pro'); ?>');
+                    var sender   = escHtml(e.sender || '');
+                    var rawDate  = (e.received_at || '').replace(' ','T'); // make ISO-parseable
+                    var date     = escHtml((e.received_at||'').substring(0,16).replace('T',' '));
+                    var isNew    = rawDate && (now - new Date(rawDate).getTime()) < NEW_THRESHOLD_MS;
+                    var newBadge = isNew
+                        ? '<span class="tmpmp-email-new-badge">&#x1F4E7; <?php esc_html_e('NEW','tempmail-pro'); ?></span>'
+                        : '';
                     html += '<li class="tmpmp-email-list-item"'
                         + ' data-email-id="' + escHtml(String(e.id)) + '"'
                         + ' data-addr-id="'  + escHtml(String(addrId)) + '">' +
-                        '<div class="tmpmp-email-list-subj">' + subj + '</div>' +
+                        '<div class="tmpmp-email-list-subj"><span class="tmpmp-email-list-subj-txt">' + subj + '</span>' + newBadge + '</div>' +
                         '<div class="tmpmp-email-list-meta">' +
                             '<span class="tmpmp-email-list-sender">&#9993; ' + sender + '</span>' +
                             '<span class="tmpmp-email-list-date">&#128336; ' + date + '</span>' +
