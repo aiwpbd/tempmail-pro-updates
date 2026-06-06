@@ -301,6 +301,29 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-perm-card        { background:#fff; border:1.5px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:8px; transition:box-shadow .15s; }
 .tmpmp-perm-card:hover  { box-shadow:0 4px 20px rgba(99,102,241,.12); border-color:#c7d2fe; }
 .tmpmp-perm-card-addr   { font-family:monospace; font-weight:700; color:#4f46e5; font-size:13px; word-break:break-all; }
+
+/* Copy address button */
+.tmpmp-perm-copy-wrap   { display:inline-flex; align-items:center; gap:6px; cursor:pointer; position:relative;
+                           border-radius:8px; padding:3px 7px 3px 4px; transition:background .15s, color .15s;
+                           user-select:none; max-width:100%; }
+.tmpmp-perm-copy-wrap:hover  { background:#ede9fe; }
+.tmpmp-perm-copy-wrap:hover .tmpmp-perm-copy-icon { opacity:1; }
+.tmpmp-perm-copy-icon   { opacity:0; flex-shrink:0; transition:opacity .15s; color:#6366f1; }
+.tmpmp-perm-copy-wrap.copied { background:#d1fae5 !important; color:#065f46 !important; }
+.tmpmp-perm-copy-wrap.copied .tmpmp-perm-card-addr { color:#065f46 !important; }
+.tmpmp-perm-copy-wrap.copied .tmpmp-perm-copy-icon { opacity:1; color:#16a34a !important; }
+/* Tooltip */
+.tmpmp-perm-copy-wrap::after {
+    content:'Click to copy';
+    position:absolute; bottom:calc(100% + 6px); left:50%; transform:translateX(-50%);
+    background:#1e293b; color:#fff; font-size:11px; font-weight:600;
+    padding:4px 9px; border-radius:6px; white-space:nowrap;
+    opacity:0; pointer-events:none; transition:opacity .15s;
+    font-family:inherit;
+}
+.tmpmp-perm-copy-wrap:hover::after  { opacity:1; }
+.tmpmp-perm-copy-wrap.copied::after { content:'Copied! ✓'; background:#16a34a; opacity:1; }
+
 .tmpmp-perm-badge       { display:inline-flex; align-items:center; gap:4px; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; border-radius:20px; font-size:11px; font-weight:700; padding:2px 9px; }
 .tmpmp-perm-meta        { font-size:12px; color:#64748b; }
 .tmpmp-perm-actions     { display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
@@ -1965,7 +1988,11 @@ jQuery(function($){
             var date = inbox.created_at ? inbox.created_at.substring(0,10) : '';
             var html = '<div class="tmpmp-perm-card" data-id="'+inbox.id+'">' +
                 '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">' +
-                    '<div class="tmpmp-perm-card-addr">'+escHtml(inbox.address)+'</div>' +
+                    '<div class="tmpmp-perm-copy-wrap" title="" data-copy-addr>' +
+                        '<div class="tmpmp-perm-card-addr">'+escHtml(inbox.address)+'</div>' +
+                        '<svg class="tmpmp-perm-copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>' +
+                    '</div>' +
+
                     '<span class="tmpmp-perm-badge">&#9854; <?php esc_html_e('Permanent','tempmail-pro'); ?></span>' +
                 '</div>' +
                 '<div class="tmpmp-perm-meta">' +
@@ -1993,7 +2020,46 @@ jQuery(function($){
         });
     }
 
-    // View emails drawer
+    // ── Copy address ──────────────────────────────────────────────────────
+    $(document).on('click', '[data-copy-addr]', function() {
+        var $wrap = $(this);
+        var addr  = $wrap.find('.tmpmp-perm-card-addr').text().trim();
+        if (!addr) return;
+
+        // Replace icon with checkmark during feedback
+        var $icon = $wrap.find('.tmpmp-perm-copy-icon');
+        var origIcon = $icon[0].outerHTML;
+        $icon.replaceWith('<svg class="tmpmp-perm-copy-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>');
+
+        function showCopied() {
+            $wrap.addClass('copied');
+            setTimeout(function() {
+                $wrap.removeClass('copied');
+                $wrap.find('.tmpmp-perm-copy-icon').replaceWith(origIcon);
+            }, 1800);
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(addr).then(showCopied).catch(function() {
+                // fallback
+                var ta = document.createElement('textarea');
+                ta.value = addr; ta.style.position='fixed'; ta.style.opacity='0';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); } catch(e){}
+                document.body.removeChild(ta);
+                showCopied();
+            });
+        } else {
+            var ta = document.createElement('textarea');
+            ta.value = addr; ta.style.position='fixed'; ta.style.opacity='0';
+            document.body.appendChild(ta); ta.select();
+            try { document.execCommand('copy'); } catch(e){}
+            document.body.removeChild(ta);
+            showCopied();
+        }
+    });
+
+    // ── View emails drawer ─────────────────────────────────────────────
     $(document).on('click', '[data-view]', function() {
         var id      = $(this).data('view');
         var $drawer = $('#tmpmp-drawer-'+id);
