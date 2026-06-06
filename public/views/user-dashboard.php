@@ -375,18 +375,22 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-email-list-item:hover { background:#f8fafc; }
 .tmpmp-email-list-item::after { content:'›'; position:absolute; right:18px; top:50%;
                                   transform:translateY(-50%); color:#cbd5e1; font-size:22px; font-weight:300; }
+.tmpmp-email-list-item.tmpmp-unread { border-left:3px solid #6366f1; padding-left:19px; }
 .tmpmp-email-list-subj  { font-weight:700; font-size:13.5px; color:#1e293b;
                            display:flex; align-items:center; gap:7px; overflow:hidden; }
 .tmpmp-email-list-subj-txt { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0; }
-.tmpmp-email-new-badge  { display:inline-flex; align-items:center; gap:3px; flex-shrink:0;
-                           background:linear-gradient(135deg,#22c55e,#16a34a);
-                           color:#fff; font-size:10px; font-weight:800; letter-spacing:.4px;
-                           padding:2px 7px; border-radius:20px; white-space:nowrap;
-                           box-shadow:0 0 0 0 rgba(34,197,94,.5);
-                           animation:tmpmp-new-pulse 2s ease-in-out infinite; }
-@keyframes tmpmp-new-pulse {
-    0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.45);}
-    50%{box-shadow:0 0 0 5px rgba(34,197,94,0);}
+.tmpmp-unread .tmpmp-email-list-subj-txt { color:#0f172a; font-weight:800; }
+.tmpmp-email-unread-badge { display:inline-flex; align-items:center; gap:3px; flex-shrink:0;
+                             background:linear-gradient(135deg,#6366f1,#4f46e5);
+                             color:#fff; font-size:10px; font-weight:800; letter-spacing:.4px;
+                             padding:2px 8px; border-radius:20px; white-space:nowrap;
+                             box-shadow:0 0 0 0 rgba(99,102,241,.5);
+                             animation:tmpmp-unread-pulse 2.2s ease-in-out infinite;
+                             transition:opacity .25s; }
+.tmpmp-email-unread-badge.hidden { opacity:0; pointer-events:none; }
+@keyframes tmpmp-unread-pulse {
+    0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,.45);}
+    50%{box-shadow:0 0 0 6px rgba(99,102,241,0);}
 }
 .tmpmp-email-list-meta  { font-size:11.5px; color:#64748b; display:flex; gap:10px; flex-wrap:wrap; }
 .tmpmp-email-list-sender{ flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -2143,22 +2147,20 @@ jQuery(function($){
             if (r.success && r.data && r.data.emails && r.data.emails.length) {
                 var emails = r.data.emails;
                 $viewSub.text(emails.length + ' <?php esc_html_e('emails','tempmail-pro'); ?>');
-                var now  = Date.now();
-                var NEW_THRESHOLD_MS = 48 * 60 * 60 * 1000; // 48 hours
                 var html = '<ul class="tmpmp-email-list">';
                 emails.forEach(function(e) {
                     var subj     = escHtml(e.subject || '<?php esc_html_e('(no subject)','tempmail-pro'); ?>');
                     var sender   = escHtml(e.sender || '');
-                    var rawDate  = (e.received_at || '').replace(' ','T'); // make ISO-parseable
+                    var rawDate  = (e.received_at || '').replace(' ','T');
                     var date     = escHtml((e.received_at||'').substring(0,16).replace('T',' '));
-                    var isNew    = rawDate && (now - new Date(rawDate).getTime()) < NEW_THRESHOLD_MS;
-                    var newBadge = isNew
-                        ? '<span class="tmpmp-email-new-badge">&#x1F4E7; <?php esc_html_e('NEW','tempmail-pro'); ?></span>'
+                    var isUnread = !parseInt(e.is_read, 10);
+                    var badge    = isUnread
+                        ? '<span class="tmpmp-email-unread-badge">&#x1F4E7; <?php esc_html_e('NEW','tempmail-pro'); ?></span>'
                         : '';
-                    html += '<li class="tmpmp-email-list-item"'
+                    html += '<li class="tmpmp-email-list-item' + (isUnread ? ' tmpmp-unread' : '') + '"'
                         + ' data-email-id="' + escHtml(String(e.id)) + '"'
                         + ' data-addr-id="'  + escHtml(String(addrId)) + '">' +
-                        '<div class="tmpmp-email-list-subj"><span class="tmpmp-email-list-subj-txt">' + subj + '</span>' + newBadge + '</div>' +
+                        '<div class="tmpmp-email-list-subj"><span class="tmpmp-email-list-subj-txt">' + subj + '</span>' + badge + '</div>' +
                         '<div class="tmpmp-email-list-meta">' +
                             '<span class="tmpmp-email-list-sender">&#9993; ' + sender + '</span>' +
                             '<span class="tmpmp-email-list-date">&#128336; ' + date + '</span>' +
@@ -2260,10 +2262,28 @@ jQuery(function($){
         showEmailList(id);
     });
 
-    // Click email row → body view
+    // Click email row → body view + mark as read
     $(document).on('click', '.tmpmp-email-list-item', function() {
-        showEmailBody($(this).data('email-id'), $(this).data('addr-id'));
+        var $row    = $(this);
+        var emailId = $row.data('email-id');
+        var addrId  = $row.data('addr-id');
+
+        // Optimistic UI: immediately clear unread state
+        if ($row.hasClass('tmpmp-unread')) {
+            $row.removeClass('tmpmp-unread');
+            $row.find('.tmpmp-email-unread-badge').addClass('hidden');
+            // Fire mark-as-read in background (no wait)
+            $.post(url, {
+                action     : 'tmpmp_mark_email_read',
+                nonce      : nonce,
+                email_id   : emailId,
+                address_id : addrId
+            });
+        }
+
+        showEmailBody(emailId, addrId);
     });
+
 
     // Back arrow → email list
     $viewBack.on('click', function() {

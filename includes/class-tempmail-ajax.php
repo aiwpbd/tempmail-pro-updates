@@ -43,6 +43,7 @@ class TempMail_AJAX {
             'tmpmp_get_permanent_inboxes',
             'tmpmp_delete_permanent_inbox',
             'tmpmp_export_inbox',
+            'tmpmp_mark_email_read',
         ];
         foreach ( $auth_actions as $action ) {
             add_action( "wp_ajax_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
@@ -259,6 +260,25 @@ class TempMail_AJAX {
         if ( ! $address_id ) wp_send_json_error(['message' => 'address_id required.'], 400);
         $ok = TempMail_Database::delete_history_address( $address_id, $user_id );
         $ok ? wp_send_json_success() : wp_send_json_error(['message' => __('Delete failed.','tempmail-pro')]);
+    }
+
+    // ── MARK a single email as read ───────────────────────────────────────────
+    public function handle_mark_email_read() : void {
+        global $wpdb;
+        $this->nonce();
+        $user_id    = get_current_user_id();
+        if ( ! $user_id ) wp_send_json_error(['message' => __('Login required.','tempmail-pro')], 401);
+        $email_id   = intval( $_POST['email_id']   ?? 0 );
+        $address_id = intval( $_POST['address_id'] ?? 0 );
+        if ( ! $email_id || ! $address_id ) wp_send_json_error(['message' => 'Invalid params.'], 400);
+        // Verify the address belongs to this user
+        $owned = $wpdb->get_var( $wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}tmpmp_addresses WHERE id = %d AND user_id = %d",
+            $address_id, $user_id
+        ) );
+        if ( ! $owned ) wp_send_json_error(['message' => __('Access denied.','tempmail-pro')], 403);
+        TempMail_Database::mark_email_read( $email_id );
+        wp_send_json_success();
     }
 
     // ══════════════════════════════════════════════════════════════════════════
