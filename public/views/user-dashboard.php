@@ -365,7 +365,7 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
                            padding:5px 8px; border-radius:8px; line-height:1; flex-shrink:0;
                            transition:all .15s; }
 .tmpmp-view-modal-close:hover { background:#f1f5f9; color:#0f172a; }
-.tmpmp-view-modal-body  { flex:1; overflow-y:auto; }
+.tmpmp-view-modal-body  { flex:1; overflow-y:auto; overflow-x:hidden; }
 /* Email list */
 .tmpmp-email-list       { list-style:none; margin:0; padding:8px 0; }
 .tmpmp-email-list-item  { display:flex; flex-direction:column; gap:3px; padding:14px 44px 14px 22px;
@@ -388,7 +388,7 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-email-body-subj  { font-size:15px; font-weight:800; color:#0f172a; margin:0 0 10px; word-break:break-word; }
 .tmpmp-email-body-row   { display:flex; gap:6px; font-size:12px; color:#64748b; margin-top:5px; flex-wrap:wrap; }
 .tmpmp-email-body-row strong { color:#374151; min-width:36px; }
-.tmpmp-email-body-frame { border:none; width:100%; min-height:340px; display:block; overflow-x:hidden; max-width:100%; box-sizing:border-box; }
+.tmpmp-email-body-frame { border:none; width:100%; min-height:340px; display:block; overflow:hidden; max-width:100%; box-sizing:border-box; }
 .tmpmp-email-body-plain { padding:20px 22px; font-size:13px; color:#374151; line-height:1.75;
                            white-space:pre-wrap; word-break:break-word; }
 /* Skeleton loader */
@@ -2187,13 +2187,16 @@ jQuery(function($){
                     .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
                     .replace(/</g,'&lt;').replace(/>/g,'&gt;');
                 var iframeStyles = [
-                    'html,body{max-width:100% !important;overflow-x:hidden !important;word-break:break-word;}',
-                    'body{font-family:sans-serif;font-size:14px;padding:16px;margin:0;line-height:1.65;color:#1e293b;box-sizing:border-box;}',
-                    '*{box-sizing:border-box;}',
-                    'img,video,audio,embed,object{max-width:100% !important;height:auto !important;}',
-                    'table{max-width:100% !important;width:100% !important;table-layout:fixed !important;word-break:break-word;}',
-                    'td,th{max-width:100% !important;word-break:break-word;overflow-wrap:break-word;}',
-                    'pre{max-width:100%;overflow-x:auto;white-space:pre-wrap;}',
+                    // Universal cap — overrides inline style="width:NNNpx" too
+                    '*{max-width:100% !important;box-sizing:border-box !important;overflow-x:hidden !important;}',
+                    'html,body{margin:0;padding:0;overflow-x:hidden !important;word-break:break-word;}',
+                    'body{font-family:sans-serif;font-size:14px;padding:16px;line-height:1.65;color:#1e293b;}',
+                    // Re-allow vertical scrolling and normal overflow on specific safe elements
+                    'html,body,div,section,article,main,aside,header,footer,li,ul,ol{overflow-x:hidden !important;}',
+                    'img,video,audio,embed,object,iframe{max-width:100% !important;height:auto !important;display:block;}',
+                    'table{width:100% !important;table-layout:fixed !important;border-collapse:collapse;}',
+                    'td,th{word-break:break-word;overflow-wrap:anywhere;padding:4px;}',
+                    'pre,code{white-space:pre-wrap;word-break:break-all;}',
                     'a{word-break:break-all;}'
                 ].join('');
                 // IMPORTANT: use single-quoted HTML attributes in the srcdoc head so
