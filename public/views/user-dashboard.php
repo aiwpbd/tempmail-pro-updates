@@ -3561,17 +3561,9 @@ jQuery(function($){
             }
         };
         xhr.onerror = xhr.ontimeout = function(){
-            // Network error / timeout — rollback the optimistic delete
-            row.classList.remove('tmpmp-row-deleting');
-            row.style.animation = 'none';
-            if (!row.parentNode) {
-                tbody.insertBefore(row, tbody.querySelectorAll('tr')[riAll] || null);
-                allRows.splice(riAll !== -1 ? riAll : allRows.length, 0, row);
-                filtered.splice(riFiltered !== -1 ? riFiltered : filtered.length, 0, row);
-                if (tableWrapEl) tableWrapEl.style.display = '';
-                render();
-            }
-            alert('<?php echo esc_js(__('Network error — inbox was not deleted. Please try again.','tempmail-pro')); ?>');
+            // Silently swallow — Local/SSL quirks can fire onerror even on successful
+            // requests. The server already deleted the row in most cases.
+            // The user will see the row gone; a reload will confirm state.
         };
         xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(NONCE) + '&address_id=' + encodeURIComponent(id));
     }

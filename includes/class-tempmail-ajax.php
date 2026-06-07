@@ -270,25 +270,11 @@ class TempMail_AJAX {
     public function handle_delete_inbox_address() : void {
         $this->nonce();
         $user_id    = get_current_user_id();
-        if ( ! $user_id ) {
-            error_log('[TmpmpDeleteInbox] Not logged in.');
-            wp_send_json_error(['message' => __('You must be logged in.','tempmail-pro')], 401);
-        }
+        if ( ! $user_id ) wp_send_json_error( ['message' => __('You must be logged in.','tempmail-pro')], 401 );
         $address_id = intval( $_POST['address_id'] ?? 0 );
-        if ( ! $address_id ) {
-            error_log('[TmpmpDeleteInbox] Missing address_id. POST=' . json_encode($_POST));
-            wp_send_json_error(['message' => __('Invalid address.','tempmail-pro')], 400);
-        }
-        error_log("[TmpmpDeleteInbox] user={$user_id} address_id={$address_id} — attempting delete");
+        if ( ! $address_id ) wp_send_json_error( ['message' => __('Invalid address.','tempmail-pro')], 400 );
         $ok = TempMail_Database::delete_history_address( $address_id, $user_id );
-        if ( $ok ) {
-            error_log("[TmpmpDeleteInbox] SUCCESS user={$user_id} address_id={$address_id}");
-            wp_send_json_success();
-        } else {
-            global $wpdb;
-            error_log("[TmpmpDeleteInbox] FAILED user={$user_id} address_id={$address_id} db_error=" . $wpdb->last_error);
-            wp_send_json_error(['message' => __('Could not delete inbox. It may have already been removed.','tempmail-pro')]);
-        }
+        $ok ? wp_send_json_success() : wp_send_json_error( ['message' => __('Could not delete inbox. It may have already been removed.','tempmail-pro')] );
     }
 
     // ── MARK a single email as read ───────────────────────────────────────────
