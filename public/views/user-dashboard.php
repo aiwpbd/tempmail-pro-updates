@@ -3373,6 +3373,7 @@ jQuery(function($){
     var bulkCancel   = document.getElementById('tmpmp-inbox-bulk-cancel');
     var cbAll        = document.getElementById('tmpmp-inbox-cb-all');
     var filterChips  = document.querySelectorAll('.tmpmp-inbox-filter-chip');
+    var perPageSel   = document.getElementById('tmpmp-inbox-perpage');
 
     var PER_PAGE    = 10;
     var currentPage = 1;
