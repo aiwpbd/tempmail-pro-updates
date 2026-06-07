@@ -44,6 +44,7 @@ class TempMail_AJAX {
             'tmpmp_delete_permanent_inbox',
             'tmpmp_export_inbox',
             'tmpmp_mark_email_read',
+            'tmpmp_delete_inbox_address',   // My Inboxes delete — all logged-in users
         ];
         foreach ( $auth_actions as $action ) {
             add_action( "wp_ajax_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
@@ -260,6 +261,21 @@ class TempMail_AJAX {
         if ( ! $address_id ) wp_send_json_error(['message' => 'address_id required.'], 400);
         $ok = TempMail_Database::delete_history_address( $address_id, $user_id );
         $ok ? wp_send_json_success() : wp_send_json_error(['message' => __('Delete failed.','tempmail-pro')]);
+    }
+
+    /**
+     * Delete an address from "My Inboxes" — available to ALL logged-in users
+     * (not premium-gated). Verifies the address belongs to the current user.
+     */
+    public function handle_delete_inbox_address() : void {
+        $this->nonce();
+        $user_id    = get_current_user_id();
+        if ( ! $user_id ) wp_send_json_error(['message' => __('You must be logged in.','tempmail-pro')], 401);
+        $address_id = intval( $_POST['address_id'] ?? 0 );
+        if ( ! $address_id ) wp_send_json_error(['message' => __('Invalid address.','tempmail-pro')], 400);
+        // delete_history_address verifies ownership via user_id — safe for all users
+        $ok = TempMail_Database::delete_history_address( $address_id, $user_id );
+        $ok ? wp_send_json_success() : wp_send_json_error(['message' => __('Could not delete inbox. It may have already been removed.','tempmail-pro')]);
     }
 
     // ── MARK a single email as read ───────────────────────────────────────────

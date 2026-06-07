@@ -1103,6 +1103,22 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
     color: #cbd5e1;
 }
 .tmpmp-inbox-no-results p { font-size: 14px; margin: 0; }
+
+/* ── My Inboxes: delete button ── */
+.tmpmp-inbox-del-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 11px; border-radius: 8px;
+    border: 1.5px solid #fecaca; background: #fff5f5;
+    color: #dc2626; font-size: 12px; font-weight: 600;
+    font-family: inherit; cursor: pointer;
+    transition: background .15s, border-color .15s, transform .1s;
+    white-space: nowrap;
+}
+.tmpmp-inbox-del-btn:hover  { background: #fee2e2; border-color: #f87171; }
+.tmpmp-inbox-del-btn:active { transform: scale(.96); }
+@keyframes tmpmp-row-fade-out { to { opacity:0; transform:translateX(18px); } }
+#tmpmp-inbox-tbody tr.tmpmp-row-deleting { animation: tmpmp-row-fade-out .25s ease forwards; pointer-events:none; }
+
 /* Pagination row */
 .tmpmp-inbox-pagination {
     display: flex;
@@ -1268,13 +1284,14 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
                         <th><?php esc_html_e('Plan','tempmail-pro'); ?></th>
                         <th><?php esc_html_e('Created','tempmail-pro'); ?></th>
                         <th><?php esc_html_e('Expires','tempmail-pro'); ?></th>
+                        <th style="text-align:center;"><?php esc_html_e('Actions','tempmail-pro'); ?></th>
                     </tr>
                 </thead>
                 <tbody id="tmpmp-inbox-tbody">
                 <?php foreach ( $my_addresses as $addr ) :
                     $expired = strtotime( $addr->expires_at . ' UTC' ) < time();
                 ?>
-                <tr data-address="<?php echo esc_attr( strtolower( $addr->address ) ); ?>">
+                <tr data-address="<?php echo esc_attr( strtolower( $addr->address ) ); ?>" data-id="<?php echo intval($addr->id); ?>">
                     <td data-label="<?php esc_attr_e('Address','tempmail-pro'); ?>" style="font-family:monospace;font-weight:600;color:#6366f1;word-break:break-all;"><?php echo esc_html($addr->address); ?></td>
                     <td data-label="<?php esc_attr_e('Emails','tempmail-pro'); ?>"><?php echo intval($addr->email_count); ?></td>
                     <td data-label="<?php esc_attr_e('Plan','tempmail-pro'); ?>"><span class="tmpmp-pub-badge <?php echo $sub ? 'tmpmp-pub-badge--green' : 'tmpmp-pub-badge--indigo'; ?>"><?php echo esc_html(ucfirst($current_plan_slug)); ?></span></td>
@@ -1283,6 +1300,17 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
                         <span class="tmpmp-pub-badge <?php echo $expired ? 'tmpmp-pub-badge--red' : 'tmpmp-pub-badge--green'; ?>">
                             <?php echo $expired ? esc_html__('Expired','tempmail-pro') : esc_html(date_i18n('d M H:i', strtotime($addr->expires_at.' UTC'))); ?>
                         </span>
+                    </td>
+                    <td data-label="<?php esc_attr_e('Actions','tempmail-pro'); ?>" style="text-align:center;">
+                        <button type="button"
+                            class="tmpmp-inbox-del-btn"
+                            data-id="<?php echo intval($addr->id); ?>"
+                            data-addr="<?php echo esc_attr($addr->address); ?>"
+                            title="<?php esc_attr_e('Delete this inbox and all its emails','tempmail-pro'); ?>"
+                            aria-label="<?php esc_attr_e('Delete','tempmail-pro'); ?>">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                            <?php esc_html_e('Delete','tempmail-pro'); ?>
+                        </button>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -3305,6 +3333,94 @@ jQuery(function($){
     nextBtn.addEventListener('click', function () {
         var tp = Math.ceil(filtered.length / PER_PAGE);
         if (currentPage < tp) { currentPage++; render(); }
+    });
+
+    /* ── delete inbox row (optimistic) ── */
+    tbody.addEventListener('click', function (e) {
+        var btn = e.target.closest('.tmpmp-inbox-del-btn');
+        if (!btn) return;
+
+        var id   = btn.getAttribute('data-id');
+        var addr = btn.getAttribute('data-addr');
+        var row  = btn.closest('tr');
+        if (!row || !id) return;
+
+        if (!confirm('<?php esc_html_e('Delete inbox','tempmail-pro'); ?> "' + addr + '"?\n<?php esc_html_e('This will permanently remove the address and all its emails.','tempmail-pro'); ?>')) return;
+
+        // ── 1. Remove instantly (optimistic) ────────────────────────────────
+        row.classList.add('tmpmp-row-deleting');
+
+        // Save row index in filtered array for potential restore
+        var rowIndexInFiltered = filtered.indexOf(row);
+        var rowIndexInAll      = allRows.indexOf(row);
+
+        setTimeout(function () {
+            // Remove from DOM and tracking arrays
+            if (row.parentNode) row.parentNode.removeChild(row);
+            if (rowIndexInFiltered !== -1) filtered.splice(rowIndexInFiltered, 1);
+            if (rowIndexInAll      !== -1) allRows.splice(rowIndexInAll, 1);
+
+            // Update count in meta
+            var remaining = allRows.length;
+            if (metaEl) metaEl.textContent = remaining + ' <?php echo esc_js( _n('address','addresses',99,'tempmail-pro') ); ?>';
+
+            // If current page is now empty, go back one page
+            var totalPages = Math.ceil(filtered.length / PER_PAGE);
+            if (currentPage > totalPages && currentPage > 1) currentPage = totalPages || 1;
+
+            // Show empty state if no addresses left
+            if (!allRows.length) {
+                if (tableWrapEl)  tableWrapEl.style.display  = 'none';
+                if (paginationEl) paginationEl.style.display = 'none';
+                var emptyEl = document.createElement('div');
+                emptyEl.className = 'tmpmp-empty-state';
+                emptyEl.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><p><?php esc_html_e('No inboxes yet. Use the TempMail app to generate your first inbox.','tempmail-pro'); ?></p>';
+                var panel = document.getElementById('dash-tab-inboxes');
+                if (panel) panel.prepend(emptyEl);
+            } else {
+                render();
+            }
+        }, 260); // wait for fade-out animation
+
+        // ── 2. Fire AJAX in background ───────────────────────────────────────
+        var nonce = '<?php echo esc_js( wp_create_nonce('tmpmp_nonce') ); ?>';
+        var xhr   = new XMLHttpRequest();
+        xhr.open('POST', '<?php echo esc_js( admin_url('admin-ajax.php') ); ?>', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.timeout = 15000;
+
+        xhr.onload = function () {
+            var r; try { r = JSON.parse(xhr.responseText); } catch(ex) { return; }
+            if (r && r.success === false) {
+                // ── Rollback: re-insert row, update arrays ──────────────────
+                row.classList.remove('tmpmp-row-deleting');
+                row.style.animation = 'none';
+
+                // Re-insert at original position (or end)
+                var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                if (rowIndexInAll >= 0 && rowIndexInAll <= rows.length) {
+                    tbody.insertBefore(row, rows[rowIndexInAll] || null);
+                } else {
+                    tbody.appendChild(row);
+                }
+
+                allRows.splice(rowIndexInAll !== -1 ? rowIndexInAll : allRows.length, 0, row);
+                filtered.splice(rowIndexInFiltered !== -1 ? rowIndexInFiltered : filtered.length, 0, row);
+
+                if (tableWrapEl) tableWrapEl.style.display = '';
+                if (metaEl) metaEl.textContent = allRows.length + ' <?php echo esc_js( _n('address','addresses',99,'tempmail-pro') ); ?>';
+
+                // Show inline error in the button cell
+                var errSpan = document.createElement('span');
+                errSpan.style.cssText = 'color:#dc2626;font-size:11px;margin-left:6px;';
+                errSpan.textContent   = (r.data && r.data.message) ? r.data.message : '<?php esc_html_e('Delete failed.','tempmail-pro'); ?>';
+                btn.insertAdjacentElement('afterend', errSpan);
+                setTimeout(function () { if (errSpan.parentNode) errSpan.parentNode.removeChild(errSpan); }, 4000);
+                render();
+            }
+        };
+        xhr.onerror = xhr.ontimeout = function () { /* network error — leave row removed, likely succeeded */ };
+        xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(nonce) + '&address_id=' + encodeURIComponent(id));
     });
 
     /* ── initial render ── */
