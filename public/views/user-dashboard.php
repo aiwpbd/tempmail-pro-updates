@@ -2468,9 +2468,10 @@ jQuery(function($){
                 var srcdocHead = "<!DOCTYPE html><html><head>"
                     + "<meta charset='utf-8'>"
                     + "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+                    + "<base target='_blank' rel='noopener noreferrer'>"
                     + "<style>" + iframeStyles + "</style>"
                     + "</head><body>";
-                bodyPart = '<iframe class="tmpmp-email-body-frame" sandbox="allow-same-origin"'
+                bodyPart = '<iframe class="tmpmp-email-body-frame" sandbox="allow-same-origin allow-popups"'
                     + ' srcdoc="' + srcdocHead + safe + '</body></html>"'
                     + ' onload="var d=this.contentDocument,h=d.documentElement.scrollHeight||d.body.scrollHeight;this.style.height=(h+24)+\'px\'"></iframe>';
             } else {
