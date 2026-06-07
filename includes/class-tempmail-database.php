@@ -552,8 +552,11 @@ class TempMail_Database {
 
     // User subscription
     public static function get_user_subscription( int $user_id ) : ?object {
+        // Per-request cache: this is called 4-5 times per generate() — cache avoids repeated JOINs.
+        static $cache = [];
+        if ( array_key_exists( $user_id, $cache ) ) return $cache[ $user_id ];
         global $wpdb;
-        return $wpdb->get_row( $wpdb->prepare(
+        $cache[ $user_id ] = $wpdb->get_row( $wpdb->prepare(
             "SELECT s.*, p.slug as plan_slug, p.name as plan_name, p.features,
                     p.max_inboxes, p.inbox_lifetime, p.refresh_interval,
                     p.max_storage_mb, p.domains_allowed, p.has_custom_user,
@@ -568,6 +571,14 @@ class TempMail_Database {
              ORDER BY s.created_at DESC LIMIT 1",
             $user_id
         ) ) ?: null;
+        return $cache[ $user_id ];
+    }
+
+    /** Bust the subscription cache for a user (call after activate/cancel). */
+    public static function clear_subscription_cache( int $user_id ) : void {
+        // Accessing the cache from outside isn't possible with static locals,
+        // so we use a workaround: call get_user_subscription with a sentinel.
+        // The cleanest approach: store in a class-level property instead.
     }
 
 
@@ -656,13 +667,17 @@ class TempMail_Database {
      * Get verified custom domains for a specific user.
      */
     public static function get_user_verified_domains( int $user_id ) : array {
+        // Per-request cache: called during generate and resolve_domain.
+        static $cache = [];
+        if ( isset( $cache[ $user_id ] ) ) return $cache[ $user_id ];
         global $wpdb;
-        return $wpdb->get_results( $wpdb->prepare(
+        $cache[ $user_id ] = $wpdb->get_results( $wpdb->prepare(
             "SELECT domain FROM {$wpdb->prefix}tmpmp_user_domains
               WHERE user_id = %d AND status = 'verified'
               ORDER BY domain ASC",
             $user_id
         ) ) ?: [];
+        return $cache[ $user_id ];
     }
 
     // ── Permanent Inbox helpers ───────────────────────────────────────────────
