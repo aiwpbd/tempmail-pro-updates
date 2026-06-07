@@ -308,6 +308,9 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 .tmpmp-perm-card        { background:#fff; border:1.5px solid #e2e8f0; border-radius:14px; padding:18px 20px; display:flex; flex-direction:column; gap:8px; transition:box-shadow .15s; }
 .tmpmp-perm-card:hover  { box-shadow:0 4px 20px rgba(99,102,241,.12); border-color:#c7d2fe; }
 .tmpmp-perm-card-addr   { font-family:monospace; font-weight:700; color:#4f46e5; font-size:13px; word-break:break-all; }
+@keyframes tmpmp-perm-saving-pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+.tmpmp-perm-card--saving { animation:tmpmp-perm-saving-pulse 1.2s ease-in-out infinite; pointer-events:none; }
+.tmpmp-perm-card--saving .tmpmp-perm-card-addr::after { content:' …'; color:#94a3b8; font-weight:400; font-size:11px; }
 
 /* Copy address button */
 .tmpmp-perm-copy-wrap   { display:inline-flex; align-items:center; gap:6px; cursor:pointer; position:relative;
@@ -3308,4 +3311,5 @@ jQuery(function($){
     render();
 }());
 </script>
+
 

@@ -538,16 +538,22 @@ class TempMail_Database {
 
     // Domains
     public static function get_all_domains( string $category = '' ) : array {
+        // Per-request cache — domains rarely change, safe to cache for the lifetime of a request.
+        static $cache = [];
+        $key = $category ?: '__all__';
+        if ( isset( $cache[ $key ] ) ) return $cache[ $key ];
         global $wpdb;
         if ( $category ) {
-            return $wpdb->get_results( $wpdb->prepare(
+            $cache[ $key ] = $wpdb->get_results( $wpdb->prepare(
                 "SELECT * FROM {$wpdb->prefix}tmpmp_domains WHERE is_active = 1 AND category = %s ORDER BY domain ASC",
                 $category
             ) ) ?: [];
+        } else {
+            $cache[ $key ] = $wpdb->get_results(
+                "SELECT * FROM {$wpdb->prefix}tmpmp_domains WHERE is_active = 1 ORDER BY category, domain"
+            ) ?: [];
         }
-        return $wpdb->get_results(
-            "SELECT * FROM {$wpdb->prefix}tmpmp_domains WHERE is_active = 1 ORDER BY category, domain"
-        ) ?: [];
+        return $cache[ $key ];
     }
 
     // User subscription
