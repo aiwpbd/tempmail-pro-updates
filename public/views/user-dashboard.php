@@ -3441,6 +3441,28 @@ jQuery(function($){
         render();
     }
 
+    /* ── live chip count refresh ──────────────────────────────────────── */
+    function updateChipCounts() {
+        var cntAll = allRows.length;
+        var cntActive = 0, cntExpired = 0, cntHasMail = 0;
+        allRows.forEach(function(r) {
+            var status     = (r.getAttribute('data-status') || 'active').trim();
+            var emailCount = parseInt(r.getAttribute('data-email-count') || '0', 10);
+            if (status === 'active')  cntActive++;
+            if (status === 'expired') cntExpired++;
+            if (emailCount > 0)       cntHasMail++;
+        });
+        document.querySelectorAll('.tmpmp-inbox-filter-chip').forEach(function(chip) {
+            var f     = chip.getAttribute('data-filter');
+            var badge = chip.querySelector('.chip-count');
+            if (!badge) return;
+            if (f === 'all')      badge.textContent = cntAll;
+            if (f === 'active')   badge.textContent = cntActive;
+            if (f === 'expired')  badge.textContent = cntExpired;
+            if (f === 'has_mail') badge.textContent = cntHasMail;
+        });
+    }
+
     /* ── main render ─────────────────────────────────────────────────── */
     function render() {
         var total      = filtered.length;
@@ -3474,6 +3496,7 @@ jQuery(function($){
         nextBtn.disabled = (currentPage >= totalPages);
         buildPageNumbers(totalPages);
         updateBulkBar();
+        updateChipCounts();
     }
 
     /* ── build numbered page buttons ─────────────────────────────────── */
