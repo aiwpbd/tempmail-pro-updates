@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 if ( ! defined('ABSPATH') ) exit;
 $user    = wp_get_current_user();
 $sub     = TempMail_Database::get_user_subscription($user->ID);
@@ -1388,7 +1388,7 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
                 <?php foreach ( $my_addresses as $addr ) :
                     $expired = strtotime( $addr->expires_at . ' UTC' ) < time();
                 ?>
-                <tr data-address="<?php echo esc_attr( strtolower( $addr->address ) ); ?>" data-id="<?php echo intval($addr->id); ?>" data-status="<?php echo $expired ? 'expired' : 'active'; ?>" data-has-mail="<?php echo intval($addr->email_count) > 0 ? '1' : '0'; ?>">
+                <tr data-address="<?php echo esc_attr( strtolower( $addr->address ) ); ?>" data-id="<?php echo intval($addr->id); ?>" data-status="<?php echo $expired ? 'expired' : 'active'; ?>" data-email-count="<?php echo intval($addr->email_count); ?>" data-has-mail="<?php echo intval($addr->email_count) > 0 ? '1' : '0'; ?>">
                     <td class="tmpmp-inbox-cb-td">
                         <input type="checkbox" class="tmpmp-inbox-cb tmpmp-inbox-row-cb"
                             data-id="<?php echo intval($addr->id); ?>"
@@ -3381,9 +3381,10 @@ jQuery(function($){
     function applyFilter() {
         var q = searchQuery.trim().toLowerCase();
         filtered = allRows.filter(function(r) {
-            var addr     = (r.getAttribute('data-address') || '').toLowerCase();
-            var status   = r.getAttribute('data-status') || 'active';
-            var hasMail  = r.getAttribute('data-has-mail') === '1';
+            var addr        = (r.getAttribute('data-address') || '').toLowerCase();
+            var status      = (r.getAttribute('data-status') || 'active').trim();
+            var emailCount  = parseInt(r.getAttribute('data-email-count') || '0', 10);
+            var hasMail     = emailCount > 0;
 
             var matchSearch = !q || addr.indexOf(q) !== -1;
             var matchChip   = activeFilter === 'all'      ? true
