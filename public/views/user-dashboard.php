@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 if ( ! defined('ABSPATH') ) exit;
 $user    = wp_get_current_user();
 $sub     = TempMail_Database::get_user_subscription($user->ID);
@@ -1119,6 +1119,65 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
 @keyframes tmpmp-row-fade-out { to { opacity:0; transform:translateX(18px); } }
 #tmpmp-inbox-tbody tr.tmpmp-row-deleting { animation: tmpmp-row-fade-out .25s ease forwards; pointer-events:none; }
 
+/* ── My Inboxes: checkbox column ── */
+.tmpmp-inbox-cb-th { width:36px; text-align:center; padding:0 6px; }
+.tmpmp-inbox-cb-td { text-align:center; padding:0 6px; vertical-align:middle; }
+.tmpmp-inbox-cb    { width:16px; height:16px; cursor:pointer; accent-color:#6366f1; vertical-align:middle; }
+#tmpmp-inbox-tbody tr.is-selected { background:#f0f4ff !important; }
+#tmpmp-inbox-tbody tr.is-selected:hover { background:#e8edff !important; }
+
+/* ── My Inboxes: filter chips ── */
+.tmpmp-inbox-filters {
+    display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-bottom:12px;
+}
+.tmpmp-inbox-filter-label { font-size:12px; font-weight:600; color:#94a3b8; margin-right:2px; }
+.tmpmp-inbox-filter-chip {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:5px 13px; border-radius:20px;
+    border:1.5px solid #e2e8f0; background:#f8fafc;
+    font-size:12px; font-weight:600; color:#475569;
+    font-family:inherit; cursor:pointer;
+    transition:background .14s, border-color .14s, color .14s;
+    white-space:nowrap; line-height:1.3;
+}
+.tmpmp-inbox-filter-chip:hover  { border-color:#a5b4fc; background:#eef2ff; color:#4f46e5; }
+.tmpmp-inbox-filter-chip.is-active { background:#6366f1; border-color:#6366f1; color:#fff; }
+.tmpmp-inbox-filter-chip .chip-count {
+    display:inline-flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.28); border-radius:10px;
+    padding:0 5px; font-size:11px; min-width:18px; height:16px;
+}
+.tmpmp-inbox-filter-chip.is-active .chip-count { background:rgba(255,255,255,.3); }
+
+/* ── My Inboxes: bulk action bar ── */
+.tmpmp-inbox-bulk-bar {
+    display:none; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:10px 14px; border-radius:10px;
+    background:#f0f4ff; border:1.5px solid #c7d2fe;
+    margin-bottom:12px; font-size:13px; color:#4338ca;
+    animation:tmpmp-bar-in .18s ease;
+}
+@keyframes tmpmp-bar-in { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:none} }
+.tmpmp-inbox-bulk-bar.is-visible { display:flex; }
+.tmpmp-inbox-bulk-count { font-weight:700; margin-right:auto; }
+.tmpmp-inbox-bulk-del {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:6px 14px; border-radius:8px;
+    border:1.5px solid #fca5a5; background:#fee2e2;
+    color:#dc2626; font-size:12px; font-weight:700;
+    font-family:inherit; cursor:pointer;
+    transition:background .15s, border-color .15s;
+}
+.tmpmp-inbox-bulk-del:hover  { background:#fecaca; border-color:#f87171; }
+.tmpmp-inbox-bulk-cancel {
+    display:inline-flex; align-items:center; gap:5px;
+    padding:6px 12px; border-radius:8px;
+    border:1.5px solid #e2e8f0; background:#fff;
+    color:#64748b; font-size:12px; font-weight:600;
+    font-family:inherit; cursor:pointer; transition:background .15s;
+}
+.tmpmp-inbox-bulk-cancel:hover { background:#f1f5f9; }
+
 /* Pagination row */
 .tmpmp-inbox-pagination {
     display: flex;
@@ -1265,7 +1324,7 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
             <div class="tmpmp-inbox-search-wrap">
                 <svg class="tmpmp-inbox-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                 <input type="text" id="tmpmp-inbox-search" class="tmpmp-inbox-search-input"
-                       placeholder="<?php esc_attr_e('Search temporary email address&hellip;','tempmail-pro'); ?>"
+                       placeholder="<?php esc_attr_e('Search by address, domain…','tempmail-pro'); ?>"
                        autocomplete="off" spellcheck="false">
                 <button type="button" id="tmpmp-inbox-search-clear" class="tmpmp-inbox-search-clear" aria-label="<?php esc_attr_e('Clear search','tempmail-pro'); ?>">&#10005;</button>
             </div>
@@ -1274,11 +1333,49 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
             </div>
         </div>
 
+        <!-- Filter chips -->
+        <?php
+        $cnt_all     = count($my_addresses);
+        $cnt_active  = count(array_filter($my_addresses, function($a){ return strtotime($a->expires_at.' UTC') >= time(); }));
+        $cnt_expired = $cnt_all - $cnt_active;
+        $cnt_has_mail= count(array_filter($my_addresses, function($a){ return intval($a->email_count) > 0; }));
+        ?>
+        <div class="tmpmp-inbox-filters" id="tmpmp-inbox-filters">
+            <span class="tmpmp-inbox-filter-label"><?php esc_html_e('Filter:','tempmail-pro'); ?></span>
+            <button type="button" class="tmpmp-inbox-filter-chip is-active" data-filter="all">
+                <?php esc_html_e('All','tempmail-pro'); ?> <span class="chip-count"><?php echo $cnt_all; ?></span>
+            </button>
+            <button type="button" class="tmpmp-inbox-filter-chip" data-filter="active">
+                &#9989; <?php esc_html_e('Active','tempmail-pro'); ?> <span class="chip-count"><?php echo $cnt_active; ?></span>
+            </button>
+            <button type="button" class="tmpmp-inbox-filter-chip" data-filter="expired">
+                &#128683; <?php esc_html_e('Expired','tempmail-pro'); ?> <span class="chip-count"><?php echo $cnt_expired; ?></span>
+            </button>
+            <button type="button" class="tmpmp-inbox-filter-chip" data-filter="has_mail">
+                &#128231; <?php esc_html_e('Has Emails','tempmail-pro'); ?> <span class="chip-count"><?php echo $cnt_has_mail; ?></span>
+            </button>
+        </div>
+
+        <!-- Bulk action bar (shown when rows are selected) -->
+        <div class="tmpmp-inbox-bulk-bar" id="tmpmp-inbox-bulk-bar">
+            <span class="tmpmp-inbox-bulk-count" id="tmpmp-inbox-bulk-count">0 <?php esc_html_e('selected','tempmail-pro'); ?></span>
+            <button type="button" class="tmpmp-inbox-bulk-del" id="tmpmp-inbox-bulk-del">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                <?php esc_html_e('Delete Selected','tempmail-pro'); ?>
+            </button>
+            <button type="button" class="tmpmp-inbox-bulk-cancel" id="tmpmp-inbox-bulk-cancel">
+                <?php esc_html_e('Cancel','tempmail-pro'); ?>
+            </button>
+        </div>
+
         <!-- Table -->
         <div class="tmpmp-pub-table-wrap" id="tmpmp-inbox-table-wrap">
             <table class="tmpmp-pub-table">
                 <thead>
                     <tr>
+                        <th class="tmpmp-inbox-cb-th">
+                            <input type="checkbox" class="tmpmp-inbox-cb" id="tmpmp-inbox-cb-all" title="<?php esc_attr_e('Select all on this page','tempmail-pro'); ?>">
+                        </th>
                         <th><?php esc_html_e('Address','tempmail-pro'); ?></th>
                         <th><?php esc_html_e('Emails','tempmail-pro'); ?></th>
                         <th><?php esc_html_e('Plan','tempmail-pro'); ?></th>
@@ -1291,7 +1388,13 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
                 <?php foreach ( $my_addresses as $addr ) :
                     $expired = strtotime( $addr->expires_at . ' UTC' ) < time();
                 ?>
-                <tr data-address="<?php echo esc_attr( strtolower( $addr->address ) ); ?>" data-id="<?php echo intval($addr->id); ?>">
+                <tr data-address="<?php echo esc_attr( strtolower( $addr->address ) ); ?>" data-id="<?php echo intval($addr->id); ?>" data-status="<?php echo $expired ? 'expired' : 'active'; ?>" data-has-mail="<?php echo intval($addr->email_count) > 0 ? '1' : '0'; ?>">
+                    <td class="tmpmp-inbox-cb-td">
+                        <input type="checkbox" class="tmpmp-inbox-cb tmpmp-inbox-row-cb"
+                            data-id="<?php echo intval($addr->id); ?>"
+                            data-addr="<?php echo esc_attr($addr->address); ?>"
+                            aria-label="<?php esc_attr_e('Select inbox','tempmail-pro'); ?>">
+                    </td>
                     <td data-label="<?php esc_attr_e('Address','tempmail-pro'); ?>" style="font-family:monospace;font-weight:600;color:#6366f1;word-break:break-all;"><?php echo esc_html($addr->address); ?></td>
                     <td data-label="<?php esc_attr_e('Emails','tempmail-pro'); ?>"><?php echo intval($addr->email_count); ?></td>
                     <td data-label="<?php esc_attr_e('Plan','tempmail-pro'); ?>"><span class="tmpmp-pub-badge <?php echo $sub ? 'tmpmp-pub-badge--green' : 'tmpmp-pub-badge--indigo'; ?>"><?php echo esc_html(ucfirst($current_plan_slug)); ?></span></td>
@@ -3209,10 +3312,10 @@ jQuery(function($){
 
 })();
 
-// ── My Inboxes: client-side search + pagination ─────────────────────
+// ── My Inboxes: search + filter chips + multi-select + bulk delete ───────────
 (function () {
-    var tbody = document.getElementById('tmpmp-inbox-tbody');
-    if (!tbody) return; // no addresses — empty state shown
+    var tbody      = document.getElementById('tmpmp-inbox-tbody');
+    if (!tbody) return;
 
     var searchInput  = document.getElementById('tmpmp-inbox-search');
     var clearBtn     = document.getElementById('tmpmp-inbox-search-clear');
@@ -3223,25 +3326,79 @@ jQuery(function($){
     var noResultsEl  = document.getElementById('tmpmp-inbox-no-results');
     var tableWrapEl  = document.getElementById('tmpmp-inbox-table-wrap');
     var paginationEl = document.getElementById('tmpmp-inbox-pagination');
+    var bulkBar      = document.getElementById('tmpmp-inbox-bulk-bar');
+    var bulkCount    = document.getElementById('tmpmp-inbox-bulk-count');
+    var bulkDel      = document.getElementById('tmpmp-inbox-bulk-del');
+    var bulkCancel   = document.getElementById('tmpmp-inbox-bulk-cancel');
+    var cbAll        = document.getElementById('tmpmp-inbox-cb-all');
+    var filterChips  = document.querySelectorAll('.tmpmp-inbox-filter-chip');
 
     var PER_PAGE    = 10;
     var currentPage = 1;
-    var allRows     = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
-    var filtered    = allRows.slice();
+    var activeFilter = 'all';          // 'all' | 'active' | 'expired' | 'has_mail'
+    var searchQuery  = '';
+    var allRows      = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var filtered     = allRows.slice();
 
-    /* ── filter by query ── */
-    function applyFilter(q) {
-        q = q.trim().toLowerCase();
-        filtered = q
-            ? allRows.filter(function (r) {
-                  return (r.getAttribute('data-address') || '').indexOf(q) !== -1;
-              })
-            : allRows.slice();
+    var AJAX_URL = '<?php echo esc_js( admin_url('admin-ajax.php') ); ?>';
+    var NONCE    = '<?php echo esc_js( wp_create_nonce('tmpmp_nonce') ); ?>';
+
+    /* ── helpers ─────────────────────────────────────────────────────── */
+    function getSelected() {
+        return Array.prototype.slice.call(
+            tbody.querySelectorAll('.tmpmp-inbox-row-cb:checked')
+        );
+    }
+
+    function updateBulkBar() {
+        var sel = getSelected();
+        if (sel.length > 0) {
+            bulkBar.classList.add('is-visible');
+            bulkCount.textContent = sel.length + ' <?php echo esc_js(__('selected','tempmail-pro')); ?>';
+        } else {
+            bulkBar.classList.remove('is-visible');
+        }
+        // Sync select-all checkbox state
+        var visibleCbs = Array.prototype.slice.call(
+            tbody.querySelectorAll('.tmpmp-inbox-row-cb')
+        ).filter(function(cb){ return cb.closest('tr').style.display !== 'none'; });
+        var checkedVisible = visibleCbs.filter(function(cb){ return cb.checked; });
+        cbAll.checked       = visibleCbs.length > 0 && checkedVisible.length === visibleCbs.length;
+        cbAll.indeterminate = checkedVisible.length > 0 && checkedVisible.length < visibleCbs.length;
+    }
+
+    function clearSelection() {
+        tbody.querySelectorAll('.tmpmp-inbox-row-cb').forEach(function(cb){
+            cb.checked = false;
+            cb.closest('tr').classList.remove('is-selected');
+        });
+        cbAll.checked = false;
+        cbAll.indeterminate = false;
+        bulkBar.classList.remove('is-visible');
+    }
+
+    /* ── combined filter (search + chip) ─────────────────────────────── */
+    function applyFilter() {
+        var q = searchQuery.trim().toLowerCase();
+        filtered = allRows.filter(function(r) {
+            var addr     = (r.getAttribute('data-address') || '').toLowerCase();
+            var status   = r.getAttribute('data-status') || 'active';
+            var hasMail  = r.getAttribute('data-has-mail') === '1';
+
+            var matchSearch = !q || addr.indexOf(q) !== -1;
+            var matchChip   = activeFilter === 'all'      ? true
+                            : activeFilter === 'active'   ? status === 'active'
+                            : activeFilter === 'expired'  ? status === 'expired'
+                            : activeFilter === 'has_mail' ? hasMail
+                            : true;
+            return matchSearch && matchChip;
+        });
         currentPage = 1;
+        clearSelection();
         render();
     }
 
-    /* ── main render ── */
+    /* ── main render ─────────────────────────────────────────────────── */
     function render() {
         var total      = filtered.length;
         var totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
@@ -3250,13 +3407,11 @@ jQuery(function($){
         var start = (currentPage - 1) * PER_PAGE;
         var end   = start + PER_PAGE;
 
-        /* show/hide rows */
-        allRows.forEach(function (r) { r.style.display = 'none'; });
-        filtered.forEach(function (r, i) {
+        allRows.forEach(function(r){ r.style.display = 'none'; });
+        filtered.forEach(function(r, i){
             r.style.display = (i >= start && i < end) ? '' : 'none';
         });
 
-        /* empty-search state */
         if (total === 0) {
             tableWrapEl.style.display  = 'none';
             noResultsEl.style.display  = '';
@@ -3267,46 +3422,39 @@ jQuery(function($){
             paginationEl.style.display = totalPages > 1 ? 'flex' : 'none';
         }
 
-        /* meta text */
-        var pageInfo = totalPages > 1 ? ' \u00b7 Page ' + currentPage + ' of ' + totalPages : '';
-        metaEl.textContent = total + (total === 1 ? ' address' : ' addresses') + pageInfo;
+        var pageInfo = totalPages > 1 ? ' \u00b7 <?php echo esc_js(__('Page','tempmail-pro')); ?> ' + currentPage + ' <?php echo esc_js(__('of','tempmail-pro')); ?> ' + totalPages : '';
+        metaEl.textContent = total + (total === 1 ? ' <?php echo esc_js(__('address','tempmail-pro')); ?>' : ' <?php echo esc_js(__('addresses','tempmail-pro')); ?>') + pageInfo;
 
-        /* prev / next */
         prevBtn.disabled = (currentPage <= 1);
         nextBtn.disabled = (currentPage >= totalPages);
-
-        /* numbered pages */
         buildPageNumbers(totalPages);
+        updateBulkBar();
     }
 
-    /* ── build smart numbered page buttons ── */
+    /* ── build numbered page buttons ─────────────────────────────────── */
     function buildPageNumbers(totalPages) {
         pageNumsEl.innerHTML = '';
         if (totalPages <= 1) return;
-
         var pages = [];
         for (var i = 1; i <= totalPages; i++) {
-            if (i === 1 || i === totalPages ||
-                (i >= currentPage - 1 && i <= currentPage + 1)) {
-                pages.push(i);
-            }
+            if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) pages.push(i);
         }
-
         var prev = null;
-        pages.forEach(function (p) {
+        pages.forEach(function(p) {
             if (prev !== null && p - prev > 1) {
                 var ell = document.createElement('span');
-                ell.className   = 'tmpmp-inbox-page-ellipsis';
+                ell.className = 'tmpmp-inbox-page-ellipsis';
                 ell.textContent = '\u2026';
                 pageNumsEl.appendChild(ell);
             }
             var btn = document.createElement('button');
-            btn.type        = 'button';
-            btn.className   = 'tmpmp-inbox-page-num' + (p === currentPage ? ' is-active' : '');
+            btn.type = 'button';
+            btn.className = 'tmpmp-inbox-page-num' + (p === currentPage ? ' is-active' : '');
             btn.textContent = p;
             btn.setAttribute('data-p', p);
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', function(){
                 currentPage = parseInt(this.getAttribute('data-p'), 10);
+                clearSelection();
                 render();
                 var panel = document.getElementById('dash-tab-inboxes');
                 if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3316,116 +3464,155 @@ jQuery(function($){
         });
     }
 
-    /* ── events ── */
-    searchInput.addEventListener('input', function () {
-        clearBtn.style.display = this.value ? 'flex' : 'none';
-        applyFilter(this.value);
-    });
-    clearBtn.addEventListener('click', function () {
-        searchInput.value      = '';
-        clearBtn.style.display = 'none';
-        searchInput.focus();
-        applyFilter('');
-    });
-    prevBtn.addEventListener('click', function () {
-        if (currentPage > 1) { currentPage--; render(); }
-    });
-    nextBtn.addEventListener('click', function () {
-        var tp = Math.ceil(filtered.length / PER_PAGE);
-        if (currentPage < tp) { currentPage++; render(); }
-    });
-
-    /* ── delete inbox row (optimistic) ── */
-    tbody.addEventListener('click', function (e) {
-        var btn = e.target.closest('.tmpmp-inbox-del-btn');
-        if (!btn) return;
-
-        var id   = btn.getAttribute('data-id');
-        var addr = btn.getAttribute('data-addr');
-        var row  = btn.closest('tr');
-        if (!row || !id) return;
-
-        if (!confirm('<?php esc_html_e('Delete inbox','tempmail-pro'); ?> "' + addr + '"?\n<?php esc_html_e('This will permanently remove the address and all its emails.','tempmail-pro'); ?>')) return;
-
-        // ── 1. Remove instantly (optimistic) ────────────────────────────────
+    /* ── delete a single row (core logic, reused by individual + bulk) ── */
+    function deleteRow(row, id, addr, onDone) {
         row.classList.add('tmpmp-row-deleting');
+        var riFiltered = filtered.indexOf(row);
+        var riAll      = allRows.indexOf(row);
 
-        // Save row index in filtered array for potential restore
-        var rowIndexInFiltered = filtered.indexOf(row);
-        var rowIndexInAll      = allRows.indexOf(row);
-
-        setTimeout(function () {
-            // Remove from DOM and tracking arrays
+        setTimeout(function() {
             if (row.parentNode) row.parentNode.removeChild(row);
-            if (rowIndexInFiltered !== -1) filtered.splice(rowIndexInFiltered, 1);
-            if (rowIndexInAll      !== -1) allRows.splice(rowIndexInAll, 1);
+            if (riFiltered !== -1) filtered.splice(riFiltered, 1);
+            if (riAll      !== -1) allRows.splice(riAll, 1);
 
-            // Update count in meta
-            var remaining = allRows.length;
-            if (metaEl) metaEl.textContent = remaining + ' <?php echo esc_js( _n('address','addresses',99,'tempmail-pro') ); ?>';
-
-            // If current page is now empty, go back one page
-            var totalPages = Math.ceil(filtered.length / PER_PAGE);
-            if (currentPage > totalPages && currentPage > 1) currentPage = totalPages || 1;
-
-            // Show empty state if no addresses left
             if (!allRows.length) {
                 if (tableWrapEl)  tableWrapEl.style.display  = 'none';
                 if (paginationEl) paginationEl.style.display = 'none';
                 var emptyEl = document.createElement('div');
                 emptyEl.className = 'tmpmp-empty-state';
-                emptyEl.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><p><?php esc_html_e('No inboxes yet. Use the TempMail app to generate your first inbox.','tempmail-pro'); ?></p>';
+                emptyEl.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><p><?php echo esc_js(__('No inboxes yet. Use the TempMail app to generate your first inbox.','tempmail-pro')); ?></p>';
                 var panel = document.getElementById('dash-tab-inboxes');
                 if (panel) panel.prepend(emptyEl);
             } else {
+                var totalPages = Math.ceil(filtered.length / PER_PAGE);
+                if (currentPage > totalPages && currentPage > 1) currentPage = totalPages || 1;
                 render();
             }
-        }, 260); // wait for fade-out animation
+            if (onDone) onDone();
+        }, 260);
 
-        // ── 2. Fire AJAX in background ───────────────────────────────────────
-        var nonce = '<?php echo esc_js( wp_create_nonce('tmpmp_nonce') ); ?>';
-        var xhr   = new XMLHttpRequest();
-        xhr.open('POST', '<?php echo esc_js( admin_url('admin-ajax.php') ); ?>', true);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', AJAX_URL, true);
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.timeout = 15000;
-
-        xhr.onload = function () {
+        xhr.onload = function() {
             var r; try { r = JSON.parse(xhr.responseText); } catch(ex) { return; }
             if (r && r.success === false) {
-                // ── Rollback: re-insert row, update arrays ──────────────────
+                // Rollback
                 row.classList.remove('tmpmp-row-deleting');
                 row.style.animation = 'none';
-
-                // Re-insert at original position (or end)
                 var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
-                if (rowIndexInAll >= 0 && rowIndexInAll <= rows.length) {
-                    tbody.insertBefore(row, rows[rowIndexInAll] || null);
-                } else {
-                    tbody.appendChild(row);
-                }
-
-                allRows.splice(rowIndexInAll !== -1 ? rowIndexInAll : allRows.length, 0, row);
-                filtered.splice(rowIndexInFiltered !== -1 ? rowIndexInFiltered : filtered.length, 0, row);
-
+                tbody.insertBefore(row, rows[riAll] || null);
+                allRows.splice(riAll !== -1 ? riAll : allRows.length, 0, row);
+                filtered.splice(riFiltered !== -1 ? riFiltered : filtered.length, 0, row);
                 if (tableWrapEl) tableWrapEl.style.display = '';
-                if (metaEl) metaEl.textContent = allRows.length + ' <?php echo esc_js( _n('address','addresses',99,'tempmail-pro') ); ?>';
-
-                // Show inline error in the button cell
                 var errSpan = document.createElement('span');
                 errSpan.style.cssText = 'color:#dc2626;font-size:11px;margin-left:6px;';
-                errSpan.textContent   = (r.data && r.data.message) ? r.data.message : '<?php esc_html_e('Delete failed.','tempmail-pro'); ?>';
-                btn.insertAdjacentElement('afterend', errSpan);
-                setTimeout(function () { if (errSpan.parentNode) errSpan.parentNode.removeChild(errSpan); }, 4000);
+                errSpan.textContent = (r.data && r.data.message) ? r.data.message : '<?php echo esc_js(__('Delete failed.','tempmail-pro')); ?>';
+                var delBtn = row.querySelector('.tmpmp-inbox-del-btn');
+                if (delBtn) delBtn.insertAdjacentElement('afterend', errSpan);
+                setTimeout(function(){ if (errSpan.parentNode) errSpan.parentNode.removeChild(errSpan); }, 4000);
                 render();
             }
         };
-        xhr.onerror = xhr.ontimeout = function () { /* network error — leave row removed, likely succeeded */ };
-        xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(nonce) + '&address_id=' + encodeURIComponent(id));
+        xhr.onerror = xhr.ontimeout = function(){};
+        xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(NONCE) + '&address_id=' + encodeURIComponent(id));
+    }
+
+    /* ── events: filter chips ─────────────────────────────────────────── */
+    filterChips.forEach(function(chip) {
+        chip.addEventListener('click', function() {
+            filterChips.forEach(function(c){ c.classList.remove('is-active'); });
+            this.classList.add('is-active');
+            activeFilter = this.getAttribute('data-filter') || 'all';
+            applyFilter();
+        });
     });
 
-    /* ── initial render ── */
+    /* ── events: search ─────────────────────────────────────────────── */
+    searchInput.addEventListener('input', function() {
+        clearBtn.style.display = this.value ? 'flex' : 'none';
+        searchQuery = this.value;
+        applyFilter();
+    });
+    clearBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        clearBtn.style.display = 'none';
+        searchQuery = '';
+        searchInput.focus();
+        applyFilter();
+    });
+
+    /* ── events: pagination ─────────────────────────────────────────── */
+    prevBtn.addEventListener('click', function() {
+        if (currentPage > 1) { currentPage--; clearSelection(); render(); }
+    });
+    nextBtn.addEventListener('click', function() {
+        var tp = Math.ceil(filtered.length / PER_PAGE);
+        if (currentPage < tp) { currentPage++; clearSelection(); render(); }
+    });
+
+    /* ── events: select-all checkbox ─────────────────────────────────── */
+    cbAll.addEventListener('change', function() {
+        var visibleCbs = Array.prototype.slice.call(
+            tbody.querySelectorAll('.tmpmp-inbox-row-cb')
+        ).filter(function(cb){ return cb.closest('tr').style.display !== 'none'; });
+        visibleCbs.forEach(function(cb){
+            cb.checked = cbAll.checked;
+            cb.closest('tr').classList.toggle('is-selected', cbAll.checked);
+        });
+        updateBulkBar();
+    });
+
+    /* ── events: individual row checkbox ─────────────────────────────── */
+    tbody.addEventListener('change', function(e) {
+        if (!e.target.classList.contains('tmpmp-inbox-row-cb')) return;
+        e.target.closest('tr').classList.toggle('is-selected', e.target.checked);
+        updateBulkBar();
+    });
+
+    /* ── events: bulk delete ────────────────────────────────────────── */
+    bulkDel.addEventListener('click', function() {
+        var selectedCbs = getSelected();
+        if (!selectedCbs.length) return;
+        var count = selectedCbs.length;
+        if (!confirm('<?php echo esc_js(__('Delete','tempmail-pro')); ?> ' + count + ' <?php echo esc_js(__('selected inbox(es) and all their emails? This cannot be undone.','tempmail-pro')); ?>')) return;
+
+        bulkBar.classList.remove('is-visible');
+        var pending = count;
+
+        selectedCbs.forEach(function(cb) {
+            var row  = cb.closest('tr');
+            var id   = cb.getAttribute('data-id');
+            var addr = cb.getAttribute('data-addr');
+            deleteRow(row, id, addr, function() {
+                pending--;
+                if (pending === 0) updateBulkBar();
+            });
+        });
+        cbAll.checked = false;
+        cbAll.indeterminate = false;
+    });
+
+    /* ── events: cancel bulk selection ──────────────────────────────── */
+    bulkCancel.addEventListener('click', clearSelection);
+
+    /* ── events: individual delete button ───────────────────────────── */
+    tbody.addEventListener('click', function(e) {
+        var btn = e.target.closest('.tmpmp-inbox-del-btn');
+        if (!btn) return;
+        var id   = btn.getAttribute('data-id');
+        var addr = btn.getAttribute('data-addr');
+        var row  = btn.closest('tr');
+        if (!row || !id) return;
+        if (!confirm('<?php echo esc_js(__('Delete inbox','tempmail-pro')); ?> "' + addr + '"?\n<?php echo esc_js(__('This will permanently remove the address and all its emails.','tempmail-pro')); ?>')) return;
+        deleteRow(row, id, addr, null);
+    });
+
+    /* ── initial render ─────────────────────────────────────────────── */
     render();
 }());
 </script>
+
 
 
