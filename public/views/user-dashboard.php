@@ -1084,6 +1084,37 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
     white-space: nowrap;
     flex-shrink: 0;
 }
+/* Per-page selector */
+.tmpmp-inbox-perpage-wrap {
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0; white-space: nowrap;
+}
+.tmpmp-inbox-perpage-label {
+    font-size: 12px; font-weight: 600; color: #94a3b8;
+}
+.tmpmp-inbox-perpage-select {
+    padding: 6px 28px 6px 10px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 9px;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center / 12px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+    min-width: 72px;
+}
+.tmpmp-inbox-perpage-select:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,.1);
+}
+@media (max-width: 580px) {
+    .tmpmp-inbox-perpage-wrap { width: 100%; justify-content: flex-start; }
+}
 /* Mobile: stack toolbar vertically */
 @media (max-width: 580px) {
     .tmpmp-inbox-toolbar { flex-direction: column; align-items: flex-start; gap: 8px; }
@@ -1330,6 +1361,16 @@ if ( isset( $_POST['tmpmp_add_domain_submit'] ) ) {
             </div>
             <div class="tmpmp-inbox-meta" id="tmpmp-inbox-meta">
                 <?php printf( esc_html( _n('%d address','%d addresses', count($my_addresses),'tempmail-pro') ), count($my_addresses) ); ?>
+            </div>
+            <div class="tmpmp-inbox-perpage-wrap">
+                <label class="tmpmp-inbox-perpage-label" for="tmpmp-inbox-perpage"><?php esc_html_e('Show:','tempmail-pro'); ?></label>
+                <select id="tmpmp-inbox-perpage" class="tmpmp-inbox-perpage-select" aria-label="<?php esc_attr_e('Rows per page','tempmail-pro'); ?>">
+                    <option value="10" selected>10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                    <option value="all"><?php esc_html_e('All','tempmail-pro'); ?></option>
+                </select>
             </div>
         </div>
 
@@ -3402,11 +3443,12 @@ jQuery(function($){
     /* ── main render ─────────────────────────────────────────────────── */
     function render() {
         var total      = filtered.length;
-        var totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+        var perPage    = isFinite(PER_PAGE) ? PER_PAGE : total || 1;
+        var totalPages = Math.max(1, Math.ceil(total / perPage));
         if (currentPage > totalPages) currentPage = totalPages;
 
-        var start = (currentPage - 1) * PER_PAGE;
-        var end   = start + PER_PAGE;
+        var start = (currentPage - 1) * perPage;
+        var end   = start + perPage;
 
         allRows.forEach(function(r){ r.style.display = 'none'; });
         filtered.forEach(function(r, i){
@@ -3422,6 +3464,7 @@ jQuery(function($){
             noResultsEl.style.display  = 'none';
             paginationEl.style.display = totalPages > 1 ? 'flex' : 'none';
         }
+
 
         var pageInfo = totalPages > 1 ? ' \u00b7 <?php echo esc_js(__('Page','tempmail-pro')); ?> ' + currentPage + ' <?php echo esc_js(__('of','tempmail-pro')); ?> ' + totalPages : '';
         metaEl.textContent = total + (total === 1 ? ' <?php echo esc_js(__('address','tempmail-pro')); ?>' : ' <?php echo esc_js(__('addresses','tempmail-pro')); ?>') + pageInfo;
@@ -3552,6 +3595,17 @@ jQuery(function($){
         var tp = Math.ceil(filtered.length / PER_PAGE);
         if (currentPage < tp) { currentPage++; clearSelection(); render(); }
     });
+
+    /* ── events: per-page selector ──────────────────────────────────── */
+    if (perPageSel) {
+        perPageSel.addEventListener('change', function() {
+            var val = this.value;
+            PER_PAGE = (val === 'all') ? Infinity : parseInt(val, 10);
+            currentPage = 1;
+            clearSelection();
+            render();
+        });
+    }
 
     /* ── events: select-all checkbox ─────────────────────────────────── */
     cbAll.addEventListener('change', function() {
