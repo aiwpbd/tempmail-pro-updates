@@ -3706,19 +3706,35 @@ jQuery(function($){
                 render();
             }
 
-            // ── 5. Fire all XHRs in parallel (server-side deletes) ────
-            toDelete.forEach(function(item) {
-                var xhr = new XMLHttpRequest();
-                xhr.open('POST', AJAX_URL, true);
-                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                xhr.timeout = 15000;
-                xhr.onload = function() {
-                    var r; try { r = JSON.parse(xhr.responseText); } catch(ex) { return; }
-                    // success:false — row already removed from UI; nothing to rollback in bulk mode
-                };
-                xhr.onerror = xhr.ontimeout = function() { /* silent — see single delete comment */ };
-                xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(NONCE) + '&address_id=' + encodeURIComponent(item.id));
-            });
+            // ── 5. Send server-side deletes in batches of 5 ──────────
+            //    Firing all XHRs at once overwhelms Local's PHP-FPM pool
+            //    and produces 502 Bad Gateway errors in the console.
+            //    Batching keeps concurrent requests within server limits.
+            var BATCH = 5;
+            function sendBatch(offset) {
+                var slice = toDelete.slice(offset, offset + BATCH);
+                if (!slice.length) return;
+                var done = 0;
+                slice.forEach(function(item) {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open('POST', AJAX_URL, true);
+                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                    xhr.timeout = 15000;
+                    xhr.onloadend = function() {
+                        done++;
+                        if (done === slice.length) {
+                            // All in this batch finished — start next batch
+                            sendBatch(offset + BATCH);
+                        }
+                    };
+                    xhr.onerror = xhr.ontimeout = function() {
+                        done++;
+                        if (done === slice.length) sendBatch(offset + BATCH);
+                    };
+                    xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(NONCE) + '&address_id=' + encodeURIComponent(item.id));
+                });
+            }
+            sendBatch(0);
         }, 260);
     });
 
