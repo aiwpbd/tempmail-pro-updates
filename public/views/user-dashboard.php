@@ -3662,19 +3662,64 @@ jQuery(function($){
         if (!confirm('<?php echo esc_js(__('Delete','tempmail-pro')); ?> ' + count + ' <?php echo esc_js(__('selected inbox(es) and all their emails? This cannot be undone.','tempmail-pro')); ?>')) return;
 
         bulkBar.classList.remove('is-visible');
-        var pending = count;
 
+        // ── 1. Collect everything BEFORE any mutation ──────────────────
+        var toDelete = [];
         selectedCbs.forEach(function(cb) {
-            var row  = cb.closest('tr');
-            var id   = cb.getAttribute('data-id');
-            var addr = cb.getAttribute('data-addr');
-            deleteRow(row, id, addr, function() {
-                pending--;
-                if (pending === 0) updateBulkBar();
-            });
+            var row = cb.closest('tr');
+            var id  = cb.getAttribute('data-id');
+            if (row && id) toDelete.push({ row: row, id: id });
         });
-        cbAll.checked = false;
-        cbAll.indeterminate = false;
+        if (!toDelete.length) return;
+
+        // ── 2. Animate all rows out simultaneously ─────────────────────
+        toDelete.forEach(function(item) {
+            item.row.classList.add('tmpmp-row-deleting');
+        });
+
+        setTimeout(function() {
+            // ── 3. Remove from DOM ─────────────────────────────────────
+            toDelete.forEach(function(item) {
+                if (item.row.parentNode) item.row.parentNode.removeChild(item.row);
+            });
+
+            // ── 4. Filter arrays by reference — no index arithmetic ────
+            var deleteSet = toDelete.map(function(item) { return item.row; });
+            allRows  = allRows.filter(function(r)  { return deleteSet.indexOf(r) === -1; });
+            filtered = filtered.filter(function(r) { return deleteSet.indexOf(r) === -1; });
+
+            cbAll.checked       = false;
+            cbAll.indeterminate = false;
+
+            if (!allRows.length) {
+                if (tableWrapEl)  tableWrapEl.style.display  = 'none';
+                if (paginationEl) paginationEl.style.display = 'none';
+                var emptyEl = document.createElement('div');
+                emptyEl.className = 'tmpmp-empty-state';
+                emptyEl.innerHTML = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg><p><?php echo esc_js(__('No inboxes yet. Use the TempMail app to generate your first inbox.','tempmail-pro')); ?></p>';
+                var panel = document.getElementById('dash-tab-inboxes');
+                if (panel) panel.prepend(emptyEl);
+            } else {
+                var perPage    = isFinite(PER_PAGE) ? PER_PAGE : filtered.length || 1;
+                var totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+                if (currentPage > totalPages) currentPage = totalPages;
+                render();
+            }
+
+            // ── 5. Fire all XHRs in parallel (server-side deletes) ────
+            toDelete.forEach(function(item) {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', AJAX_URL, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.timeout = 15000;
+                xhr.onload = function() {
+                    var r; try { r = JSON.parse(xhr.responseText); } catch(ex) { return; }
+                    // success:false — row already removed from UI; nothing to rollback in bulk mode
+                };
+                xhr.onerror = xhr.ontimeout = function() { /* silent — see single delete comment */ };
+                xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(NONCE) + '&address_id=' + encodeURIComponent(item.id));
+            });
+        }, 260);
     });
 
     /* ── events: cancel bulk selection ──────────────────────────────── */
