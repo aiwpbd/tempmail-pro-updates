@@ -3382,8 +3382,8 @@ jQuery(function($){
     var allRows      = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
     var filtered     = allRows.slice();
 
-    var AJAX_URL = '<?php echo esc_js( admin_url('admin-ajax.php') ); ?>';
-    var NONCE    = '<?php echo esc_js( wp_create_nonce('tempmail_pro_nonce') ); ?>';
+    var AJAX_URL = (typeof TempMailPro !== 'undefined' && TempMailPro.ajax_url) ? TempMailPro.ajax_url : '<?php echo esc_js( admin_url("admin-ajax.php") ); ?>';
+    var NONCE    = (typeof TempMailPro !== 'undefined' && TempMailPro.nonce)    ? TempMailPro.nonce    : '<?php echo esc_js( wp_create_nonce("tempmail_pro_nonce") ); ?>';
 
     /* ── helpers ─────────────────────────────────────────────────────── */
     function getSelected() {
@@ -3560,7 +3560,19 @@ jQuery(function($){
                 render();
             }
         };
-        xhr.onerror = xhr.ontimeout = function(){};
+        xhr.onerror = xhr.ontimeout = function(){
+            // Network error / timeout — rollback the optimistic delete
+            row.classList.remove('tmpmp-row-deleting');
+            row.style.animation = 'none';
+            if (!row.parentNode) {
+                tbody.insertBefore(row, tbody.querySelectorAll('tr')[riAll] || null);
+                allRows.splice(riAll !== -1 ? riAll : allRows.length, 0, row);
+                filtered.splice(riFiltered !== -1 ? riFiltered : filtered.length, 0, row);
+                if (tableWrapEl) tableWrapEl.style.display = '';
+                render();
+            }
+            alert('<?php echo esc_js(__('Network error — inbox was not deleted. Please try again.','tempmail-pro')); ?>');
+        };
         xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(NONCE) + '&address_id=' + encodeURIComponent(id));
     }
 
