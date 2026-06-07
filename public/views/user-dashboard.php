@@ -3707,9 +3707,10 @@ jQuery(function($){
             }
 
             // ── 5. Send server-side deletes in batches of 5 ──────────
-            //    Firing all XHRs at once overwhelms Local's PHP-FPM pool
-            //    and produces 502 Bad Gateway errors in the console.
-            //    Batching keeps concurrent requests within server limits.
+            //    onloadend fires after success, error, AND timeout — use
+            //    it exclusively so done increments exactly once per XHR.
+            //    Using onerror+onloadend caused double-increments that
+            //    skipped the done===slice.length check, stopping the queue.
             var BATCH = 5;
             function sendBatch(offset) {
                 var slice = toDelete.slice(offset, offset + BATCH);
@@ -3720,14 +3721,7 @@ jQuery(function($){
                     xhr.open('POST', AJAX_URL, true);
                     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
                     xhr.timeout = 15000;
-                    xhr.onloadend = function() {
-                        done++;
-                        if (done === slice.length) {
-                            // All in this batch finished — start next batch
-                            sendBatch(offset + BATCH);
-                        }
-                    };
-                    xhr.onerror = xhr.ontimeout = function() {
+                    xhr.onloadend = function() {   // fires for success, error AND timeout
                         done++;
                         if (done === slice.length) sendBatch(offset + BATCH);
                     };
