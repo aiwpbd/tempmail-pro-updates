@@ -45,6 +45,7 @@ class TempMail_AJAX {
             'tmpmp_export_inbox',
             'tmpmp_mark_email_read',
             'tmpmp_delete_inbox_address',   // My Inboxes delete — all logged-in users
+            'tmpmp_bulk_delete_inbox_addresses', // Bulk delete — single call, all IDs
         ];
         foreach ( $auth_actions as $action ) {
             add_action( "wp_ajax_{$action}", [ $this, str_replace('tmpmp_', 'handle_', $action) ] );
@@ -277,7 +278,30 @@ class TempMail_AJAX {
         $ok ? wp_send_json_success() : wp_send_json_error( ['message' => __('Could not delete inbox. It may have already been removed.','tempmail-pro')] );
     }
 
-    // ── MARK a single email as read ───────────────────────────────────────────
+    /**
+     * Bulk-delete multiple inbox addresses in one AJAX call.
+     * Accepts address_ids[] in POST; deletes each in a server-side loop.
+     * Returns { deleted: N, total: N } — no concurrency, no pool exhaustion.
+     */
+    public function handle_bulk_delete_inbox_addresses() : void {
+        $this->nonce();
+        $user_id = get_current_user_id();
+        if ( ! $user_id ) wp_send_json_error( ['message' => __('You must be logged in.','tempmail-pro')], 401 );
+
+        $raw_ids = isset( $_POST['address_ids'] ) ? (array) $_POST['address_ids'] : [];
+        $ids     = array_values( array_filter( array_map( 'intval', $raw_ids ) ) );
+        if ( ! $ids ) wp_send_json_error( ['message' => __('No address IDs provided.','tempmail-pro')], 400 );
+
+        $deleted = 0;
+        foreach ( $ids as $id ) {
+            if ( TempMail_Database::delete_history_address( $id, $user_id ) ) {
+                $deleted++;
+            }
+        }
+
+        wp_send_json_success( [ 'deleted' => $deleted, 'total' => count( $ids ) ] );
+    }
+
     public function handle_mark_email_read() : void {
         global $wpdb;
         $this->nonce();

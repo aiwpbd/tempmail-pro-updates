@@ -3803,31 +3803,36 @@ jQuery(function($){
                 render();
             }
 
-            // ── Batch XHR queue — onloadend only (fires for all outcomes)
-            if (delProgress) { delProgress.style.display = 'inline'; bulkBar.classList.add('is-visible'); }
-            var completed = 0;
-            var BATCH = 5;
-            function sendBatch(offset) {
-                var slice = toDelete.slice(offset, offset + BATCH);
-                if (!slice.length) {
-                    if (delProgress) { delProgress.style.display = 'none'; bulkBar.classList.remove('is-visible'); }
-                    return;
-                }
-                var done = 0;
-                slice.forEach(function(item) {
-                    var xhr = new XMLHttpRequest();
-                    xhr.open('POST', AJAX_URL, true);
-                    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-                    xhr.timeout = 15000;
-                    xhr.onloadend = function() {
-                        done++; completed++;
-                        if (delProgress) delProgress.textContent = '<?php echo esc_js(__('Deleting','tempmail-pro')); ?> ' + completed + ' / ' + count + '\u2026';
-                        if (done === slice.length) sendBatch(offset + BATCH);
-                    };
-                    xhr.send('action=tmpmp_delete_inbox_address&nonce=' + encodeURIComponent(NONCE) + '&address_id=' + encodeURIComponent(item.id));
-                });
+            // ── Single bulk XHR — all IDs in one POST, server deletes in loop ──
+            //    Multiple concurrent XHRs exhausted PHP-FPM workers causing
+            //    partial deletes. One call = no concurrency, guaranteed deletes.
+            if (delProgress) {
+                delProgress.style.display = 'inline';
+                delProgress.textContent = '<?php echo esc_js(__('Deleting','tempmail-pro')); ?> ' + count + '…';
+                bulkBar.classList.add('is-visible');
             }
-            sendBatch(0);
+            var ids = toDelete.map(function(item) { return item.id; });
+            var body = 'action=tmpmp_bulk_delete_inbox_addresses&nonce=' + encodeURIComponent(NONCE);
+            ids.forEach(function(id) { body += '&address_ids%5B%5D=' + encodeURIComponent(id); });
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', AJAX_URL, true);
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            xhr.timeout = 60000; // 60s for large bulk deletes
+            xhr.onloadend = function() {
+                if (delProgress) { delProgress.style.display = 'none'; bulkBar.classList.remove('is-visible'); }
+                try {
+                    var r = JSON.parse(xhr.responseText);
+                    if (r && r.success && r.data) {
+                        var n = r.data.deleted;
+                        if (n < count) {
+                            // Some failed — show count (edge case: already deleted, access denied)
+                            console.warn('[TempMail] Bulk delete: ' + n + ' of ' + count + ' deleted on server.');
+                        }
+                    }
+                } catch(ex) { /* silent */ }
+            };
+            xhr.send(body);
         }, 260);
     });
 
