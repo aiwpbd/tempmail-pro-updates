@@ -3383,7 +3383,7 @@ jQuery(function($){
     var filtered     = allRows.slice();
 
     var AJAX_URL = '<?php echo esc_js( admin_url('admin-ajax.php') ); ?>';
-    var NONCE    = '<?php echo esc_js( wp_create_nonce('tmpmp_nonce') ); ?>';
+    var NONCE    = '<?php echo esc_js( wp_create_nonce('tempmail_pro_nonce') ); ?>';
 
     /* ── helpers ─────────────────────────────────────────────────────── */
     function getSelected() {
