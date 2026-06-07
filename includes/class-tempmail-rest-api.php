@@ -167,6 +167,33 @@ class TempMail_REST_API {
             $data['body_html'] = $data['body_html'] ?? $data['body-html'] ?? '';
         }
 
+        // ── Fix custom domain delivery ─────────────────────────────────────────
+        // When ImprovMX (or similar forwarder) delivers via webhook, the original
+        // recipient (e.g. user@yourdomain.com) is often in a delivery header, not 'to'.
+        // Check these headers in priority order and use the first one that matches
+        // an active inbox in our DB.
+        $delivery_candidates = array_filter( array_map( 'strtolower', array_map( 'trim', [
+            $data['x-improvmx-delivered-to'] ?? $data['X-ImprovMX-Delivered-To'] ?? '',
+            $data['x-original-to']           ?? $data['X-Original-To']           ?? '',
+            $data['x-forwarded-to']          ?? $data['X-Forwarded-To']          ?? '',
+            $data['envelope-to']             ?? $data['Envelope-To']             ?? '',
+            $data['delivered-to']            ?? $data['Delivered-To']            ?? '',
+            $data['recipient']               ?? '',
+            $data['to']                      ?? '',
+        ] ) ) );
+
+        foreach ( $delivery_candidates as $candidate ) {
+            // Strip angle brackets and display names: "Name <addr>" → "addr"
+            if ( preg_match('/<([^>]+)>/', $candidate, $m) ) { $candidate = $m[1]; }
+            $candidate = sanitize_email( trim( $candidate ) );
+            if ( ! $candidate ) continue;
+            // Check if this address has an active inbox
+            if ( TempMail_Database::get_active_address( $candidate ) ) {
+                $data['to'] = $candidate;
+                break;
+            }
+        }
+
         $result = TempMail_Inbox::receive_email( $data );
         if ( is_wp_error($result) ) {
             update_option('tmpmp_last_webhook_error', ['time'=>gmdate('c'),'msg'=>$result->get_error_message(),'data'=>$data]);
@@ -175,6 +202,7 @@ class TempMail_REST_API {
         update_option('tmpmp_last_webhook_hit', gmdate('c'));
         return new WP_REST_Response(['received'=>true], 200);
     }
+
 
     public function server_cron( WP_REST_Request $req ) : WP_REST_Response {
         $poll   = TempMail_IMAP::poll();

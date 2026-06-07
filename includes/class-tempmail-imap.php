@@ -642,12 +642,12 @@ class TempMail_IMAP {
 
     private static function get_active_addresses() : array {
         global $wpdb;
-        // Include addresses that expired within the last 3 days (matching the poll window).
-        // Temp addresses expire quickly (1-2 hrs) but the IMAP poll window is 3 days.
-        // Without this, emails that arrived after the address expired are silently dropped.
+        // Always include ALL permanent inboxes (is_permanent=1) regardless of expires_at.
+        // Also include temp addresses that expired within the last 3 days (matching poll window).
         $rows = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}tmpmp_addresses
-             WHERE expires_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)"
+             WHERE is_permanent = 1
+                OR expires_at > DATE_SUB(UTC_TIMESTAMP(), INTERVAL 3 DAY)"
         );
         $map = [];
         foreach ( $rows as $row ) {
